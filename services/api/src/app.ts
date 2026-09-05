@@ -106,7 +106,17 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   });
 
   // ---- routes --------------------------------------------------------------
-  app.get('/healthz', async () => ({ ok: true, driver: ctx.config.SESSION_DRIVER }));
+  /**
+   * Liveness plus the two settings most often wrong after a deploy. Both are
+   * operational facts, not secrets, and having them here means an operator can
+   * confirm what a running server actually believes rather than what the env
+   * file says.
+   */
+  app.get('/healthz', async () => ({
+    ok: true,
+    driver: ctx.config.SESSION_DRIVER,
+    appsOrigin: ctx.config.APPS_ORIGIN,
+  }));
 
   await app.register(async (instance) => registerParentRoutes(instance, ctx), { prefix: '/v1' });
   await app.register(async (instance) => registerKidRoutes(instance, ctx), { prefix: '/v1' });

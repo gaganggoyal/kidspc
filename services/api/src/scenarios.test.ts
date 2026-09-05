@@ -661,3 +661,43 @@ describe('Scenario: a household in another timezone', () => {
     expect(usage.json().history.at(-1)).toEqual({ dayKey: '2026-03-14', minutes: 30 });
   });
 });
+
+describe('Scenario: the same build serving a different environment', () => {
+  it('hands desktops the origin this deployment is configured with', async () => {
+    // A staging deployment must not tell its desktops to load production URLs,
+    // and the allow-list must agree with whatever they were told -- otherwise
+    // every self-hosted app silently fails to load.
+    harness = await createHarness(ist('2026-03-14T10:00:00'), {
+      APPS_ORIGIN: 'https://apps.staging.kidspc.online',
+    } as NodeJS.ProcessEnv);
+    const h = harness;
+
+    const { kid } = await onboard(
+      h,
+      'staging@example.com',
+      { displayName: 'Ravi', birthYear: 2015, birthMonth: 9, pin: '2222' },
+      { dailyMinutes: 45, allowedAppIds: ['scratch', 'research'] },
+    );
+
+    const started = await h.app.inject({
+      method: 'POST',
+      url: '/v1/sessions',
+      headers: asParent(kid),
+      payload: {},
+    });
+    const session = await h.runtime.ctx.repos.sessions.byId(started.json().id);
+
+    const policy = await h.app.inject({
+      method: 'POST',
+      url: '/internal/egress/policy',
+      payload: { sessionId: session!.id, secret: session!.endpointSecret },
+    });
+    expect(policy.json().origins).toContain('https://apps.staging.kidspc.online');
+    expect(policy.json().origins).not.toContain('https://apps.kidspc.online');
+    // Third-party origins are absolute and unaffected by the environment.
+    expect(policy.json().origins).toContain('https://kids.britannica.com');
+
+    const health = await h.app.inject({ method: 'GET', url: '/healthz' });
+    expect(health.json().appsOrigin).toBe('https://apps.staging.kidspc.online');
+  });
+});

@@ -335,7 +335,7 @@ describe('SessionManager', () => {
   it('scopes the desktop egress list to the granted apps only', async () => {
     await manager.start(context({ policy: policy({ allowedAppIds: ['tuxpaint', 'scratch'] }) }));
     // Neither app reaches outside our own hosts, so nothing external is opened.
-    expect(driver.provisioned[0]!.allowedOrigins).toEqual(['https://apps.kidpc.internal']);
+    expect(driver.provisioned[0]!.allowedOrigins).toEqual(['https://apps.kidspc.online']);
   });
 
   it('opens the research origins only when the research app is granted', async () => {

@@ -10,6 +10,7 @@ import {
   memoryBudgetMib,
   minutesSinceLocalMidnight,
   originsForApps,
+  resolveLaunch,
   appsForBand,
   parseClockTime,
   withinWindow,
@@ -96,12 +97,36 @@ describe('catalogue', () => {
 
   it('derives the network allow-list from the granted apps only', () => {
     const origins = originsForApps(appsForBand('builder'));
-    expect(origins).toContain('https://apps.kidpc.internal');
+    expect(origins).toContain('https://apps.kidspc.online');
     expect(origins).toContain('https://kids.britannica.com');
     // The research app is the only source of external origins; without it the
     // session should be able to reach nothing outside our own hosts.
     const withoutResearch = originsForApps(appsForBand('builder').filter((a) => a.id !== 'research'));
-    expect(withoutResearch).toEqual(['https://apps.kidpc.internal']);
+    expect(withoutResearch).toEqual(['https://apps.kidspc.online']);
+  });
+
+  it('serves self-hosted apps from whichever origin the environment sets', () => {
+    // The same build has to work in development, staging and production. If an
+    // origin were baked into the catalogue, a staging desktop would be handed
+    // production URLs and an allow-list that does not match what it can reach.
+    const staging = originsForApps(appsForBand('builder'), 'https://apps.staging.kidspc.online');
+    expect(staging).toContain('https://apps.staging.kidspc.online');
+    expect(staging).not.toContain('https://apps.kidspc.online');
+    // Third-party origins are absolute and must survive the substitution.
+    expect(staging).toContain('https://kids.britannica.com');
+  });
+
+  it('resolves a self-hosted launch to a full URL against the configured origin', () => {
+    const scratch = appsForBand('builder').find((a) => a.id === 'scratch')!;
+    expect(resolveLaunch(scratch.launch, 'http://localhost:8081')).toEqual({
+      kind: 'web',
+      url: 'http://localhost:8081/scratch/',
+    });
+    const paint = appsForBand('explorer').find((a) => a.id === 'tuxpaint')!;
+    expect(resolveLaunch(paint.launch, 'http://localhost:8081')).toEqual({
+      kind: 'native',
+      exec: 'tuxpaint',
+    });
   });
 
   it('sizes memory for concurrent use, not for the whole catalogue', () => {

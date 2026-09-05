@@ -50,7 +50,13 @@ export async function createRuntime(
 
   const driver = await createDriver(config, log);
   const now = options.now ?? (() => new Date());
-  const manager = new SessionManager({ driver, store: repos.sessions, now, log });
+  const manager = new SessionManager({
+    driver,
+    store: repos.sessions,
+    now,
+    log,
+    appsOrigin: config.APPS_ORIGIN,
+  });
 
   const ctx: AppContext = { config, database, repos, manager, consent: createConsentVerifier(config), now };
 

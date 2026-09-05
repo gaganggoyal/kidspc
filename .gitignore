@@ -3,7 +3,11 @@ dist/
 build/
 .env
 .env.*
+# Templates must be committed; real env files never. The negations are listed
+# explicitly rather than globbed, so a new .env.<something> stays ignored by
+# default and has to be opted in deliberately.
 !.env.example
+!.env.production.example
 *.log
 .DS_Store
 .pgdata/

@@ -149,7 +149,7 @@ export function createConsentVerifier(config: Config): ConsentVerifier {
       return new DigiLockerConsentVerifier(
         config.DIGILOCKER_CLIENT_ID ?? '',
         config.DIGILOCKER_CLIENT_SECRET ?? '',
-        `${config.WEB_ORIGIN}/consent/callback`,
+        `${config.PUBLIC_URL}/consent/callback`,
       );
     case 'mock':
       return new MockConsentVerifier();

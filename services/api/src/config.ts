@@ -25,7 +25,16 @@ const schema = z.object({
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().default(60),
 
   /** Where the browser/TV client is served from, for CORS. */
-  WEB_ORIGIN: z.string().default('http://localhost:5173'),
+  WEB_ORIGIN: z.string().url().default('http://localhost:5173'),
+  /**
+   * Where self-hosted app bundles (Scratch, Blockly, the research shell) are
+   * served from. Desktops reach it through the egress proxy, and it is the
+   * origin the allow-list is built from -- so it must match what the desktop
+   * can actually resolve, or every web app silently fails to load.
+   */
+  APPS_ORIGIN: z.string().url().default('https://apps.kidspc.online'),
+  /** Public base URL of the service, used to build absolute links. */
+  PUBLIC_URL: z.string().url().default('http://localhost:5173'),
 
   SESSION_DRIVER: z.enum(['loopback', 'docker']).default('loopback'),
   DESKTOP_IMAGE: z.string().default('kidpc/desktop:dev'),
@@ -85,6 +94,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
     if (cfg.CONSENT_VERIFIER === 'digilocker' && !cfg.DIGILOCKER_CLIENT_ID) {
       problems.push('DIGILOCKER_CLIENT_ID is required when CONSENT_VERIFIER=digilocker');
+    }
+    // Cookies are marked Secure in production, so a plaintext origin would
+    // silently break every sign-in rather than failing visibly.
+    for (const [name, value] of [
+      ['WEB_ORIGIN', cfg.WEB_ORIGIN],
+      ['PUBLIC_URL', cfg.PUBLIC_URL],
+      ['APPS_ORIGIN', cfg.APPS_ORIGIN],
+    ] as const) {
+      if (!value.startsWith('https://')) {
+        problems.push(`${name} must be https in production (got ${value})`);
+      }
     }
   }
   if (problems.length > 0) {

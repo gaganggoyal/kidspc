@@ -8,10 +8,12 @@ import {
   ID_PREFIX,
   errors,
   localDayKey,
+  DEFAULT_APPS_ORIGIN,
   memoryBudgetMib,
   minutesSinceLocalMidnight,
   newId,
   originsForApps,
+  resolveLaunch,
 } from '@kidpc/shared';
 import { evaluateAppLaunch, evaluateSessionStart, visibleApps } from '@kidpc/policy';
 import { type DesktopHandle, type SessionDriver, sizeForBand } from './driver.js';
@@ -64,6 +66,11 @@ export interface ManagerOptions {
   readyTimeoutMs?: number;
   /** Volume naming; one persistent home per child. */
   homeVolumeFor?: (childId: string) => string;
+  /**
+   * Where self-hosted app bundles live. Threaded through rather than imported
+   * so one build can serve development, staging and production.
+   */
+  appsOrigin?: string;
   log?: (event: string, fields: Record<string, unknown>) => void;
 }
 
@@ -75,6 +82,7 @@ export class SessionManager {
   private readonly now: () => Date;
   private readonly readyTimeoutMs: number;
   private readonly homeVolumeFor: (childId: string) => string;
+  private readonly appsOrigin: string;
   private readonly log: (event: string, fields: Record<string, unknown>) => void;
 
   /** Guards against a double-tap on the remote producing two containers. */
@@ -86,6 +94,7 @@ export class SessionManager {
     this.now = options.now ?? (() => new Date());
     this.readyTimeoutMs = options.readyTimeoutMs ?? 45_000;
     this.homeVolumeFor = options.homeVolumeFor ?? ((childId) => `kidpc-home-${childId}`);
+    this.appsOrigin = options.appsOrigin ?? DEFAULT_APPS_ORIGIN;
     this.log = options.log ?? (() => {});
   }
 
@@ -184,10 +193,12 @@ export class SessionManager {
         band,
         cpuCentis: size.cpuCentis,
         memoryMib: size.memoryMib,
-        allowedOrigins: originsForApps(grantedApps),
-        autoLaunch: autoLaunchAppId
-          ? (grantedApps.find((a) => a.id === autoLaunchAppId)?.launch ?? null)
-          : null,
+        allowedOrigins: originsForApps(grantedApps, this.appsOrigin),
+        autoLaunch: (() => {
+          if (!autoLaunchAppId) return null;
+          const launch = grantedApps.find((a) => a.id === autoLaunchAppId)?.launch;
+          return launch ? resolveLaunch(launch, this.appsOrigin) : null;
+        })(),
         homeVolume: this.homeVolumeFor(ctx.childId),
         deadline: decision.deadline,
       });

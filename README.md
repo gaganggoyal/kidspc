@@ -201,13 +201,21 @@ Development caveats:
 - Vite binds `localhost`, which may resolve to IPv6 first; use
   `http://localhost:5173`, not `127.0.0.1`.
 
-## Deployment sketch
+## Deploying
+
+Full runbook in [docs/deploy.md](docs/deploy.md), including the DNS records for
+kidspc.online and an honest list of what still blocks launch.
 
 ```bash
-cp .env.example .env       # fill in JWT_SECRET, CONSENT_PEPPER, POSTGRES_PASSWORD
-docker compose -f infra/docker-compose.yml build desktop
-docker compose -f infra/docker-compose.yml up -d
+cp .env.production.example .env.production   # fill in
+pnpm preflight .env.production               # gates the deploy, exits non-zero
+docker compose -f infra/docker-compose.yml --env-file .env.production up -d
 ```
 
+`pnpm preflight` checks the things that are easy to believe are done: that
+secrets are not the examples from this repo, that DNS points at a routable host
+rather than a registrar parking record, and that the consent verifier can
+actually reject a bad proof.
+
 The network shape is the security story; `infra/docker-compose.yml` opens with
-it.
+it. Caddy terminates TLS and obtains certificates automatically.

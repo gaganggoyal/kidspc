@@ -101,9 +101,13 @@ async function childToken(token: string, childId: string, pin = '4321') {
 }
 
 describe('health', () => {
-  it('reports which driver is in use', async () => {
+  it('reports the settings most often wrong after a deploy', async () => {
     const res = await app.inject({ method: 'GET', url: '/healthz' });
-    expect(res.json()).toEqual({ ok: true, driver: 'loopback' });
+    expect(res.json()).toEqual({
+      ok: true,
+      driver: 'loopback',
+      appsOrigin: 'https://apps.kidspc.online',
+    });
   });
 });
 
@@ -654,7 +658,7 @@ describe('egress policy (control plane for the proxy)', () => {
     // The answer follows current policy, not a snapshot taken at session start,
     // so revoking an app closes its origins without restarting the desktop.
     expect(res.json().origins).not.toContain('https://kids.britannica.com');
-    expect(res.json().origins).toEqual(['https://apps.kidpc.internal']);
+    expect(res.json().origins).toEqual(['https://apps.kidspc.online']);
   });
 
   it('refuses a wrong secret, an unknown session, and an ended one', async () => {

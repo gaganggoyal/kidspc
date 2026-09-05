@@ -52,7 +52,9 @@ interface Child {
   policy: { dailyMinutes: number; allowedAppIds: string[]; [k: string]: unknown };
 }
 
-const health = await fetch(`${BASE}/healthz`).then((r) => r.json()).catch(() => null);
+const health: { driver: string; appsOrigin: string } | null = await fetch(`${BASE}/healthz`)
+  .then((r) => r.json())
+  .catch(() => null);
 if (!health) {
   console.error(red(`\nNothing is listening on ${BASE}. Start it with:  pnpm dev\n`));
   process.exit(1);
@@ -160,8 +162,12 @@ const ravi = me.body.children.find((c) => c.displayName === 'Ravi')!;
 
 // The same derivation the control plane hands the egress proxy: the origins
 // declared by the apps this child is actually allowed to open, and nothing else.
+// Resolved against the origin the *server* is configured with, not a default,
+// so this matches what the egress proxy would actually be told.
 const granted = visibleApps({ allowedAppIds: ravi.policy.allowedAppIds }, ravi.band as AgeBand);
-for (const origin of originsForApps(granted)) console.log(`   ${green('allow')}  ${origin}`);
+for (const origin of originsForApps(granted, health.appsOrigin)) {
+  console.log(`   ${green('allow')}  ${origin}`);
+}
 for (const blockedHost of ['https://www.youtube.com', 'https://mail.google.com']) {
   console.log(`   ${red('deny ')}  ${blockedHost}`);
 }

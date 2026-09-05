@@ -62,7 +62,7 @@ export async function registerInternalRoutes(app: FastifyInstance, ctx: AppConte
 
     return {
       sessionId: session.id,
-      origins: originsForApps(visibleApps(policy, band)),
+      origins: originsForApps(visibleApps(policy, band), ctx.config.APPS_ORIGIN),
       /** Seconds the proxy may cache this answer. */
       ttlSeconds: 60,
     };

@@ -1,4 +1,4 @@
-import type { AgeBand, LaunchSpec } from '@kidpc/shared';
+import type { AgeBand, ResolvedLaunch } from '@kidpc/shared';
 
 /**
  * What a desktop backend has to be able to do.
@@ -39,8 +39,8 @@ export interface DesktopSpec {
    * apps this child is allowed to launch -- see `originsForApps`.
    */
   allowedOrigins: string[];
-  /** Started automatically once the desktop is up. */
-  autoLaunch: LaunchSpec | null;
+  /** Started automatically once the desktop is up, with its origin resolved. */
+  autoLaunch: ResolvedLaunch | null;
   /** Per-child persistent home. Children keep their projects between sessions. */
   homeVolume: string;
   /** Hard deadline from the policy engine; drivers may use it as a backstop TTL. */

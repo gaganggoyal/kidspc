@@ -11,16 +11,32 @@ import { type AgeBand, bandAtLeast } from './age.js';
  */
 export type LaunchSpec =
   | { kind: 'native'; exec: string; args?: string[] }
-  | {
-      kind: 'web';
-      url: string;
-      /**
-       * True when we serve the app ourselves. Self-hosting is how we get
-       * Scratch and friends without dragging a child into a social network
-       * or an ad/tracking surface, which DPDP Rules 2025 bar outright.
-       */
-      selfHosted: boolean;
-    };
+  /**
+   * An app we serve ourselves, addressed by path only.
+   *
+   * Self-hosting is how Scratch and friends reach a child without dragging
+   * them into a social network or an ad surface, which DPDP Rules 2025 bar
+   * outright. The origin is deliberately absent: it differs between
+   * development, staging and production, and baking one into the domain model
+   * is what stops the same build serving all three.
+   */
+  | { kind: 'web'; path: string; selfHosted: true }
+  /** A third-party origin, declared in full because it is outside our control. */
+  | { kind: 'web'; url: string; selfHosted: false };
+
+/** A launch spec with its origin filled in, ready to hand to a desktop. */
+export type ResolvedLaunch =
+  | { kind: 'native'; exec: string; args?: string[] }
+  | { kind: 'web'; url: string };
+
+/** Where self-hosted app bundles are served from, when nothing else is set. */
+export const DEFAULT_APPS_ORIGIN = 'https://apps.kidspc.online';
+
+export function resolveLaunch(spec: LaunchSpec, appsOrigin: string): ResolvedLaunch {
+  if (spec.kind === 'native') return spec;
+  if (spec.selfHosted) return { kind: 'web', url: new URL(spec.path, appsOrigin).toString() };
+  return { kind: 'web', url: spec.url };
+}
 
 export type AppCategory = 'create' | 'code' | 'type' | 'learn' | 'office' | 'research';
 
@@ -79,7 +95,7 @@ export const CATALOG: readonly CatalogApp[] = [
     tagline: 'Snap blocks together to solve mazes',
     category: 'code',
     minBand: 'explorer',
-    launch: { kind: 'web', url: 'https://apps.kidpc.internal/blockly/', selfHosted: true },
+    launch: { kind: 'web', path: '/blockly/', selfHosted: true },
     memoryHintMib: 260,
   },
 
@@ -90,7 +106,7 @@ export const CATALOG: readonly CatalogApp[] = [
     tagline: 'Build your own games and stories',
     category: 'code',
     minBand: 'builder',
-    launch: { kind: 'web', url: 'https://apps.kidpc.internal/scratch/', selfHosted: true },
+    launch: { kind: 'web', path: '/scratch/', selfHosted: true },
     memoryHintMib: 520,
   },
   {
@@ -108,7 +124,7 @@ export const CATALOG: readonly CatalogApp[] = [
     tagline: 'Search a small, safe corner of the web',
     category: 'research',
     minBand: 'builder',
-    launch: { kind: 'web', url: 'https://apps.kidpc.internal/research/', selfHosted: true },
+    launch: { kind: 'web', path: '/research/', selfHosted: true },
     extraOrigins: [
       'https://kids.britannica.com',
       'https://simple.wikipedia.org',
@@ -123,7 +139,7 @@ export const CATALOG: readonly CatalogApp[] = [
     tagline: 'Watch your blocks turn into real code',
     category: 'code',
     minBand: 'builder',
-    launch: { kind: 'web', url: 'https://apps.kidpc.internal/edublocks/', selfHosted: true },
+    launch: { kind: 'web', path: '/edublocks/', selfHosted: true },
     memoryHintMib: 380,
   },
 
@@ -143,7 +159,7 @@ export const CATALOG: readonly CatalogApp[] = [
     tagline: 'HTML, CSS and JavaScript with live preview',
     category: 'code',
     minBand: 'coder',
-    launch: { kind: 'web', url: 'https://apps.kidpc.internal/sandbox/', selfHosted: true },
+    launch: { kind: 'web', path: '/sandbox/', selfHosted: true },
     memoryHintMib: 480,
   },
   {
@@ -177,10 +193,14 @@ export function defaultAllowedAppIds(band: AgeBand): string[] {
  * The desktop's egress proxy is configured from exactly this list, so an app
  * that was never granted cannot smuggle in a domain.
  */
-export function originsForApps(apps: readonly CatalogApp[]): string[] {
+export function originsForApps(
+  apps: readonly CatalogApp[],
+  appsOrigin: string = DEFAULT_APPS_ORIGIN,
+): string[] {
   const origins = new Set<string>();
   for (const app of apps) {
-    if (app.launch.kind === 'web') origins.add(new URL(app.launch.url).origin);
+    const resolved = resolveLaunch(app.launch, appsOrigin);
+    if (resolved.kind === 'web') origins.add(new URL(resolved.url).origin);
     for (const extra of app.extraOrigins ?? []) origins.add(new URL(extra).origin);
   }
   return [...origins].sort();

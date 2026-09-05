@@ -1,26 +1,70 @@
-# KidPC -- local/single-host topology.
+# KidPC -- single-host production topology for kidspc.online.
 #
 # Network shape is the security story, so read this first:
 #
 #   sessions  (internal: true)  desktops + egress + api
 #       Desktops live here and NOTHING here can reach the internet. Their only
-#       route out is the egress proxy, which only forwards to origins that
+#       route out is the egress proxy, which forwards only to origins that
 #       child's parent has actually granted.
 #   control                     api + postgres + egress
 #       Control-plane traffic, and the egress proxy's own internet access.
-#   edge                        web + api
+#   edge                        caddy + api
 #       The only network with anything published to the host.
 #
 # KNOWN LIMITATION -- the API container mounts the Docker socket so it can
-# provision desktops, which makes it effectively root on the host. That is
-# acceptable for a single-host pilot and NOT acceptable in production. The fix
-# is to split the broker into its own minimal service holding the socket, with
-# the API talking to it over a narrow RPC; the `SessionDriver` seam already
-# exists for exactly that move.
+# provision desktops, which makes it effectively root on the host. Acceptable
+# for a single-host pilot, NOT acceptable once this carries real children at
+# scale. The fix is to split the broker into its own minimal service holding
+# the socket, with the API talking to it over a narrow RPC; the SessionDriver
+# seam already exists for exactly that move.
 
 name: kidpc
 
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '5'
+
 services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp' # HTTP/3
+    environment:
+      KIDPC_DOMAIN: ${KIDPC_DOMAIN:?set KIDPC_DOMAIN, e.g. kidspc.online}
+      KIDPC_APPS_DOMAIN: ${KIDPC_APPS_DOMAIN:?set KIDPC_APPS_DOMAIN, e.g. apps.kidspc.online}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL for certificate notices}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - web-dist:/srv:ro
+      - app-bundles:/srv/apps:ro
+      # Certificates and ACME account keys. Losing this volume means
+      # re-issuing every certificate, so it is the one to back up.
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [edge]
+    depends_on:
+      web-build: { condition: service_completed_successfully }
+      api: { condition: service_started }
+    restart: unless-stopped
+    logging: *logging
+
+  # Builds the client into a volume Caddy serves, then exits. Keeping the build
+  # out of the serving container means the edge has no Node runtime in it.
+  web-build:
+    build:
+      context: ..
+      dockerfile: infra/web.Dockerfile
+      args:
+        VITE_PUBLIC_URL: https://${KIDPC_DOMAIN}
+    volumes:
+      - web-dist:/out
+    command: ['sh', '-c', 'rm -rf /out/* && cp -r /app/apps/web/dist/. /out/']
+    restart: 'no'
+
   postgres:
     image: postgres:17-alpine
     environment:
@@ -36,6 +80,7 @@ services:
       timeout: 3s
       retries: 20
     restart: unless-stopped
+    logging: *logging
 
   api:
     build:
@@ -48,16 +93,18 @@ services:
       DATABASE_URL: postgres://kidpc:${POSTGRES_PASSWORD}@postgres:5432/kidpc
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET (32+ chars)}
       CONSENT_PEPPER: ${CONSENT_PEPPER:?set CONSENT_PEPPER (16+ chars)}
-      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:8080}
+      WEB_ORIGIN: https://${KIDPC_DOMAIN}
+      PUBLIC_URL: https://${KIDPC_DOMAIN}
+      APPS_ORIGIN: https://${KIDPC_APPS_DOMAIN}
       SESSION_DRIVER: docker
-      DESKTOP_IMAGE: kidpc/desktop:dev
+      DESKTOP_IMAGE: kidpc/desktop:${DESKTOP_TAG:-latest}
       DESKTOP_NETWORK: kidpc_sessions
       DESKTOP_CONNECT: network
-      # Credentials are per session; the host:port here is just where to find it.
       EGRESS_PROXY: egress:3128
-      CONSENT_VERIFIER: ${CONSENT_VERIFIER:-digilocker}
+      CONSENT_VERIFIER: ${CONSENT_VERIFIER:?see docs/deploy.md -- there is no working production verifier yet}
       DIGILOCKER_CLIENT_ID: ${DIGILOCKER_CLIENT_ID:-}
       DIGILOCKER_CLIENT_SECRET: ${DIGILOCKER_CLIENT_SECRET:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       # See KNOWN LIMITATION above.
       - /var/run/docker.sock:/var/run/docker.sock
@@ -70,6 +117,7 @@ services:
       timeout: 3s
       retries: 6
     restart: unless-stopped
+    logging: *logging
 
   egress:
     build:
@@ -79,31 +127,21 @@ services:
       API_URL: http://api:4000
       PORT: 3128
     # On `sessions` to receive desktop traffic, on `control` for its own route
-    # to the internet and to the control plane. This asymmetry is the point:
+    # to the internet and to the control plane. The asymmetry is the point:
     # desktops cannot reach `control`, so they cannot bypass this process.
     networks: [sessions, control]
     depends_on:
       api: { condition: service_started }
     restart: unless-stopped
+    logging: *logging
 
-  web:
-    build:
-      context: ..
-      dockerfile: infra/web.Dockerfile
-    ports:
-      - '${WEB_PORT:-8080}:80'
-    networks: [edge]
-    depends_on:
-      api: { condition: service_started }
-    restart: unless-stopped
-
-  # Not a long-running service: `docker compose build desktop` bakes the image
-  # the broker launches per session.
+  # Not a long-running service. `docker compose --profile build build desktop`
+  # bakes the image the broker launches per session.
   desktop:
     build:
       context: ../docker/kid-desktop
-    image: kidpc/desktop:dev
-    profiles: [build-only]
+    image: kidpc/desktop:${DESKTOP_TAG:-latest}
+    profiles: [build]
 
 networks:
   edge:
@@ -116,3 +154,7 @@ networks:
 
 volumes:
   pgdata:
+  caddy-data:
+  caddy-config:
+  web-dist:
+  app-bundles:
