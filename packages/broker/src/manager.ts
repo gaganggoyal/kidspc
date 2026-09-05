@@ -206,6 +206,19 @@ export class SessionManager {
     }
 
     const readyAt = this.now();
+    /**
+     * The lease runs from when the desktop is usable, not from when it was
+     * asked for.
+     *
+     * These have to share an origin. Billing starts at `readyAt` because boot
+     * time is our cost, not the child's -- so a deadline anchored to the
+     * request instead would make every session's billable span a few hundred
+     * milliseconds short of its grant, and `Math.floor` would quietly turn
+     * that into a whole minute the child never pays for. On a one-minute
+     * lease it rounds the entire session down to zero.
+     */
+    const deadline = new Date(readyAt.getTime() + decision.grantedMinutes * MS_PER_MINUTE);
+
     const session: Session = {
       id: sessionId,
       childId: ctx.childId,
@@ -220,7 +233,7 @@ export class SessionManager {
       lastHeartbeatAt: readyAt,
       endedAt: null,
       endReason: null,
-      deadline: decision.deadline,
+      deadline,
       limitedBy: decision.limitedBy,
       idleTimeoutMinutes: ctx.policy.idleTimeoutMinutes,
       timezone: ctx.timezone || DEFAULT_TIMEZONE,

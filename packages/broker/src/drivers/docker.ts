@@ -73,7 +73,12 @@ export class DockerDriver implements SessionDriver {
   async provision(spec: DesktopSpec): Promise<DesktopHandle> {
     const secret = randomBytes(24).toString('base64url');
     const name = `kidpc-${spec.sessionId}`;
-    const ttlSeconds = Math.max(60, Math.ceil((spec.deadline.getTime() - Date.now()) / 1000));
+    // Deliberately longer than the lease. This is a backstop for a control
+    // plane that has died, not a second authority on when a child's time is
+    // up -- if it fired first it would look like a crash to the child.
+    const TTL_GRACE_SECONDS = 120;
+    const ttlSeconds =
+      Math.max(60, Math.ceil((spec.deadline.getTime() - Date.now()) / 1000)) + TTL_GRACE_SECONDS;
 
     const args = [
       'run',

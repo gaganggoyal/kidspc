@@ -17,6 +17,7 @@
     "typecheck": "tsc -b --pretty",
     "lint": "eslint .",
     "capacity": "tsx tools/capacity.ts",
+    "demo": "tsx tools/demo.ts",
     "format": "prettier --write ."
   },
   "devDependencies": {

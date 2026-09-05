@@ -24,9 +24,45 @@ Open http://localhost:5173 and sign in as `demo@kidpc.test` /
 `demo-password-1234`. Child PINs are printed by the seed.
 
 ```bash
-pnpm test          # 78 tests
+pnpm test          # 97 tests
 pnpm typecheck
+pnpm lint
 ```
+
+## Seeing it work
+
+**The guided tour.** With `pnpm dev` running in one terminal, `pnpm demo` in
+another walks the whole system through the live API and narrates each step —
+three children with three different catalogues, a seven-year-old refused the
+Python IDE, a session granted and leased, a sibling refused access to it, and
+time running out. It leaves the demo household as it found it.
+
+**The UI.** http://localhost:5173, sign in as the demo parent, pick a child.
+The launcher is built for a TV, so arrow keys navigate it and Enter selects —
+try it with the keyboard alone. Opening a session shows *"This is a simulated
+session"*: with the loopback driver there is no desktop behind it. Everything
+around it — the grant, the countdown, the billing, the limits — is real.
+
+**Making slow things fast.** Most of the interesting behaviour is on a clock.
+In the parent dashboard:
+
+| To see | Set |
+|---|---|
+| Out of time today | Minutes per day → `0` |
+| A curfew refusing entry | A time window that excludes now |
+| A session actually expiring | Minutes per day → `1`, start a session, wait a minute |
+| Apps disappearing from the launcher | Untick apps and reload the child's home |
+| The consent gate | Add a new child — they cannot sign in until approved |
+
+**The parts that need a clock you can move** — midnight rollovers, weekly caps,
+birthdays, a child wandering off — are covered in
+[`scenarios.test.ts`](services/api/src/scenarios.test.ts), which drives the real
+HTTP surface with a clock the test controls. `npx vitest run services/api/src/scenarios.test.ts`
+prints them as the stories they are.
+
+**The unit economics.** `pnpm capacity 5000` models sessions per host and cost
+per subscriber from the broker's real sizing functions. See
+[docs/hosting.md](docs/hosting.md).
 
 ## How it fits together
 
@@ -149,6 +185,12 @@ Known limitations to fix before this carries real children:
   existing desktop **without** launching the requested app. The gate still runs
   and still refuses apps the child may not have, but launching into a live
   session needs a driver capability that does not exist yet.
+
+- Time is banked in whole minutes, so the remainder when a session ends is
+  discarded. A child who repeatedly starts and stops inside a minute is never
+  billed for it — worth at most ~20 minutes a month, and the session rate limit
+  bounds the provisioning churn, which is the more expensive half. Billing the
+  ledger in seconds would close it.
 
 Development caveats:
 

@@ -121,6 +121,36 @@ describe('SessionManager', () => {
     expect(await driver.list()).toHaveLength(1);
   });
 
+  it('gives the child their whole grant even when the desktop is slow to boot', async () => {
+    // Every other test here uses an instant driver, which is exactly why this
+    // bug survived: with zero boot time the request clock and the ready clock
+    // coincide and the mismatch is invisible.
+    const slowDriver = new LoopbackDriver(0);
+    let provisionedAt: Date | null = null;
+    const original = slowDriver.provision.bind(slowDriver);
+    slowDriver.provision = async (spec) => {
+      provisionedAt = clock;
+      clock = new Date(clock.getTime() + 20_000); // 20 seconds to boot
+      return original(spec);
+    };
+
+    const m = new SessionManager({ driver: slowDriver, store, now: () => clock });
+    const started = await m.start(context({ policy: policy({ dailyMinutes: 1 }) }));
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+    expect(provisionedAt).not.toBeNull();
+
+    // A one-minute grant must be a full minute of usable time measured from
+    // when the desktop was ready, not sixty seconds from the button press.
+    expect(started.session.deadline.getTime() - started.session.readyAt!.getTime()).toBe(60_000);
+    expect(started.view.remainingMinutes).toBe(1);
+
+    // ...and it must bill as one minute, not round down to nothing.
+    advance(1);
+    await m.heartbeat(started.session.id);
+    expect(store.minutesOn('kid_1', '2026-03-11')).toBe(1);
+  });
+
   it('does not bill the child for boot time', async () => {
     const slowDriver = new LoopbackDriver(0);
     const m = new SessionManager({ driver: slowDriver, store, now: () => clock });
