@@ -43,6 +43,11 @@ try it with the keyboard alone. Opening a session shows *"This is a simulated
 session"*: with the loopback driver there is no desktop behind it. Everything
 around it — the grant, the countdown, the billing, the limits — is real.
 
+**On an actual TV.** `pnpm dev:tv` binds the client to every interface and
+prints a `Network:` address to type into the TV's browser — the whole app, over
+your own Wi-Fi, no certificates and no deploy. Which TVs have a browser, and
+which need an APK, is in [docs/tv.md](docs/tv.md).
+
 **Making slow things fast.** Most of the interesting behaviour is on a clock.
 In the parent dashboard:
 
@@ -234,7 +239,8 @@ Development caveats:
 ## Deploying
 
 Full runbook in [docs/deploy.md](docs/deploy.md), including the DNS records for
-kidspc.online and an honest list of what still blocks launch.
+kidspc.online and an honest list of what still blocks launch. Getting it onto
+the screen it is built for is [docs/tv.md](docs/tv.md).
 
 ```bash
 cp .env.production.example .env.production   # fill in

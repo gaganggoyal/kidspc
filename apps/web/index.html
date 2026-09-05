@@ -6,6 +6,24 @@
          as often as in a browser, and pinch-zoom on a 10-foot UI is noise. -->
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="A safe, time-limited computer for children, on the screen you already own."
+    />
+
+    <!-- Installed-app identity. This is what a TV's "add to home screen" reads,
+         and what bubblewrap reads when packaging the Android TV APK, so the
+         manifest is the single source of the app's name and icon on every
+         surface. There is deliberately no service worker: a TV must never show
+         a cached view of a child's remaining time. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#2f6f4f" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="KidPC" />
+    <link rel="icon" href="/favicon-48.png" sizes="48x48" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
     <title>KidPC</title>
   </head>
   <body>
