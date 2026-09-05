@@ -52,7 +52,7 @@ interface Child {
   policy: { dailyMinutes: number; allowedAppIds: string[]; [k: string]: unknown };
 }
 
-const health: { driver: string; appsOrigin: string } | null = await fetch(`${BASE}/healthz`)
+const health: { driver: string; mode: string; appsOrigin: string } | null = await fetch(`${BASE}/healthz`)
   .then((r) => r.json())
   .catch(() => null);
 if (!health) {
@@ -61,7 +61,11 @@ if (!health) {
 }
 
 console.log(bold('\nKidPC guided tour'));
-note(`api ${BASE} · desktop driver: ${health.driver}`);
+note(`api ${BASE} · mode: ${health.mode} · desktop driver: ${health.driver}`);
+if (health.mode === 'lite') {
+  note('Lite deployment: local activities only. They run in the client, so the');
+  note('server provisions nothing and a small VPS carries thousands of them.');
+}
 if (health.driver === 'loopback') {
   note('The loopback driver simulates desktops. Sessions, time and limits are');
   note('real; there is no actual Linux desktop behind them.');

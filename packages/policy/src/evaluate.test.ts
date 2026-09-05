@@ -10,7 +10,7 @@ function policy(over: Partial<ChildPolicy> = {}): ChildPolicy {
     dailyMinutes: 60,
     weeklyMinutes: null,
     allowedWindows: [],
-    allowedAppIds: ['tuxpaint', 'scratch'],
+    allowedAppIds: ['paint', 'scratch'],
     sessionSummaries: false,
     idleTimeoutMinutes: 12,
     grantedForBand: 'builder',
@@ -184,9 +184,9 @@ describe('evaluateAppLaunch', () => {
   });
 
   it('shows the launcher only what passes both gates', () => {
-    const ids = visibleApps(policy({ allowedAppIds: ['tuxpaint', 'scratch', 'thonny'] }), 'builder').map(
+    const ids = visibleApps(policy({ allowedAppIds: ['paint', 'scratch', 'thonny'] }), 'builder').map(
       (a) => a.id,
     );
-    expect(ids).toEqual(['tuxpaint', 'scratch']);
+    expect(ids).toEqual(['paint', 'scratch']);
   });
 });

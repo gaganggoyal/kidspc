@@ -55,7 +55,28 @@ dig +short kidspc.online A @1.1.1.1        # must be your server, not 127.0.0.1
 dig +short apps.kidspc.online A @1.1.1.1
 ```
 
-## Server
+## Start in lite mode
+
+`DEPLOYMENT_MODE=lite` serves the six local activities — Paint, Typing Garden,
+Block Puzzles, Number Ninja, Story Writer, Code Playground — which run in the
+child's own browser. The server holds a session row and answers a heartbeat, so
+**one small VPS carries thousands of subscribers at about Rs 0.24 each**, against
+Rs 66 each on bare metal for streamed desktops.
+
+It needs no container runtime, no desktop image, and no large host. Everything
+else is identical: consent, budgets, curfews, billing, reaping, the parent
+dashboard. The launcher simply does not offer what the deployment cannot serve.
+
+Move to `full` when you have hardware and a reason — Scratch, Python,
+LibreOffice, GCompris and the research browser are the things it buys.
+
+```bash
+# A lite deployment needs only these three services.
+docker compose -f infra/docker-compose.yml --env-file .env.production \
+  up -d caddy api postgres
+```
+
+## Server (full mode)
 
 From `docs/hosting.md`: one bare-metal box in an Indian metro. For a pilot,
 **64 cores / 256 GB carries ~120 concurrent desktops**, which is roughly 500-800

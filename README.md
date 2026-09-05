@@ -67,9 +67,10 @@ per subscriber from the broker's real sizing functions. See
 ## How it fits together
 
 ```
-apps/web            React client. Two surfaces from one build:
+apps/web            React client. Three surfaces from one build:
                       · TV launcher + profile picker (D-pad navigable)
-                      · parent dashboard (limits, consent, usage, data rights)
+                      · six local activities (apps/web/src/play)
+                      · parent dashboard (limits, consent, usage, resets)
 
 services/api        Fastify control plane. Auth, consent, policy, sessions,
                     the WebSocket streaming gateway, and the reaper.
@@ -86,6 +87,31 @@ packages/broker     Session lifecycle + the SessionDriver seam.
 docker/kid-desktop  The desktop image: Xvfb, openbox, x11vnc, curated apps.
 infra/              Compose topology, Dockerfiles, nginx.
 ```
+
+### Two ways to serve a child
+
+Half the catalogue does not need a Linux desktop at all. Typing, drawing, block
+puzzles, maths, writing and a code playground are **local activities**: they run
+in the client's own browser, so the server holds a session row and answers a
+heartbeat, and nothing else.
+
+That distinction is a first-class part of the model, because it decides what
+hardware this needs:
+
+| | Local | Hosted |
+|---|---|---|
+| Runs on | the child's TV or laptop | a container on our server |
+| Costs us | a row and a heartbeat | ~1.5 GiB of RAM |
+| 5,000 subscribers | **one small VPS, Rs 0.24 each** | 6 bare-metal boxes, Rs 66 each |
+| Gives you | Paint, Typing, Blocks, Numbers, Writer, Code | plus Scratch, Python, LibreOffice, the research browser, GCompris |
+
+`DEPLOYMENT_MODE=lite` offers only the local half. It needs no container
+runtime, no desktop image and no large host, and the launcher simply does not
+show what it cannot serve. Everything else — consent, budgets, curfews,
+billing, reaping, the parent dashboard — is identical, because a child's time
+budget should not depend on how we happened to deliver the activity.
+
+Run `pnpm capacity 5000` to see both.
 
 ### The two decisions everything else follows from
 
@@ -149,7 +175,11 @@ Working and tested end to end:
 - Session lifecycle: start, resume, heartbeat billing across local midnight,
   deadline enforcement, idle reaping, orphan reconciliation
 - Egress policy endpoint the proxy authorises desktops against
-- Both client surfaces, building at 77 KB gzipped
+- Six local activities, each usable with a D-pad and a keyboard
+- Progress tracking on a closed set of numeric metrics
+- A first-run welcome that puts a child into an activity in one press
+- Per-scope parent resets (limits, PIN, scores, session)
+- All client surfaces, building at 84 KB gzipped
 
 Written but **not yet exercised**, because this environment had no container
 runtime — treat each as a real task, not a formality:

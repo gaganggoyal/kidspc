@@ -169,3 +169,72 @@ export const startSessionInput = z.object({
   appId: z.string().min(1).optional(),
   deviceKind: z.enum(['tv', 'browser']).default('browser'),
 });
+
+// ---------------------------------------------------------------------------
+// Learning progress
+// ---------------------------------------------------------------------------
+
+/**
+ * The complete set of things an activity may report.
+ *
+ * A closed list of numeric metrics, on purpose. An open `meta` blob would
+ * eventually carry a child's own words -- a sentence they typed, a filename
+ * they chose -- and that is not something a progress tracker should hold. If a
+ * new activity needs a new metric, it is added here and reviewed.
+ */
+export const PROGRESS_METRICS = [
+  'score',
+  'level',
+  'accuracy_pct',
+  'words_per_minute',
+  'words_written',
+  'puzzles_solved',
+  'minutes_practised',
+] as const;
+export const progressMetric = z.enum(PROGRESS_METRICS);
+export type ProgressMetric = (typeof PROGRESS_METRICS)[number];
+
+/** Whether a higher number is better, which decides what "best" means. */
+export const METRIC_HIGHER_IS_BETTER: Record<ProgressMetric, boolean> = {
+  score: true,
+  level: true,
+  accuracy_pct: true,
+  words_per_minute: true,
+  words_written: true,
+  puzzles_solved: true,
+  minutes_practised: true,
+};
+
+export const recordProgressInput = z.object({
+  appId: z.string().min(1).max(64),
+  metric: progressMetric,
+  value: z.number().finite().min(0).max(1_000_000),
+});
+export type RecordProgressInput = z.infer<typeof recordProgressInput>;
+
+// ---------------------------------------------------------------------------
+// Undo, for parents
+// ---------------------------------------------------------------------------
+
+/**
+ * Things a parent can put back the way they were.
+ *
+ * Each scope is separate on purpose. A parent whose child has made a mess of
+ * one thing should not have to choose between living with it and wiping
+ * everything -- and "reset" being a single big button is how people end up
+ * deleting a year of progress to fix a forgotten PIN.
+ */
+export const RESET_SCOPES = ['limits', 'pin', 'progress', 'session'] as const;
+export const resetScope = z.enum(RESET_SCOPES);
+export type ResetScope = (typeof RESET_SCOPES)[number];
+
+export const resetChildInput = z
+  .object({
+    scope: resetScope,
+    /** Required when scope is `pin`. */
+    pin: childPin.optional(),
+  })
+  .refine((v) => v.scope !== 'pin' || Boolean(v.pin), {
+    message: 'A new 4-digit PIN is required to reset a PIN',
+    path: ['pin'],
+  });

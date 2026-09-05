@@ -10,12 +10,14 @@ import {
   loginInput,
   policyInput,
   registerGuardianInput,
+  resetChildInput,
   startConsentInput,
   updateChildInput,
 } from '@kidpc/shared';
 import { requireGuardian } from '../app.js';
 import { limit } from '../limits.js';
 import { type AppContext, buildChildView, loadChildForGuardian } from '../context.js';
+import { defaultPolicyFor } from '../repos.js';
 import { burnPasswordTime, hashSecret, verifySecret } from '../auth/password.js';
 import {
   hashRefreshToken,
@@ -346,6 +348,55 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
     return { ok: true };
   });
 
+  /**
+   * Put one thing back the way it was.
+   *
+   * Children break things -- a PIN they cannot remember, limits an older
+   * sibling talked a parent into, a game they want to start again. Each of
+   * these is recoverable on its own, so a parent never has to reach for a
+   * bigger hammer than the problem needs. Every reset is audited, because a
+   * reset is a change to a child's record.
+   */
+  app.post('/children/:id/reset', async (req) => {
+    const guardianId = requireGuardian(req);
+    const { id } = req.params as { id: string };
+    const { child, band } = await loadChildForGuardian(ctx, guardianId, id);
+    const input = resetChildInput.parse(req.body);
+
+    switch (input.scope) {
+      case 'limits': {
+        // Back to the conservative defaults for the child's *current* age, not
+        // the age they were when the profile was made.
+        const defaults = defaultPolicyFor(band ?? 'explorer');
+        await repos.policies.update(child.id, defaults);
+        break;
+      }
+      case 'pin': {
+        await repos.children.update(child.id, { pinHash: await hashSecret(input.pin!) });
+        break;
+      }
+      case 'progress': {
+        await repos.progress.clearFor(child.id);
+        break;
+      }
+      case 'session': {
+        const live = await repos.sessions.liveForChild(child.id);
+        if (live) await ctx.manager.endById(live.id, 'parent_ended');
+        break;
+      }
+    }
+
+    await repos.audit.record({
+      actorType: 'guardian',
+      actorId: guardianId,
+      action: 'child.update',
+      subjectType: 'child',
+      subjectId: child.id,
+      meta: { reset: input.scope },
+    });
+    return { ok: true, scope: input.scope };
+  });
+
   // -------------------------------------------------------------------------
   // Policy
   // -------------------------------------------------------------------------
@@ -393,6 +444,7 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
 
     return {
       history,
+      progress: await repos.progress.forChild(child.id),
       sessions: recent.map((s) => ({
         id: s.id,
         startedAt: s.readyAt ?? s.createdAt,
@@ -544,6 +596,7 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
         },
         policy: await repos.policies.forChild(row.id),
         usage: await repos.usage.history(row.id, ctx.now(), guardian.timezone, 365),
+        progress: await repos.progress.forChild(row.id),
         consentHistory: await repos.audit.forSubject('child', row.id),
       })),
     );

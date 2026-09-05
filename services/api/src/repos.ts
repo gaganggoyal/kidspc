@@ -6,6 +6,8 @@ import {
   type ChildProfile,
   type ConsentScope,
   type Guardian,
+  METRIC_HIGHER_IS_BETTER,
+  type ProgressMetric,
   type Session,
   ID_PREFIX,
   bandAtLeast,
@@ -17,6 +19,7 @@ import {
 import type { SessionStore } from '@kidpc/broker';
 import type { Database } from './db/client.js';
 import {
+  activityProgress,
   auditEvents,
   children,
   consentChallenges,
@@ -446,6 +449,51 @@ export class UsageRepo {
 }
 
 // ---------------------------------------------------------------------------
+// Learning progress
+// ---------------------------------------------------------------------------
+
+export class ProgressRepo {
+  constructor(private readonly db: Database) {}
+
+  /**
+   * Fold one result into the child's rollup.
+   *
+   * `best` only ever improves, so a bad day cannot erase a good one -- which is
+   * the behaviour a child expects from a high score, and the one a parent wants
+   * from a progress chart.
+   */
+  async record(childId: string, appId: string, metric: ProgressMetric, value: number) {
+    const higherIsBetter = METRIC_HIGHER_IS_BETTER[metric];
+    await this.db
+      .insert(activityProgress)
+      .values({ childId, appId, metric, best: value, latest: value, attempts: 1 })
+      .onConflictDoUpdate({
+        target: [activityProgress.childId, activityProgress.appId, activityProgress.metric],
+        set: {
+          best: higherIsBetter
+            ? sql`greatest(${activityProgress.best}, ${value})`
+            : sql`least(${activityProgress.best}, ${value})`,
+          latest: value,
+          attempts: sql`${activityProgress.attempts} + 1`,
+          updatedAt: new Date(),
+        },
+      });
+  }
+
+  async forChild(childId: string) {
+    return this.db
+      .select()
+      .from(activityProgress)
+      .where(eq(activityProgress.childId, childId))
+      .orderBy(desc(activityProgress.updatedAt));
+  }
+
+  async clearFor(childId: string) {
+    await this.db.delete(activityProgress).where(eq(activityProgress.childId, childId));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Sessions -- the broker's persistence port
 // ---------------------------------------------------------------------------
 
@@ -493,6 +541,15 @@ export class SessionRepo implements SessionStore {
       });
   }
 
+  /** How many sessions this child has ever had. Drives the first-run welcome. */
+  async countFor(childId: string): Promise<number> {
+    const [row] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(sessions)
+      .where(eq(sessions.childId, childId));
+    return row?.count ?? 0;
+  }
+
   async recentFor(childId: string, limit = 20) {
     return this.db
       .select()
@@ -511,6 +568,7 @@ function toInsertRow(session: Session): SessionInsert {
     childId: session.childId,
     guardianId: session.guardianId,
     state: session.state,
+    delivery: session.delivery,
     driverRef: session.driverRef,
     driverName: session.driverName,
     deviceKind: session.deviceKind,
@@ -534,6 +592,7 @@ function toInsertRow(session: Session): SessionInsert {
 
 const SESSION_COLUMNS = [
   'state',
+  'delivery',
   'driverRef',
   'driverName',
   'deviceKind',
@@ -574,6 +633,7 @@ function fromRow(row: typeof sessions.$inferSelect): Session {
     childId: row.childId,
     guardianId: row.guardianId,
     state: row.state,
+    delivery: row.delivery,
     driverRef: row.driverRef,
     driverName: row.driverName,
     deviceKind: row.deviceKind,
@@ -636,6 +696,7 @@ export class AuditRepo {
 }
 
 export interface Repos {
+  progress: ProgressRepo;
   guardians: GuardianRepo;
   refreshTokens: RefreshTokenRepo;
   children: ChildRepo;
@@ -648,6 +709,7 @@ export interface Repos {
 
 export function createRepos(db: Database): Repos {
   return {
+    progress: new ProgressRepo(db),
     guardians: new GuardianRepo(db),
     refreshTokens: new RefreshTokenRepo(db),
     children: new ChildRepo(db),

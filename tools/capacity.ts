@@ -10,7 +10,14 @@
  *
  *   pnpm tsx tools/capacity.ts [subscribers]
  */
-import { AGE_BANDS, type AgeBand, appsForBand, memoryBudgetMib } from '@kidpc/shared';
+import {
+  AGE_BANDS,
+  type AgeBand,
+  appsForBand,
+  hostedApps,
+  localApps,
+  memoryBudgetMib,
+} from '@kidpc/shared';
 import { sizeForBand } from '@kidpc/broker';
 
 // ---------------------------------------------------------------------------
@@ -43,6 +50,16 @@ const ASSUMPTIONS = {
   streamMbps: 0.6,
   /** Sessions a child has per month. */
   sessionsPerMonth: 22,
+
+  // --- lite deployments ----------------------------------------------------
+  /** Heartbeat interval, which is the entire steady-state request load. */
+  heartbeatSeconds: 30,
+  /** Requests per second one modest API process handles with headroom. */
+  requestsPerSecondPerHost: 400,
+  /** RAM a live local session costs the server: a row and a connection slot. */
+  liteMibPerSession: 0.5,
+  /** Client bundle, gzipped, fetched once and then cached. */
+  bundleKib: 90,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -101,6 +118,9 @@ function egressGibPerSubscriberMonth(): number {
 }
 
 const inr = (n: number) => `Rs ${Math.round(n).toLocaleString('en-IN')}`;
+const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
+/** Per-subscriber figures can be well under a rupee, where rounding hides the point. */
+const inrExact = (n: number) => (n < 1 ? `Rs ${n.toFixed(2)}` : inr(n));
 const pad = (s: string | number, w: number) => String(s).padEnd(w);
 const rpad = (s: string | number, w: number) => String(s).padStart(w);
 
@@ -159,6 +179,48 @@ console.log('\n  Plan prices for reference: Starter Rs 149-199, Family Rs 349-39
 console.log('  Infrastructure should sit under ~25% of revenue to leave room for');
 console.log('  payments, support, content and acquisition.\n');
 
+// ---------------------------------------------------------------------------
+// Lite deployments
+// ---------------------------------------------------------------------------
+
+const local = localApps(appsForBand('coder'));
+const hosted = hostedApps(appsForBand('coder'));
+
+console.log('=== Lite mode: local activities only ===\n');
+console.log(`  ${local.length} of ${local.length + hosted.length} activities need no desktop at all:`);
+console.log(`    ${local.map((a) => a.name).join(', ')}`);
+console.log(`  Still needing one: ${hosted.map((a) => a.name).join(', ')}`);
+console.log();
+console.log("  A local activity runs in the child's own browser. The server holds a");
+console.log('  session row and answers a heartbeat every 30 seconds, so capacity is');
+console.log('  bounded by request rate rather than RAM -- the constraint that makes');
+console.log('  streamed desktops expensive simply is not there.\n');
+
+const liteRps = concurrent / ASSUMPTIONS.heartbeatSeconds;
+const liteRamMib = concurrent * ASSUMPTIONS.liteMibPerSession;
+const liteHosts = Math.max(1, Math.ceil(liteRps / ASSUMPTIONS.requestsPerSecondPerHost));
+const SMALL_VPS_INR = 1200; // 2 vCPU / 4 GB in an Indian metro, indicative
+
+console.log(`  At ${subscribers.toLocaleString('en-IN')} subscribers (${Math.round(concurrent).toLocaleString('en-IN')} concurrent):`);
+console.log(`    Steady-state requests   ${liteRps.toFixed(1)} req/s`);
+console.log(
+  `    Session RAM             ${liteRamMib.toFixed(0)} MiB` +
+    dim(`   (against ${Math.round(ramNeeded).toLocaleString('en-IN')} GiB for streamed desktops)`),
+);
+console.log(`    Small VPS needed        ${liteHosts}`);
+console.log(
+  `\n  ${liteHosts} x Small VPS 2 vCPU / 4 GB = ${inr(SMALL_VPS_INR * liteHosts)}/month, ` +
+    `${inrExact((SMALL_VPS_INR * liteHosts) / subscribers)} per subscriber`,
+);
+// The client bundle is fetched once and revalidated, not re-downloaded each
+// visit; four fetches per subscriber per month is a generous allowance.
+console.log(
+  `  Egress ~${((subscribers * ASSUMPTIONS.bundleKib * 4) / 1024 / 1024).toFixed(1)} GiB/month total ` +
+    dim('(a cached bundle, not a video stream)'),
+);
+console.log(`\n  ${dim('Against Rs 149-199: streamed desktops are ~40% of revenue; lite is under 1%.')}`);
+console.log(`  ${dim('Lite is what makes launching before you own hardware possible.')}\n`);
+
 console.log('=== What breaks the model ===\n');
 console.log('  Latency  A desktop is interactive. Above roughly 80ms round-trip, drawing');
 console.log('           and typing feel broken, and the product is the responsiveness.');
@@ -169,4 +231,8 @@ console.log(`           At ${egressPerSub.toFixed(1)} GiB/subscriber/month, ${in
 console.log('           alone -- a large share of a Rs 199 plan, before a single core.');
 console.log('  Idle     Every minute a desktop stays up after a child leaves is pure loss.');
 console.log(`           The reaper's idle timeout is the single highest-leverage number`);
-console.log('           in the system for gross margin.\n');
+console.log('           for gross margin in a full deployment. In lite it barely matters,');
+console.log('           which is itself the argument for starting there.');
+console.log('  Client   Lite moves the work onto the TV. A Rs 2,000 Android box is a weak');
+console.log('           computer, so every local activity has to stay light -- that is a');
+console.log('           real constraint on what can be built, not a free lunch.\n');

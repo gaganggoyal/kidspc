@@ -44,7 +44,7 @@ function policy(over: Partial<ChildPolicy> = {}): ChildPolicy {
     dailyMinutes: 60,
     weeklyMinutes: null,
     allowedWindows: [],
-    allowedAppIds: ['tuxpaint', 'scratch'],
+    allowedAppIds: ['paint', 'scratch'],
     sessionSummaries: false,
     idleTimeoutMinutes: 12,
     grantedForBand: 'builder',
@@ -312,7 +312,7 @@ describe('SessionManager', () => {
 
   it('sizes the desktop from the apps the child can actually open', async () => {
     const started = await manager.start(
-      context({ band: 'explorer', policy: policy({ allowedAppIds: ['tuxpaint'] }) }),
+      context({ band: 'explorer', policy: policy({ allowedAppIds: ['paint'] }) }),
     );
     expect(started.ok).toBe(true);
 
@@ -324,7 +324,7 @@ describe('SessionManager', () => {
 
   it('gives a Coder more headroom than an Explorer', async () => {
     await manager.start(
-      context({ band: 'coder', policy: policy({ allowedAppIds: ['office', 'web-sandbox'] }) }),
+      context({ band: 'coder', policy: policy({ allowedAppIds: ['office', 'code'] }) }),
     );
     const spec = driver.provisioned[0]!;
     expect(spec.cpuCentis).toBe(200);
@@ -333,14 +333,14 @@ describe('SessionManager', () => {
   });
 
   it('scopes the desktop egress list to the granted apps only', async () => {
-    await manager.start(context({ policy: policy({ allowedAppIds: ['tuxpaint', 'scratch'] }) }));
+    await manager.start(context({ policy: policy({ allowedAppIds: ['paint', 'scratch'] }) }));
     // Neither app reaches outside our own hosts, so nothing external is opened.
     expect(driver.provisioned[0]!.allowedOrigins).toEqual(['https://apps.kidspc.online']);
   });
 
   it('opens the research origins only when the research app is granted', async () => {
     await manager.start(
-      context({ policy: policy({ allowedAppIds: ['tuxpaint', 'research'] }) }),
+      context({ policy: policy({ allowedAppIds: ['paint', 'research'] }) }),
     );
     expect(driver.provisioned[0]!.allowedOrigins).toContain('https://kids.britannica.com');
   });

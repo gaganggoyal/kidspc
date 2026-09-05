@@ -41,7 +41,7 @@ describe('Scenario: a school night', () => {
   const schoolNight = {
     dailyMinutes: 45,
     allowedWindows: [{ days: [1, 2, 3, 4, 5], start: '16:00', end: '18:30' }],
-    allowedAppIds: ['scratch', 'tuxpaint', 'tuxtype'],
+    allowedAppIds: ['scratch', 'paint', 'typing'],
   };
 
   it('turns him away before school and tells him when to come back', async () => {
@@ -200,7 +200,7 @@ describe('Scenario: two siblings, one television', () => {
       method: 'POST',
       url: '/v1/sessions',
       headers: asParent(meera),
-      payload: { appId: 'tuxpaint' },
+      payload: { appId: 'paint' },
     });
     h.advanceMinutes(20);
     await h.app.inject({
@@ -322,14 +322,14 @@ describe('Scenario: the child who wanders off', () => {
       h,
       'idle@example.com',
       { displayName: 'Meera', birthYear: 2019, birthMonth: 4, pin: '1111' },
-      { dailyMinutes: 60, allowedAppIds: ['tuxpaint'], idleTimeoutMinutes: 10 },
+      { dailyMinutes: 60, allowedAppIds: ['paint'], idleTimeoutMinutes: 10 },
     );
 
     const started = await h.app.inject({
       method: 'POST',
       url: '/v1/sessions',
       headers: asParent(kid),
-      payload: { appId: 'tuxpaint' },
+      payload: { appId: 'paint' },
     });
     const sessionId = started.json().id;
 
@@ -404,7 +404,7 @@ describe('Scenario: a parent changes their mind', () => {
       h,
       'tighten@example.com',
       { displayName: 'Ravi', birthYear: 2015, birthMonth: 9, pin: '2222' },
-      { dailyMinutes: 60, allowedAppIds: ['scratch', 'tuxpaint'] },
+      { dailyMinutes: 60, allowedAppIds: ['scratch', 'paint'] },
     );
 
     const started = await h.app.inject({
@@ -420,7 +420,7 @@ describe('Scenario: a parent changes their mind', () => {
     // spent, leaving nothing for a second session today.
     await h.setPolicy(guardian, childId, {
       dailyMinutes: 20,
-      allowedAppIds: ['tuxpaint'],
+      allowedAppIds: ['paint'],
     });
 
     // The lease he already holds is honoured: yanking a child off mid-drawing
@@ -442,7 +442,7 @@ describe('Scenario: a parent changes their mind', () => {
     expect(home.json().canStart).toBe(false);
     expect(home.json().blocked.reason).toBe('daily_budget_exhausted');
     // And Scratch is gone from his launcher.
-    expect(home.json().apps.map((a: { id: string }) => a.id)).toEqual(['tuxpaint']);
+    expect(home.json().apps.map((a: { id: string }) => a.id)).toEqual(['paint']);
   });
 
   it('ends the session immediately when a parent archives the profile', async () => {
@@ -523,7 +523,7 @@ describe('Scenario: a birthday', () => {
     // A parent turns off the typing game while she is still an Explorer.
     await h.setPolicy(guardian, childId, {
       dailyMinutes: 30,
-      allowedAppIds: ['tuxpaint', 'gcompris', 'blockly-puzzles'],
+      allowedAppIds: ['paint', 'gcompris', 'blocks'],
     });
 
     h.setClock(ist('2026-06-10T10:00:00'));
@@ -531,7 +531,7 @@ describe('Scenario: a birthday', () => {
     const ids = after.json().apps.map((a: { id: string }) => a.id);
 
     expect(ids).toContain('scratch'); // newly unlocked by the band change
-    expect(ids).not.toContain('tuxtype'); // a decision the parent already made
+    expect(ids).not.toContain('typing'); // a decision the parent already made
   });
 });
 
@@ -699,5 +699,424 @@ describe('Scenario: the same build serving a different environment', () => {
 
     const health = await h.app.inject({ method: 'GET', url: '/healthz' });
     expect(health.json().appsOrigin).toBe('https://apps.staging.kidspc.online');
+  });
+});
+
+describe('Scenario: a deployment that has no desktops (small VPS)', () => {
+  /**
+   * The economics of a streamed Linux desktop are brutal on a small host: ~1.5
+   * GiB each, so a 16 GB box carries about seven children at once. Local
+   * activities run in the child's own browser and cost the server a static
+   * file, so the same box serves thousands. A lite deployment offers only
+   * those -- and everything else about the product must still work.
+   */
+  it('offers local activities and hides the ones needing a desktop', async () => {
+    harness = await createHarness(ist('2026-03-14T10:00:00'), {
+      DEPLOYMENT_MODE: 'lite',
+    } as NodeJS.ProcessEnv);
+    const h = harness;
+
+    const { kid } = await onboard(h, 'lite@example.com', {
+      displayName: 'Anaya',
+      birthYear: 2011,
+      birthMonth: 2,
+      pin: '3333',
+    });
+
+    // Health must report what is actually true, not what SESSION_DRIVER says.
+    const health = await h.app.inject({ method: 'GET', url: '/healthz' });
+    expect(health.json()).toMatchObject({ mode: 'lite', driver: 'none' });
+
+    const home = await h.app.inject({ method: 'GET', url: '/v1/home', headers: asKid(kid) });
+    expect(home.json().desktopsAvailable).toBe(false);
+
+    const ids = home.json().apps.map((a: { id: string }) => a.id);
+    // A Coder would normally see Python, LibreOffice, Scratch and the research
+    // browser. None of those can run without a desktop, so none are offered.
+    expect(ids).not.toContain('thonny');
+    expect(ids).not.toContain('office');
+    expect(ids).not.toContain('scratch');
+    // What remains is a real product, not a stub.
+    expect(ids).toEqual(expect.arrayContaining(['paint', 'typing', 'blocks', 'numbers', 'writer', 'code']));
+    expect(home.json().apps.every((a: { delivery: string }) => a.delivery === 'local')).toBe(true);
+  });
+
+  it('starts a local session without provisioning anything', async () => {
+    harness = await createHarness(ist('2026-03-14T10:00:00'), {
+      DEPLOYMENT_MODE: 'lite',
+    } as NodeJS.ProcessEnv);
+    const h = harness;
+    const { kid } = await onboard(h, 'lite2@example.com', {
+      displayName: 'Meera',
+      birthYear: 2019,
+      birthMonth: 4,
+      pin: '1111',
+    });
+
+    const started = await h.app.inject({
+      method: 'POST',
+      url: '/v1/sessions',
+      headers: asParent(kid),
+      payload: { appId: 'paint', deviceKind: 'tv' },
+    });
+    expect(started.statusCode).toBe(201);
+    expect(started.json()).toMatchObject({
+      delivery: 'local',
+      localRoute: '/play/paint',
+      streamPath: null,
+      grantedMinutes: 30,
+    });
+
+    const row = await h.runtime.ctx.repos.sessions.byId(started.json().id);
+    expect(row?.driverRef).toBeNull();
+    expect(row?.driverName).toBe('local');
+  });
+
+  it('still enforces time budgets on local activities', async () => {
+    // The cheap delivery path must not become a way around a bedtime.
+    harness = await createHarness(ist('2026-03-14T10:00:00'), {
+      DEPLOYMENT_MODE: 'lite',
+    } as NodeJS.ProcessEnv);
+    const h = harness;
+    const { kid } = await onboard(
+      h,
+      'lite3@example.com',
+      { displayName: 'Meera', birthYear: 2019, birthMonth: 4, pin: '1111' },
+      { dailyMinutes: 20, allowedAppIds: ['paint', 'typing'] },
+    );
+
+    const started = await h.app.inject({
+      method: 'POST',
+      url: '/v1/sessions',
+      headers: asParent(kid),
+      payload: { appId: 'typing' },
+    });
+    expect(started.json().grantedMinutes).toBe(20);
+
+    h.advanceMinutes(21);
+    const beat = await h.app.inject({
+      method: 'POST',
+      url: `/v1/sessions/${started.json().id}/heartbeat`,
+      headers: asKid(kid),
+    });
+    expect(beat.json().state).toBe('terminated');
+
+    const home = await h.app.inject({ method: 'GET', url: '/v1/home', headers: asKid(kid) });
+    expect(home.json().canStart).toBe(false);
+    expect(home.json().blocked.reason).toBe('daily_budget_exhausted');
+  });
+
+  it('reaps an abandoned local session like any other', async () => {
+    harness = await createHarness(ist('2026-03-14T10:00:00'), {
+      DEPLOYMENT_MODE: 'lite',
+    } as NodeJS.ProcessEnv);
+    const h = harness;
+    const { kid } = await onboard(
+      h,
+      'lite4@example.com',
+      { displayName: 'Meera', birthYear: 2019, birthMonth: 4, pin: '1111' },
+      { dailyMinutes: 60, allowedAppIds: ['paint'], idleTimeoutMinutes: 10 },
+    );
+
+    const started = await h.app.inject({
+      method: 'POST',
+      url: '/v1/sessions',
+      headers: asParent(kid),
+      payload: { appId: 'paint' },
+    });
+    h.advanceMinutes(12);
+
+    // The disabled driver throws if consulted, so a clean sweep also proves the
+    // reaper never reaches for hardware that is not there.
+    expect(await h.runtime.ctx.manager.reap()).toMatchObject({ ended: 1 });
+    const row = await h.runtime.ctx.repos.sessions.byId(started.json().id);
+    expect(row?.endReason).toBe('idle_timeout');
+  });
+
+  it('refuses a desktop activity clearly rather than failing obscurely', async () => {
+    harness = await createHarness(ist('2026-03-14T10:00:00'), {
+      DEPLOYMENT_MODE: 'lite',
+    } as NodeJS.ProcessEnv);
+    const h = harness;
+    const { guardian, childId, kid } = await onboard(h, 'lite5@example.com', {
+      displayName: 'Anaya',
+      birthYear: 2011,
+      birthMonth: 2,
+      pin: '3333',
+    });
+    // Granted by the parent, but this deployment cannot serve it.
+    await h.setPolicy(guardian, childId, {
+      dailyMinutes: 60,
+      allowedAppIds: ['thonny', 'paint'],
+    });
+
+    const res = await h.app.inject({
+      method: 'POST',
+      url: '/v1/sessions',
+      headers: asParent(kid),
+      payload: { appId: 'thonny' },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('desktop_unavailable');
+    expect(res.json().error.message).toMatch(/big computer/i);
+
+    // And the cheap path still works.
+    const ok = await h.app.inject({
+      method: 'POST',
+      url: '/v1/sessions',
+      headers: asParent(kid),
+      payload: { appId: 'paint' },
+    });
+    expect(ok.statusCode).toBe(201);
+  });
+});
+
+describe('Scenario: a child opens KidPC for the very first time', () => {
+  it('flags the first run, then never again', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    const { kid } = await onboard(h, 'firstrun@example.com', {
+      displayName: 'Meera',
+      birthYear: 2019,
+      birthMonth: 4,
+      pin: '1111',
+    });
+
+    const before = await h.app.inject({ method: 'GET', url: '/v1/home', headers: asKid(kid) });
+    expect(before.json().firstRun).toBe(true);
+
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/sessions',
+      headers: asParent(kid),
+      payload: { appId: 'paint' },
+    });
+
+    // Derived from sessions on record rather than a client-side flag, so it
+    // survives a reload and cannot be re-triggered by clearing storage.
+    const after = await h.app.inject({ method: 'GET', url: '/v1/home', headers: asKid(kid) });
+    expect(after.json().firstRun).toBe(false);
+  });
+});
+
+describe('Scenario: progress', () => {
+  it('keeps a personal best and never lets a bad round erase it', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    const { guardian, childId, kid } = await onboard(h, 'progress@example.com', {
+      displayName: 'Meera',
+      birthYear: 2019,
+      birthMonth: 4,
+      pin: '1111',
+    });
+
+    for (const value of [12, 30, 8]) {
+      const res = await h.app.inject({
+        method: 'POST',
+        url: '/v1/progress',
+        headers: asParent(kid),
+        payload: { appId: 'numbers', metric: 'puzzles_solved', value },
+      });
+      expect(res.statusCode).toBe(200);
+    }
+
+    const mine = await h.app.inject({ method: 'GET', url: '/v1/progress', headers: asKid(kid) });
+    const row = mine.json().progress.find((r: { appId: string }) => r.appId === 'numbers');
+    expect(row).toMatchObject({ best: 30, latest: 8, attempts: 3 });
+
+    // A parent sees the same figures on the dashboard.
+    const usage = await h.app.inject({
+      method: 'GET',
+      url: `/v1/children/${childId}/usage`,
+      headers: { authorization: `Bearer ${guardian}` },
+    });
+    expect(usage.json().progress[0]).toMatchObject({ metric: 'puzzles_solved', best: 30 });
+  });
+
+  it('refuses a metric that is not in the closed vocabulary', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    const { kid } = await onboard(h, 'progress2@example.com', {
+      displayName: 'Meera',
+      birthYear: 2019,
+      birthMonth: 4,
+      pin: '1111',
+    });
+
+    // An open metric field would eventually carry a child's own words. It is a
+    // closed enum precisely so that cannot happen by accident.
+    const res = await h.app.inject({
+      method: 'POST',
+      url: '/v1/progress',
+      headers: asParent(kid),
+      payload: { appId: 'numbers', metric: 'favourite_colour', value: 1 },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('Scenario: a parent putting something right', () => {
+  it('resets limits to what suits the child now, not what they were set to', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    const { guardian, childId, kid } = await onboard(h, 'reset1@example.com', {
+      displayName: 'Ravi',
+      birthYear: 2015,
+      birthMonth: 9,
+      pin: '2222',
+    });
+
+    // Someone has talked a parent into four hours a day and every app.
+    await h.setPolicy(guardian, childId, {
+      dailyMinutes: 240,
+      allowedAppIds: ['paint', 'typing', 'blocks', 'numbers', 'writer'],
+    });
+
+    const res = await h.app.inject({
+      method: 'POST',
+      url: `/v1/children/${childId}/reset`,
+      headers: asParent(guardian),
+      payload: { scope: 'limits' },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const home = await h.app.inject({ method: 'GET', url: '/v1/home', headers: asKid(kid) });
+    expect(home.json().time.dailyMinutes).toBe(45); // the Builder default
+  });
+
+  it('sets a new code without touching anything else', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    const { guardian, childId, kid } = await onboard(h, 'reset2@example.com', {
+      displayName: 'Ravi',
+      birthYear: 2015,
+      birthMonth: 9,
+      pin: '2222',
+    });
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/progress',
+      headers: asParent(kid),
+      payload: { appId: 'numbers', metric: 'score', value: 99 },
+    });
+
+    await h.app.inject({
+      method: 'POST',
+      url: `/v1/children/${childId}/reset`,
+      headers: asParent(guardian),
+      payload: { scope: 'pin', pin: '9876' },
+    });
+
+    await expect(h.childToken(guardian, childId, '2222')).rejects.toThrow();
+    await expect(h.childToken(guardian, childId, '9876')).resolves.toBeTruthy();
+
+    // Fixing a forgotten code must not cost a child their scores.
+    const newKid = await h.childToken(guardian, childId, '9876');
+    const progress = await h.app.inject({
+      method: 'GET',
+      url: '/v1/progress',
+      headers: asKid(newKid),
+    });
+    expect(progress.json().progress).toHaveLength(1);
+  });
+
+  it('rejects a PIN reset with no new PIN rather than blanking it', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    const { guardian, childId } = await onboard(h, 'reset3@example.com', {
+      displayName: 'Ravi',
+      birthYear: 2015,
+      birthMonth: 9,
+      pin: '2222',
+    });
+    const res = await h.app.inject({
+      method: 'POST',
+      url: `/v1/children/${childId}/reset`,
+      headers: asParent(guardian),
+      payload: { scope: 'pin' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('clears scores without touching screen-time history', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    const { guardian, childId, kid } = await onboard(h, 'reset4@example.com', {
+      displayName: 'Ravi',
+      birthYear: 2015,
+      birthMonth: 9,
+      pin: '2222',
+    });
+
+    const started = await h.app.inject({
+      method: 'POST',
+      url: '/v1/sessions',
+      headers: asParent(kid),
+      payload: { appId: 'paint' },
+    });
+    h.advanceMinutes(10);
+    await h.app.inject({
+      method: 'POST',
+      url: `/v1/sessions/${started.json().id}/heartbeat`,
+      headers: asKid(kid),
+    });
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/progress',
+      headers: asParent(kid),
+      payload: { appId: 'paint', metric: 'score', value: 42 },
+    });
+
+    await h.app.inject({
+      method: 'POST',
+      url: `/v1/children/${childId}/reset`,
+      headers: asParent(guardian),
+      payload: { scope: 'progress' },
+    });
+
+    const usage = await h.app.inject({
+      method: 'GET',
+      url: `/v1/children/${childId}/usage`,
+      headers: asParent(guardian),
+    });
+    expect(usage.json().progress).toHaveLength(0);
+    // The minutes they actually used are a separate record and must survive.
+    expect(usage.json().history.at(-1).minutes).toBe(10);
+  });
+
+  it('stops a session on the spot', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    const { guardian, childId, kid } = await onboard(h, 'reset5@example.com', {
+      displayName: 'Ravi',
+      birthYear: 2015,
+      birthMonth: 9,
+      pin: '2222',
+    });
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/sessions',
+      headers: asParent(kid),
+      payload: { appId: 'paint' },
+    });
+
+    await h.app.inject({
+      method: 'POST',
+      url: `/v1/children/${childId}/reset`,
+      headers: asParent(guardian),
+      payload: { scope: 'session' },
+    });
+    expect(await h.runtime.ctx.repos.sessions.liveForChild(childId)).toBeNull();
+  });
+
+  it("will not let one parent reset another household's child", async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    const { childId } = await onboard(h, 'reset6@example.com', {
+      displayName: 'Ravi',
+      birthYear: 2015,
+      birthMonth: 9,
+      pin: '2222',
+    });
+    const stranger = await h.registerGuardian('stranger@example.com');
+
+    const res = await h.app.inject({
+      method: 'POST',
+      url: `/v1/children/${childId}/reset`,
+      headers: asParent(stranger),
+      payload: { scope: 'limits' },
+    });
+    expect(res.statusCode).toBe(404);
   });
 });

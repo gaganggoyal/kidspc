@@ -96,6 +96,9 @@ services:
       WEB_ORIGIN: https://${KIDPC_DOMAIN}
       PUBLIC_URL: https://${KIDPC_DOMAIN}
       APPS_ORIGIN: https://${KIDPC_APPS_DOMAIN}
+      # `lite` serves local activities only and provisions nothing. See
+      # docs/hosting.md -- it is the mode to launch on.
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-lite}
       SESSION_DRIVER: docker
       DESKTOP_IMAGE: kidpc/desktop:${DESKTOP_TAG:-latest}
       DESKTOP_NETWORK: kidpc_sessions

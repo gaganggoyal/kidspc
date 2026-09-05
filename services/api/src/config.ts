@@ -36,6 +36,19 @@ const schema = z.object({
   /** Public base URL of the service, used to build absolute links. */
   PUBLIC_URL: z.string().url().default('http://localhost:5173'),
 
+  /**
+   * What this deployment can actually serve.
+   *
+   *   lite  Local activities only -- typing, drawing, blocks, code, writing.
+   *         They run in the child's own browser, so concurrency is bounded by
+   *         bandwidth rather than RAM and a small VPS serves thousands.
+   *   full  The above plus streamed Linux desktops, which cost ~1.5 GiB each
+   *         and need real hardware behind them.
+   *
+   * This is a capacity fact, not a feature flag, so it lives next to the
+   * driver rather than in a route.
+   */
+  DEPLOYMENT_MODE: z.enum(['lite', 'full']).default('full'),
   SESSION_DRIVER: z.enum(['loopback', 'docker']).default('loopback'),
   DESKTOP_IMAGE: z.string().default('kidpc/desktop:dev'),
   DESKTOP_NETWORK: z.string().default('kidpc-sessions'),
@@ -86,8 +99,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       // in this system with a regulator attached to it.
       problems.push('CONSENT_VERIFIER=mock cannot be used in production');
     }
-    if (cfg.SESSION_DRIVER === 'loopback') {
-      problems.push('SESSION_DRIVER=loopback cannot be used in production');
+    // A lite deployment never provisions a desktop, so the driver is moot --
+    // the manager refuses hosted sessions before anything is asked of it.
+    if (cfg.DEPLOYMENT_MODE === 'full' && cfg.SESSION_DRIVER === 'loopback') {
+      problems.push(
+        'SESSION_DRIVER=loopback cannot be used in production with DEPLOYMENT_MODE=full',
+      );
     }
     if (cfg.RATE_LIMITS === 'off') {
       problems.push('RATE_LIMITS=off cannot be used in production');

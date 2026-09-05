@@ -1,5 +1,6 @@
 import {
   boolean,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -13,6 +14,7 @@ import { sql } from 'drizzle-orm';
 import type {
   AgeBand,
   AllowedWindow,
+  Delivery,
   ConsentScope,
   SessionEndReason,
   SessionLimit,
@@ -117,6 +119,7 @@ export const sessions = pgTable(
       .references(() => children.id, { onDelete: 'cascade' }),
     guardianId: text('guardian_id').notNull(),
     state: text('state').$type<SessionState>().notNull(),
+    delivery: text('delivery').$type<Delivery>().notNull().default('hosted'),
     driverRef: text('driver_ref'),
     driverName: text('driver_name').notNull(),
     deviceKind: text('device_kind').$type<'tv' | 'browser'>().notNull(),
@@ -164,6 +167,25 @@ export const usageDays = pgTable(
     minutes: integer('minutes').notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.childId, t.dayKey] })],
+);
+
+export const activityProgress = pgTable(
+  'activity_progress',
+  {
+    childId: text('child_id')
+      .notNull()
+      .references(() => children.id, { onDelete: 'cascade' }),
+    appId: text('app_id').notNull(),
+    metric: text('metric').notNull(),
+    best: doublePrecision('best').notNull(),
+    latest: doublePrecision('latest').notNull(),
+    attempts: integer('attempts').notNull().default(1),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.childId, t.appId, t.metric] }),
+    index('activity_progress_child_idx').on(t.childId),
+  ],
 );
 
 export const refreshTokens = pgTable(

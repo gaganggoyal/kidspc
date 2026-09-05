@@ -114,7 +114,12 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
    */
   app.get('/healthz', async () => ({
     ok: true,
-    driver: ctx.config.SESSION_DRIVER,
+    mode: ctx.config.DEPLOYMENT_MODE,
+    // The *effective* driver, not the configured one. A lite deployment
+    // provisions nothing regardless of what SESSION_DRIVER says, and reporting
+    // the setting rather than the reality is how an operator ends up debugging
+    // a desktop that was never going to exist.
+    driver: ctx.config.DEPLOYMENT_MODE === 'lite' ? 'none' : ctx.config.SESSION_DRIVER,
     appsOrigin: ctx.config.APPS_ORIGIN,
   }));
 

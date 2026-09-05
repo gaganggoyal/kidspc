@@ -75,6 +75,8 @@ CREATE TABLE sessions (
   child_id             text NOT NULL REFERENCES children(id) ON DELETE CASCADE,
   guardian_id          text NOT NULL,
   state                text NOT NULL CHECK (state IN ('provisioning','ready','active','suspended','terminated')),
+  -- 'local' sessions run in the child's own client and provision nothing.
+  delivery             text NOT NULL DEFAULT 'hosted' CHECK (delivery IN ('local','hosted')),
   driver_ref           text,
   driver_name          text NOT NULL,
   device_kind          text NOT NULL CHECK (device_kind IN ('tv','browser')),
@@ -107,6 +109,27 @@ CREATE TABLE usage_days (
   minutes  integer NOT NULL DEFAULT 0,
   PRIMARY KEY (child_id, day_key)
 );
+
+-- Learning progress.
+--
+-- A rollup rather than an event log: one row per child/activity/metric, so it
+-- cannot grow without bound and a parent's dashboard is a single cheap read.
+--
+-- Every value is a NUMBER. There is deliberately no column for a child's own
+-- words, drawings or code -- that work stays on their device. Storing it would
+-- turn a progress tracker into a repository of children's personal expression,
+-- which is a far heavier thing to hold and not needed to show they are learning.
+CREATE TABLE activity_progress (
+  child_id   text NOT NULL REFERENCES children(id) ON DELETE CASCADE,
+  app_id     text NOT NULL,
+  metric     text NOT NULL,
+  best       double precision NOT NULL,
+  latest     double precision NOT NULL,
+  attempts   integer NOT NULL DEFAULT 1,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (child_id, app_id, metric)
+);
+CREATE INDEX activity_progress_child_idx ON activity_progress (child_id);
 
 CREATE TABLE refresh_tokens (
   id          text PRIMARY KEY,

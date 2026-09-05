@@ -263,6 +263,134 @@ function ChildPanel({ child, onChanged }: { child: ChildDto; onChanged: () => Pr
       </div>
 
       <PolicyEditor child={child} onSaved={onChanged} />
+      <ResetPanel child={child} onChanged={onChanged} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+/**
+ * Undo, for when something has gone wrong.
+ *
+ * Four separate resets rather than one button, because the alternative is a
+ * parent wiping a year of progress to fix a forgotten PIN. Only the two that
+ * actually destroy something ask for confirmation -- putting a dialog in front
+ * of every action teaches people to click through dialogs.
+ */
+function ResetPanel({ child, onChanged }: { child: ChildDto; onChanged: () => Promise<void> }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [newPin, setNewPin] = useState('');
+
+  const reset = async (scope: string, body: Record<string, unknown> = {}) => {
+    setBusy(scope);
+    setError(null);
+    try {
+      await api(`/children/${child.id}/reset`, { method: 'POST', body: { scope, ...body } });
+      setDone(scope);
+      setTimeout(() => setDone(null), 3000);
+      await onChanged();
+    } catch (cause) {
+      setError(
+        cause instanceof ApiError
+          ? Object.values(cause.details)[0]?.toString() || cause.userMessage
+          : 'That did not work.',
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const label = (scope: string, idle: string) =>
+    busy === scope ? 'Working…' : done === scope ? 'Done ✓' : idle;
+
+  return (
+    <div className="card stack">
+      <h2 style={{ margin: 0 }}>If something goes wrong</h2>
+      <p className="muted" style={{ margin: 0 }}>
+        Each of these fixes one thing. Nothing here touches the others.
+      </p>
+
+      <div className="reset-grid">
+        <div className="reset-item">
+          <strong>Limits look wrong</strong>
+          <p className="small muted">
+            Puts screen time, allowed hours and apps back to what we recommend for a{' '}
+            {child.age}-year-old.
+          </p>
+          <button onClick={() => void reset('limits')} disabled={busy !== null}>
+            {label('limits', 'Reset to recommended')}
+          </button>
+        </div>
+
+        <div className="reset-item">
+          <strong>{child.displayName} is still on the computer</strong>
+          <p className="small muted">
+            Ends the session on their screen straight away. Their saved work is kept.
+          </p>
+          <button onClick={() => void reset('session')} disabled={busy !== null}>
+            {label('session', 'Stop their session now')}
+          </button>
+        </div>
+
+        <div className="reset-item">
+          <strong>Forgotten code</strong>
+          <p className="small muted">Choose a new 4-digit code for their profile.</p>
+          <div className="row">
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="\d{4}"
+              maxLength={4}
+              value={newPin}
+              placeholder="1234"
+              style={{ width: 110 }}
+              aria-label={`New code for ${child.displayName}`}
+              onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
+            />
+            <button
+              onClick={async () => {
+                await reset('pin', { pin: newPin });
+                setNewPin('');
+              }}
+              disabled={busy !== null || newPin.length !== 4}
+            >
+              {label('pin', 'Set new code')}
+            </button>
+          </div>
+        </div>
+
+        <div className="reset-item">
+          <strong>Start scores again</strong>
+          <p className="small muted">
+            Clears high scores and levels. Their screen-time history is kept.
+          </p>
+          <button
+            className="danger"
+            disabled={busy !== null}
+            onClick={() => {
+              if (
+                window.confirm(
+                  `Clear all of ${child.displayName}'s scores and levels? This cannot be undone.`,
+                )
+              ) {
+                void reset('progress');
+              }
+            }}
+          >
+            {label('progress', 'Clear scores')}
+          </button>
+        </div>
+      </div>
+
+      {error && <div className="notice bad">{error}</div>}
+
+      <p className="small muted" style={{ margin: 0 }}>
+        Drawings, stories and code are saved on the device itself, not on our servers. To clear
+        those, use the device's own browser settings.
+      </p>
     </div>
   );
 }

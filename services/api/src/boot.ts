@@ -1,4 +1,10 @@
-import { DockerDriver, LoopbackDriver, SessionManager, type SessionDriver } from '@kidpc/broker';
+import {
+  DisabledDriver,
+  DockerDriver,
+  LoopbackDriver,
+  SessionManager,
+  type SessionDriver,
+} from '@kidpc/broker';
 import { type Config, loadConfig } from './config.js';
 import { createDatabase, migrate } from './db/client.js';
 import { createRepos } from './repos.js';
@@ -9,6 +15,15 @@ export async function createDriver(
   config: Config,
   log: (event: string, fields: Record<string, unknown>) => void,
 ): Promise<SessionDriver> {
+  if (config.DEPLOYMENT_MODE === 'lite') {
+    // Nothing should ever ask this for a desktop. Wiring in a driver that
+    // throws makes that a loud failure rather than a silent provision.
+    log('driver.disabled', {
+      mode: 'lite',
+      note: 'Local activities only. Streamed desktops are not offered.',
+    });
+    return new DisabledDriver();
+  }
   if (config.SESSION_DRIVER === 'docker') {
     const driver = new DockerDriver({
       image: config.DESKTOP_IMAGE,
@@ -56,6 +71,7 @@ export async function createRuntime(
     now,
     log,
     appsOrigin: config.APPS_ORIGIN,
+    allowHostedSessions: config.DEPLOYMENT_MODE === 'full',
   });
 
   const ctx: AppContext = { config, database, repos, manager, consent: createConsentVerifier(config), now };

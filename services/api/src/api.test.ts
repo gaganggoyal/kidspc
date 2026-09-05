@@ -105,6 +105,7 @@ describe('health', () => {
     const res = await app.inject({ method: 'GET', url: '/healthz' });
     expect(res.json()).toEqual({
       ok: true,
+      mode: 'full',
       driver: 'loopback',
       appsOrigin: 'https://apps.kidspc.online',
     });
@@ -460,13 +461,13 @@ describe('a child at the screen', () => {
         weeklyMinutes: 180,
         allowedWindows: [{ days: [1, 2, 3, 4, 5], start: '16:00', end: '18:30' }],
         // A parent trying to grant a Coder app to a Builder is quietly dropped.
-        allowedAppIds: ['scratch', 'tuxpaint', 'thonny'],
+        allowedAppIds: ['scratch', 'paint', 'thonny'],
         sessionSummaries: false,
         idleTimeoutMinutes: 10,
       },
     });
     expect(put.statusCode).toBe(200);
-    expect(put.json().allowedAppIds).toEqual(['scratch', 'tuxpaint']);
+    expect(put.json().allowedAppIds).toEqual(['scratch', 'paint']);
 
     const usage = await app.inject({
       method: 'GET',
@@ -644,7 +645,7 @@ describe('egress policy (control plane for the proxy)', () => {
         dailyMinutes: 45,
         weeklyMinutes: null,
         allowedWindows: [],
-        allowedAppIds: ['tuxpaint', 'scratch'], // research revoked
+        allowedAppIds: ['paint', 'scratch'], // research revoked
         sessionSummaries: false,
         idleTimeoutMinutes: 12,
       },

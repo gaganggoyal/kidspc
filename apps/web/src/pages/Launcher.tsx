@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ApiError, type HomeDto, type SessionDto, api, setChildToken } from '../api';
 import { useAutoFocusFirst, useSpatialNavigation } from '../tv';
 import { AVATARS } from './Household';
+import { Welcome } from './Welcome';
 
 const CATEGORY_GLYPH: Record<string, string> = {
   create: '🎨',
@@ -25,6 +26,9 @@ export function Launcher() {
   const [home, setHome] = useState<HomeDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState<string | null>(null);
+  // Dismissing the welcome is per-visit; the server decides whether it is a
+  // first run at all, so this only covers "skip" within one sitting.
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
 
   useSpatialNavigation();
   useAutoFocusFirst([home]);
@@ -62,7 +66,8 @@ export function Launcher() {
         as: 'child',
         body: { appId, deviceKind: 'tv' },
       });
-      navigate(`/kid/session/${session.id}`);
+      // Local activities are a route in this app; hosted ones are a stream.
+      navigate(session.localRoute ?? `/kid/session/${session.id}`);
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.userMessage : 'Could not start.');
       void load();
@@ -87,6 +92,16 @@ export function Launcher() {
           <div className="skeleton" style={{ height: 300 }} />
         </div>
       </div>
+    );
+  }
+
+  if (home.firstRun && !welcomeDismissed && home.canStart) {
+    return (
+      <Welcome
+        home={home}
+        onPick={(appId) => void start(appId)}
+        onSkip={() => setWelcomeDismissed(true)}
+      />
     );
   }
 
@@ -164,8 +179,13 @@ export function Launcher() {
         )}
 
         {home.session ? (
-          <button className="primary" onClick={() => navigate(`/kid/session/${home.session!.id}`)}>
-            Back to your computer
+          <button
+            className="primary"
+            onClick={() =>
+              navigate(home.session!.localRoute ?? `/kid/session/${home.session!.id}`)
+            }
+          >
+            Carry on where you left off
           </button>
         ) : null}
 
@@ -183,14 +203,24 @@ export function Launcher() {
               </span>
               <span className="name">{app.name}</span>
               <span className="tagline">{app.tagline}</span>
+              {app.delivery === 'hosted' && (
+                <span className="badge" title="Opens on the big computer">
+                  big computer
+                </span>
+              )}
               {starting === app.id && <span className="small muted">Starting…</span>}
             </button>
           ))}
         </div>
 
-        <button onClick={() => void start()} disabled={!home.canStart || starting !== null}>
-          Just open the desktop
-        </button>
+        {/* Only offered where there is a desktop to open. On a lite deployment
+            the local activities are the whole product, and a button that always
+            failed would be worse than no button. */}
+        {home.desktopsAvailable && (
+          <button onClick={() => void start()} disabled={!home.canStart || starting !== null}>
+            Just open the desktop
+          </button>
+        )}
       </div>
     </div>
   );

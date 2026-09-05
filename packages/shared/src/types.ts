@@ -1,4 +1,5 @@
 import type { AgeBand } from './age.js';
+import type { Delivery } from './catalog.js';
 import type {
   AllowedWindow,
   ConsentMethod,
@@ -77,7 +78,15 @@ export interface Session {
   childId: string;
   guardianId: string;
   state: SessionState;
-  /** Opaque handle owned by the desktop driver (container id, VM id, ...). */
+  /**
+   * Whether this session is a streamed desktop or an activity running in the
+   * child's own client. Local sessions provision nothing, so they cost the
+   * server nothing beyond a row -- but they are still leased, billed and
+   * reaped identically, because a child's time budget should not depend on how
+   * we happened to deliver the activity.
+   */
+  delivery: Delivery;
+  /** Opaque handle owned by the desktop driver. Always null for local sessions. */
   driverRef: string | null;
   driverName: string;
   deviceKind: 'tv' | 'browser';
@@ -120,12 +129,15 @@ export interface SessionView {
   id: string;
   childId: string;
   state: SessionState;
+  delivery: Delivery;
   deadline: string;
   grantedMinutes: number;
   remainingMinutes: number;
   autoLaunchAppId: string | null;
-  /** Relative URL of the streaming gateway, already scoped to this session. */
+  /** Streaming gateway path, scoped to this session. Null for local sessions. */
   streamPath: string | null;
+  /** Client route to open. Null for streamed sessions. */
+  localRoute: string | null;
 }
 
 export interface UsageDay {

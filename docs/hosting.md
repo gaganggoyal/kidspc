@@ -65,7 +65,29 @@ Note how badly small VPS instances fare: 16 GB fits only 7 sessions after
 overhead and headroom, so the per-subscriber cost barely improves with scale.
 Density is everything, and density needs large hosts.
 
-## Staged recommendation
+## Lite mode changes the answer
+
+Six of the twelve activities need no desktop at all. They run in the client, so
+the server's cost per concurrent child is a database row and one request every
+thirty seconds.
+
+| | Lite | Full |
+|---|---|---|
+| 5,000 subscribers | 1 small VPS | 6 bare-metal boxes |
+| Per subscriber | **Rs 0.24** | Rs 66 |
+| Session RAM at peak | 348 MiB | 993 GiB |
+| Egress | ~2 GiB/month total | 18 TiB/month |
+| Gives you | Paint, Typing, Blocks, Numbers, Writer, Code | plus Scratch, Python, LibreOffice, GCompris, research |
+
+The honest cost is on the client: lite moves the work onto a Rs 2,000 Android
+box, which is a weak computer. Every local activity has to stay light, and that
+is a real constraint on what can be built rather than a free lunch.
+
+The recommendation below is for full mode. **Launch on lite.** It removes the
+hardware decision from the critical path entirely, and the measurement that
+matters — the peak concurrency ratio — can be taken on a Rs 1,200 VPS.
+
+## Staged recommendation (full mode)
 
 **Pilot, 0-500 subscribers.** One 64-core / 256 GB bare-metal box in Mumbai or
 Delhi, plus a small VPS for the control plane and Postgres. ~Rs 60-70k/month

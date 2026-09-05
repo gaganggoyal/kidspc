@@ -10,9 +10,17 @@ import { type AgeBand, bandAtLeast } from './age.js';
  * the origins it is allowed to talk to.
  */
 export type LaunchSpec =
+  /**
+   * Runs in the client's own browser. Costs the server nothing per concurrent
+   * child beyond the static file, which is what makes the whole product viable
+   * on a small VPS: a streamed desktop is ~1.5 GiB of RAM, a local activity is
+   * a route. Everything that can be delivered this way should be.
+   */
+  | { kind: 'local'; route: string }
+  /** A binary in the desktop image. Needs a provisioned Linux session. */
   | { kind: 'native'; exec: string; args?: string[] }
   /**
-   * An app we serve ourselves, addressed by path only.
+   * An app we serve ourselves, opened in the desktop's locked-down browser.
    *
    * Self-hosting is how Scratch and friends reach a child without dragging
    * them into a social network or an ad surface, which DPDP Rules 2025 bar
@@ -26,14 +34,29 @@ export type LaunchSpec =
 
 /** A launch spec with its origin filled in, ready to hand to a desktop. */
 export type ResolvedLaunch =
+  | { kind: 'local'; route: string }
   | { kind: 'native'; exec: string; args?: string[] }
   | { kind: 'web'; url: string };
+
+/**
+ * How an activity reaches the child.
+ *
+ * `local` needs nothing but the client. `hosted` needs a streamed Linux
+ * desktop, which is the expensive half of this product -- so the split is a
+ * first-class part of the model rather than an implementation detail, and a
+ * deployment can be configured to offer only the cheap half.
+ */
+export type Delivery = 'local' | 'hosted';
+
+export function deliveryOf(spec: LaunchSpec): Delivery {
+  return spec.kind === 'local' ? 'local' : 'hosted';
+}
 
 /** Where self-hosted app bundles are served from, when nothing else is set. */
 export const DEFAULT_APPS_ORIGIN = 'https://apps.kidspc.online';
 
 export function resolveLaunch(spec: LaunchSpec, appsOrigin: string): ResolvedLaunch {
-  if (spec.kind === 'native') return spec;
+  if (spec.kind === 'native' || spec.kind === 'local') return spec;
   if (spec.selfHosted) return { kind: 'web', url: new URL(spec.path, appsOrigin).toString() };
   return { kind: 'web', url: spec.url };
 }
@@ -51,7 +74,11 @@ export interface CatalogApp {
   launch: LaunchSpec;
   /** Extra origins this app needs, beyond its own URL. */
   extraOrigins?: string[];
-  /** Rough RAM ceiling in MiB, used for session sizing. */
+  /**
+   * Rough RAM ceiling in MiB on a streamed desktop. Zero for local activities,
+   * which consume the client's memory rather than ours -- that zero is the
+   * whole reason lite deployments fit on a small VPS.
+   */
   memoryHintMib: number;
 }
 
@@ -63,43 +90,61 @@ export interface CatalogApp {
 export const CATALOG: readonly CatalogApp[] = [
   // ---- Explorer (5-8) -----------------------------------------------------
   {
-    id: 'tuxpaint',
+    id: 'paint',
     name: 'Paint',
     tagline: 'Draw, stamp and colour',
     category: 'create',
     minBand: 'explorer',
-    launch: { kind: 'native', exec: 'tuxpaint' },
-    memoryHintMib: 180,
+    launch: { kind: 'local', route: '/play/paint' },
+    memoryHintMib: 0,
+  },
+  {
+    id: 'typing',
+    name: 'Typing Garden',
+    tagline: 'Grow a plant by finding the right keys',
+    category: 'type',
+    minBand: 'explorer',
+    launch: { kind: 'local', route: '/play/typing' },
+    memoryHintMib: 0,
+  },
+  {
+    id: 'blocks',
+    name: 'Block Puzzles',
+    tagline: 'Stack blocks to guide the robot home',
+    category: 'code',
+    minBand: 'explorer',
+    launch: { kind: 'local', route: '/play/blocks' },
+    memoryHintMib: 0,
+  },
+  {
+    id: 'numbers',
+    name: 'Number Ninja',
+    tagline: 'Sharpen your maths, one problem at a time',
+    category: 'learn',
+    minBand: 'explorer',
+    launch: { kind: 'local', route: '/play/numbers' },
+    memoryHintMib: 0,
   },
   {
     id: 'gcompris',
     name: 'Play & Learn',
-    tagline: 'Puzzles, letters and numbers',
+    tagline: 'A hundred small activities',
     category: 'learn',
     minBand: 'explorer',
     launch: { kind: 'native', exec: 'gcompris-qt' },
     memoryHintMib: 320,
   },
-  {
-    id: 'tuxtype',
-    name: 'Typing Game',
-    tagline: 'Catch the falling letters',
-    category: 'type',
-    minBand: 'explorer',
-    launch: { kind: 'native', exec: 'tuxtype' },
-    memoryHintMib: 160,
-  },
-  {
-    id: 'blockly-puzzles',
-    name: 'Block Puzzles',
-    tagline: 'Snap blocks together to solve mazes',
-    category: 'code',
-    minBand: 'explorer',
-    launch: { kind: 'web', path: '/blockly/', selfHosted: true },
-    memoryHintMib: 260,
-  },
 
   // ---- Builder (9-12) -----------------------------------------------------
+  {
+    id: 'writer',
+    name: 'Story Writer',
+    tagline: 'Write stories and homework',
+    category: 'office',
+    minBand: 'builder',
+    launch: { kind: 'local', route: '/play/writer' },
+    memoryHintMib: 0,
+  },
   {
     id: 'scratch',
     name: 'Scratch',
@@ -133,17 +178,17 @@ export const CATALOG: readonly CatalogApp[] = [
     ],
     memoryHintMib: 420,
   },
-  {
-    id: 'blocks-to-python',
-    name: 'Blocks to Python',
-    tagline: 'Watch your blocks turn into real code',
-    category: 'code',
-    minBand: 'builder',
-    launch: { kind: 'web', path: '/edublocks/', selfHosted: true },
-    memoryHintMib: 380,
-  },
 
   // ---- Coder (13-16) ------------------------------------------------------
+  {
+    id: 'code',
+    name: 'Code Playground',
+    tagline: 'HTML, CSS and JavaScript with live preview',
+    category: 'code',
+    minBand: 'coder',
+    launch: { kind: 'local', route: '/play/code' },
+    memoryHintMib: 0,
+  },
   {
     id: 'thonny',
     name: 'Python',
@@ -152,15 +197,6 @@ export const CATALOG: readonly CatalogApp[] = [
     minBand: 'coder',
     launch: { kind: 'native', exec: 'thonny' },
     memoryHintMib: 420,
-  },
-  {
-    id: 'web-sandbox',
-    name: 'Web Sandbox',
-    tagline: 'HTML, CSS and JavaScript with live preview',
-    category: 'code',
-    minBand: 'coder',
-    launch: { kind: 'web', path: '/sandbox/', selfHosted: true },
-    memoryHintMib: 480,
   },
   {
     id: 'office',
@@ -188,6 +224,21 @@ export function defaultAllowedAppIds(band: AgeBand): string[] {
   return appsForBand(band).map((a) => a.id);
 }
 
+/** Activities that run in the client and need no server-side desktop. */
+export function localApps(apps: readonly CatalogApp[]): CatalogApp[] {
+  return apps.filter((app) => deliveryOf(app.launch) === 'local');
+}
+
+/** Activities that require a provisioned Linux desktop. */
+export function hostedApps(apps: readonly CatalogApp[]): CatalogApp[] {
+  return apps.filter((app) => deliveryOf(app.launch) === 'hosted');
+}
+
+export function appDelivery(appId: string): Delivery | null {
+  const app = findApp(appId);
+  return app ? deliveryOf(app.launch) : null;
+}
+
 /**
  * Origins a session may reach, derived from the apps it is allowed to launch.
  * The desktop's egress proxy is configured from exactly this list, so an app
@@ -198,7 +249,7 @@ export function originsForApps(
   appsOrigin: string = DEFAULT_APPS_ORIGIN,
 ): string[] {
   const origins = new Set<string>();
-  for (const app of apps) {
+  for (const app of hostedApps(apps)) {
     const resolved = resolveLaunch(app.launch, appsOrigin);
     if (resolved.kind === 'web') origins.add(new URL(resolved.url).origin);
     for (const extra of app.extraOrigins ?? []) origins.add(new URL(extra).origin);
@@ -210,7 +261,10 @@ export function originsForApps(
 export function memoryBudgetMib(apps: readonly CatalogApp[]): number {
   // A child runs one or two things at a time, not the whole catalogue. Budget
   // for the two heaviest plus the desktop shell rather than the naive sum.
-  const heaviest = [...apps].sort((a, b) => b.memoryHintMib - a.memoryHintMib).slice(0, 2);
+  // Local activities contribute nothing: they never run on our hardware.
+  const heaviest = [...hostedApps(apps)]
+    .sort((a, b) => b.memoryHintMib - a.memoryHintMib)
+    .slice(0, 2);
   const apps_ = heaviest.reduce((sum, a) => sum + a.memoryHintMib, 0);
   const SHELL_OVERHEAD_MIB = 420; // Xorg + window manager + VNC server
   return apps_ + SHELL_OVERHEAD_MIB;

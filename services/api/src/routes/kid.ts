@@ -2,6 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import {
   AGE_BAND_SPECS,
   ageBandForBirth,
+  deliveryOf,
+  findApp,
+  recordProgressInput,
   errors,
   startSessionInput,
 } from '@kidpc/shared';
@@ -75,16 +78,26 @@ export async function registerKidRoutes(app: FastifyInstance, ctx: AppContext): 
     });
 
     const live = await repos.sessions.liveForChild(childId);
+    const desktopsAvailable = ctx.config.DEPLOYMENT_MODE === 'full';
+    // A child's very first open deserves a different screen from their
+    // hundredth. Counting sessions is cheap and needs no extra column.
+    const firstRun = (await repos.sessions.countFor(childId)) === 0;
 
     return {
       child: { id: childId, displayName: child!.displayName, avatarId: child!.avatarId, band },
       bandSpec: AGE_BAND_SPECS[band],
-      apps: visibleApps(start.policy, band).map((appEntry) => ({
-        id: appEntry.id,
-        name: appEntry.name,
-        tagline: appEntry.tagline,
-        category: appEntry.category,
-      })),
+      // Delivery is surfaced so the launcher can tell a child which activities
+      // need the big computer, rather than letting them pick one and fail.
+      apps: visibleApps(start.policy, band)
+        .map((appEntry) => ({
+          id: appEntry.id,
+          name: appEntry.name,
+          tagline: appEntry.tagline,
+          category: appEntry.category,
+          delivery: deliveryOf(appEntry.launch),
+        }))
+        .filter((appEntry) => desktopsAvailable || appEntry.delivery === 'local'),
+      desktopsAvailable,
       time: {
         dailyMinutes: start.policy.dailyMinutes,
         usedTodayMinutes: start.usage.todayMinutes,
@@ -102,6 +115,7 @@ export async function registerKidRoutes(app: FastifyInstance, ctx: AppContext): 
       // Parents can enable per-session summaries; when they do, the child is
       // shown that it is on. Surveillance a child cannot see is not acceptable.
       summariesEnabled: start.policy.sessionSummaries,
+      firstRun,
       session: live ? ctx.manager.toView(live, ctx.now()) : null,
     };
   });
@@ -143,6 +157,26 @@ export async function registerKidRoutes(app: FastifyInstance, ctx: AppContext): 
       meta: { app: result.session.autoLaunchAppId, device: result.session.deviceKind },
     });
     return reply.status(201).send(result.view);
+  });
+
+  /**
+   * Report a result from a local activity.
+   *
+   * Rate-limited generously: a typing game finishing a round every few seconds
+   * is normal, and losing a child's score to a limiter would be worse than the
+   * write it saves.
+   */
+  app.post('/progress', limit(ctx.config, 240, '1 minute'), async (req) => {
+    const { childId } = requireChild(req);
+    const input = recordProgressInput.parse(req.body);
+    if (!findApp(input.appId)) throw errors.notFound('Activity');
+    await repos.progress.record(childId, input.appId, input.metric, input.value);
+    return { ok: true };
+  });
+
+  app.get('/progress', async (req) => {
+    const { childId } = requireChild(req);
+    return { progress: await repos.progress.forChild(childId) };
   });
 
   app.get('/sessions/current', async (req) => {

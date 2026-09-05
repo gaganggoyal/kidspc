@@ -122,10 +122,17 @@ describe('catalogue', () => {
       kind: 'web',
       url: 'http://localhost:8081/scratch/',
     });
-    const paint = appsForBand('explorer').find((a) => a.id === 'tuxpaint')!;
-    expect(resolveLaunch(paint.launch, 'http://localhost:8081')).toEqual({
+    // A native app ignores the origin entirely; a local one carries a client
+    // route and never touches a server.
+    const learn = appsForBand('explorer').find((a) => a.id === 'gcompris')!;
+    expect(resolveLaunch(learn.launch, 'http://localhost:8081')).toEqual({
       kind: 'native',
-      exec: 'tuxpaint',
+      exec: 'gcompris-qt',
+    });
+    const paint = appsForBand('explorer').find((a) => a.id === 'paint')!;
+    expect(resolveLaunch(paint.launch, 'http://localhost:8081')).toEqual({
+      kind: 'local',
+      route: '/play/paint',
     });
   });
 

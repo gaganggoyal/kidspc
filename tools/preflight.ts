@@ -214,6 +214,17 @@ if (config) {
 // ---------------------------------------------------------------------------
 console.log('\nDesktops');
 
+if ((fileEnv.DEPLOYMENT_MODE ?? 'full') === 'lite') {
+  record(
+    'pass',
+    'Lite deployment -- no desktops to check',
+    'Local activities run in the client. No container runtime or image needed.',
+  );
+} else {
+  await checkDesktopImage();
+}
+
+async function checkDesktopImage() {
 const image = fileEnv.DESKTOP_IMAGE ?? `kidpc/desktop:${fileEnv.DESKTOP_TAG ?? 'latest'}`;
 try {
   await exec('docker', ['version', '--format', '{{.Server.Version}}'], { timeout: 10_000 });
@@ -233,6 +244,7 @@ try {
     'Docker daemon reachable',
     'Cannot check the desktop image from here. Run this on the deployment host.',
   );
+}
 }
 
 // ---------------------------------------------------------------------------

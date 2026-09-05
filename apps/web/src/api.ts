@@ -161,21 +161,37 @@ export interface HouseholdDto {
   bands: Record<string, { id: string; label: string; minAge: number; maxAge: number; blurb: string }>;
 }
 
+export type Delivery = 'local' | 'hosted';
+
 export interface SessionDto {
   id: string;
   childId: string;
   state: string;
+  delivery: Delivery;
   deadline: string;
   grantedMinutes: number;
   remainingMinutes: number;
   autoLaunchAppId: string | null;
+  /** Streaming gateway path. Null for local activities. */
   streamPath: string | null;
+  /** Client route to open. Null for streamed desktops. */
+  localRoute: string | null;
 }
 
 export interface HomeDto {
   child: { id: string; displayName: string; avatarId: string; band: string };
   bandSpec: { label: string; blurb: string };
-  apps: Array<{ id: string; name: string; tagline: string; category: string }>;
+  apps: Array<{
+    id: string;
+    name: string;
+    tagline: string;
+    category: string;
+    delivery: Delivery;
+  }>;
+  /** False on a lite deployment, where only local activities are offered. */
+  desktopsAvailable: boolean;
+  /** True until this child has had their first session. */
+  firstRun: boolean;
   time: { dailyMinutes: number; usedTodayMinutes: number; remainingMinutes: number };
   canStart: boolean;
   blocked: { reason: string; message: string; retryAt: string | null } | null;

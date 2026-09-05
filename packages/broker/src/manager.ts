@@ -9,13 +9,21 @@ import {
   errors,
   localDayKey,
   DEFAULT_APPS_ORIGIN,
+  type Delivery,
+  appDelivery,
+  findApp,
   memoryBudgetMib,
   minutesSinceLocalMidnight,
   newId,
   originsForApps,
   resolveLaunch,
 } from '@kidpc/shared';
-import { evaluateAppLaunch, evaluateSessionStart, visibleApps } from '@kidpc/policy';
+import {
+  type SessionDecision,
+  evaluateAppLaunch,
+  evaluateSessionStart,
+  visibleApps,
+} from '@kidpc/policy';
 import { type DesktopHandle, type SessionDriver, sizeForBand } from './driver.js';
 
 /**
@@ -71,6 +79,15 @@ export interface ManagerOptions {
    * so one build can serve development, staging and production.
    */
   appsOrigin?: string;
+  /**
+   * Whether this deployment can provision streamed desktops at all.
+   *
+   * False on a small host, where local activities are the entire product. The
+   * distinction lives here rather than in a route because it is a property of
+   * the capacity behind the manager, and every caller should get the same
+   * answer.
+   */
+  allowHostedSessions?: boolean;
   log?: (event: string, fields: Record<string, unknown>) => void;
 }
 
@@ -83,6 +100,7 @@ export class SessionManager {
   private readonly readyTimeoutMs: number;
   private readonly homeVolumeFor: (childId: string) => string;
   private readonly appsOrigin: string;
+  private readonly allowHostedSessions: boolean;
   private readonly log: (event: string, fields: Record<string, unknown>) => void;
 
   /** Guards against a double-tap on the remote producing two containers. */
@@ -95,6 +113,7 @@ export class SessionManager {
     this.readyTimeoutMs = options.readyTimeoutMs ?? 45_000;
     this.homeVolumeFor = options.homeVolumeFor ?? ((childId) => `kidpc-home-${childId}`);
     this.appsOrigin = options.appsOrigin ?? DEFAULT_APPS_ORIGIN;
+    this.allowHostedSessions = options.allowHostedSessions ?? true;
     this.log = options.log ?? (() => {});
   }
 
@@ -181,6 +200,27 @@ export class SessionManager {
       autoLaunchAppId = appDecision.app.id;
     }
 
+    // No app means "just open the desktop", which is inherently hosted.
+    const delivery: Delivery = autoLaunchAppId
+      ? (appDelivery(autoLaunchAppId) ?? 'hosted')
+      : 'hosted';
+
+    if (delivery === 'hosted' && !this.allowHostedSessions) {
+      return {
+        ok: false,
+        reason: 'desktop_unavailable',
+        userMessage: 'That one needs the big computer, which is not switched on right now.',
+        retryAt: null,
+      };
+    }
+
+    if (delivery === 'local') {
+      // The cheap path: lease the time, skip the hardware. A local session is
+      // billed and reaped exactly like a streamed one, because a child's
+      // budget should not depend on how we happened to deliver the activity.
+      return this.startLocal(ctx, decision, autoLaunchAppId!, options, now);
+    }
+
     const grantedApps = visibleApps(ctx.policy, band);
     const size = sizeForBand(band, memoryBudgetMib(grantedApps));
     const sessionId = newId(ID_PREFIX.session);
@@ -235,6 +275,7 @@ export class SessionManager {
       childId: ctx.childId,
       guardianId: ctx.guardianId,
       state: 'ready',
+      delivery: 'hosted',
       driverRef: handle.ref,
       driverName: handle.driver,
       deviceKind: options.deviceKind ?? 'browser',
@@ -267,6 +308,60 @@ export class SessionManager {
     });
 
     return { ok: true, session, view: this.toView(session, readyAt) };
+  }
+
+  /**
+   * Start a session that runs in the child's own client.
+   *
+   * Structurally identical to a hosted start minus the driver: same lease, same
+   * billing watermark, same reaping. Keeping it in the manager rather than in a
+   * route is what guarantees a local activity cannot quietly become a way to
+   * bypass a bedtime.
+   */
+  private async startLocal(
+    ctx: StartContext,
+    decision: Extract<SessionDecision, { allowed: true }>,
+    appId: string,
+    options: StartOptions,
+    now: Date,
+  ): Promise<StartResult> {
+    const sessionId = newId(ID_PREFIX.session);
+    const session: Session = {
+      id: sessionId,
+      childId: ctx.childId,
+      guardianId: ctx.guardianId,
+      state: 'ready',
+      delivery: 'local',
+      driverRef: null,
+      driverName: 'local',
+      deviceKind: options.deviceKind ?? 'browser',
+      autoLaunchAppId: appId,
+      createdAt: now,
+      readyAt: now,
+      lastHeartbeatAt: now,
+      endedAt: null,
+      endReason: null,
+      deadline: new Date(now.getTime() + decision.grantedMinutes * MS_PER_MINUTE),
+      limitedBy: decision.limitedBy,
+      idleTimeoutMinutes: ctx.policy.idleTimeoutMinutes,
+      timezone: ctx.timezone || DEFAULT_TIMEZONE,
+      billedMinutes: 0,
+      lastBilledAt: now,
+      endpointHost: null,
+      endpointPort: null,
+      endpointSecret: null,
+    };
+
+    await this.store.insert(session);
+    this.log('session.start', {
+      sessionId,
+      childId: ctx.childId,
+      delivery: 'local',
+      app: appId,
+      grantedMinutes: decision.grantedMinutes,
+      limitedBy: decision.limitedBy,
+    });
+    return { ok: true, session, view: this.toView(session, now) };
   }
 
   private async resume(session: Session, now: Date): Promise<Session> {
@@ -523,9 +618,24 @@ export class SessionManager {
       // full 45 minutes to the child looking at it, not 44.
       remainingMinutes: Math.ceil(remainingMs / MS_PER_MINUTE),
       autoLaunchAppId: session.autoLaunchAppId,
-      streamPath: session.state === 'terminated' ? null : `/stream/${session.id}`,
+      delivery: session.delivery,
+      streamPath:
+        session.state === 'terminated' || session.delivery === 'local'
+          ? null
+          : `/stream/${session.id}`,
+      localRoute:
+        session.state === 'terminated' || session.delivery !== 'local'
+          ? null
+          : localRouteFor(session.autoLaunchAppId),
     };
   }
+}
+
+/** The client route a local activity lives at, from the catalogue. */
+function localRouteFor(appId: string | null): string | null {
+  if (!appId) return null;
+  const launch = findApp(appId)?.launch;
+  return launch?.kind === 'local' ? launch.route : null;
 }
 
 /**
