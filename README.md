@@ -1,0 +1,171 @@
+# KidPC
+
+A cloud desktop for children, delivered to a screen the household already owns —
+an Android TV box, a smart TV, or an ageing laptop — plus a Bluetooth keyboard
+and mouse.
+
+This repository is a working vertical slice: a parent can register, pass a
+verifiable-consent check, create a child profile, set limits, and hand the child
+a session that starts, bills its time correctly, and stops when it should.
+
+## Run it
+
+Needs Node 20+ and pnpm. **No database, no Docker.** The API falls back to
+PGlite — real Postgres compiled to WebAssembly, running in-process — and to a
+simulated desktop driver, so a clone is runnable immediately.
+
+```bash
+pnpm install
+pnpm --filter @kidpc/api seed        # a demo family, one child per age band
+pnpm dev                             # API on :4000, client on :5173
+```
+
+Open http://localhost:5173 and sign in as `demo@kidpc.test` /
+`demo-password-1234`. Child PINs are printed by the seed.
+
+```bash
+pnpm test          # 78 tests
+pnpm typecheck
+```
+
+## How it fits together
+
+```
+apps/web            React client. Two surfaces from one build:
+                      · TV launcher + profile picker (D-pad navigable)
+                      · parent dashboard (limits, consent, usage, data rights)
+
+services/api        Fastify control plane. Auth, consent, policy, sessions,
+                    the WebSocket streaming gateway, and the reaper.
+services/egress     Default-deny HTTP/CONNECT proxy. A desktop's only route out.
+
+packages/shared     Domain core, isomorphic: age bands, the app catalogue,
+                    schemas, timezone-aware clock helpers.
+packages/policy     Pure decision engine: may this child start now, for how
+                    long, and which apps can they open?
+packages/broker     Session lifecycle + the SessionDriver seam.
+                      · LoopbackDriver — simulated, for development
+                      · DockerDriver   — one locked-down container per session
+
+docker/kid-desktop  The desktop image: Xvfb, openbox, x11vnc, curated apps.
+infra/              Compose topology, Dockerfiles, nginx.
+```
+
+### The two decisions everything else follows from
+
+**Time is a lease, not a subscription.** When a session starts, the policy
+engine returns a single number: how many minutes this child may have, being the
+minimum of their remaining daily budget, their weekly budget, the end of the
+current allowed window, and a hard cap. That number is frozen onto the session.
+A parent editing limits mid-session cannot accidentally extend a child's
+evening, and the broker needs to understand exactly one thing to enforce it.
+
+**A desktop is disposable and reachable only through the control plane.** The
+container has no capabilities, a read-only root, a PID ceiling, no internet
+route, and no published port. The only things that survive it are the child's
+home volume and the usage ledger. The only way in is the streaming gateway,
+which checks a 30-second ticket bound to one session id.
+
+### Where the money is
+
+The brief's economics only work if children's sessions are cheap and short-lived,
+so three things are load-bearing:
+
+- **Sized per band, not per catalogue.** `memoryBudgetMib` budgets for the two
+  heaviest apps a child can open plus the shell, not the sum of everything.
+- **Billed on heartbeat.** A TV switched off stops consuming budget within one
+  tick, and stops costing us a container within `idleTimeoutMinutes`.
+- **Reaped and reconciled.** Every sweep ends expired and idle sessions, and
+  kills containers the control plane has no record of — the ones a crash between
+  `provision` and `insert` would otherwise leak forever.
+
+## Compliance is a constraint, not a feature
+
+The entire user base is minors, so DPDP Act 2023 obligations are in the type
+system and the schema rather than in a checklist:
+
+- **Verifiable parental consent** gates child sign-in, not just onboarding.
+  Consent lives behind a `ConsentVerifier` interface; the proof is stored as a
+  peppered digest and never in the clear.
+- **No behavioural tracking, ever.** There is no analytics table and no
+  `advertising` consent scope. DPDP bars profiling and targeted advertising to
+  children *regardless of consent*, so the capability does not exist to enable.
+- **Data minimisation.** Children are stored with birth **year and month** only.
+  There is no date-of-birth column.
+- **Age is rounded down.** With month precision we cannot know if a birthday has
+  passed within its month, so we assume it has not — keeping a child in the
+  younger band and inside minor protections for up to 31 extra days.
+- **Data rights** are self-service: `/v1/privacy/export` and `/v1/privacy/erase`.
+- **Surveillance is visible.** Per-session summaries are off by default, and the
+  child's home screen says so whenever a parent turns them on.
+- **Production refuses to lie.** The config loader will not start in production
+  with a mock consent verifier, a simulated driver, rate limits off, or a
+  generated signing key.
+
+## What is real, and what is not
+
+Working and tested end to end:
+
+- Guardian auth (scrypt, rotating refresh tokens), child PIN sign-in
+- Consent challenge/verify/revoke, single-use and replay-proof
+- Policy engine: daily and weekly budgets, allowed windows including curfews
+  that wrap past midnight, per-band app gating
+- Session lifecycle: start, resume, heartbeat billing across local midnight,
+  deadline enforcement, idle reaping, orphan reconciliation
+- Egress policy endpoint the proxy authorises desktops against
+- Both client surfaces, building at 77 KB gzipped
+
+Written but **not yet exercised**, because this environment had no container
+runtime — treat each as a real task, not a formality:
+
+- `docker/kid-desktop` has never been built. Expect Debian package names and
+  the read-only-rootfs assumptions to need a pass.
+- `DockerDriver` and `services/egress` are untested against a live daemon.
+- The viewer opens the WebSocket and handles every close code, but does not
+  decode the framebuffer. Attaching noVNC's `RFB` to the canvas is the last
+  step, marked `INTEGRATION POINT` in `apps/web/src/pages/Viewer.tsx`.
+
+Deliberately not built:
+
+- **DigiLocker verification.** The flow's shape is fixed and the boundary it
+  must not cross is documented, but `verify()` throws rather than pretending.
+  It needs partner credentials and signature validation.
+- **Self-hosted app bundles.** The catalogue points at `apps.kidpc.internal`;
+  serving Scratch and friends ourselves is what keeps children off social and
+  ad surfaces, and it is not in this repo yet.
+- Subscriptions and billing.
+
+Known limitations to fix before this carries real children:
+
+- The API container mounts the Docker socket, making it root on the host. Split
+  the broker into its own minimal service; the `SessionDriver` seam exists for
+  exactly that.
+- The reaper runs in-process. With more than one API instance it needs a leader
+  (a Postgres advisory lock is enough) or instances will race.
+- A 4-digit PIN is a "which child is this" control, not authentication — it is
+  only accepted on a device where a guardian is already signed in. Do not
+  promote it to a security boundary.
+- Starting a session with an `appId` while one is already running resumes the
+  existing desktop **without** launching the requested app. The gate still runs
+  and still refuses apps the child may not have, but launching into a live
+  session needs a driver capability that does not exist yet.
+
+Development caveats:
+
+- PGlite is in-process and single-writer. Two API instances pointed at the same
+  `PGLITE_DIR` will diverge silently — if the dev database looks stale, check
+  for a stray `tsx` process before debugging anything else. Postgres does not
+  have this problem, which is the other reason production requires it.
+- Vite binds `localhost`, which may resolve to IPv6 first; use
+  `http://localhost:5173`, not `127.0.0.1`.
+
+## Deployment sketch
+
+```bash
+cp .env.example .env       # fill in JWT_SECRET, CONSENT_PEPPER, POSTGRES_PASSWORD
+docker compose -f infra/docker-compose.yml build desktop
+docker compose -f infra/docker-compose.yml up -d
+```
+
+The network shape is the security story; `infra/docker-compose.yml` opens with
+it.

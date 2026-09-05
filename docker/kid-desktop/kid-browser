@@ -1,0 +1,28 @@
+#!/bin/sh
+# The only browser a KidPC session has.
+#
+# Chromium is started in a shape a child cannot navigate out of: no address bar
+# to type into, no extensions, no password manager, no sync, and every request
+# forced through the session's egress proxy. The allow-list is enforced at the
+# proxy rather than here -- a flag is a suggestion, a default-deny proxy is not.
+set -eu
+
+URL="${1:?usage: kid-browser <url>}"
+
+exec chromium \
+  --app="$URL" \
+  --user-data-dir="$HOME/.kid-browser" \
+  --proxy-server="${HTTP_PROXY:-}" \
+  --no-first-run \
+  --no-default-browser-check \
+  --disable-extensions \
+  --disable-plugins \
+  --disable-sync \
+  --disable-background-networking \
+  --disable-component-update \
+  --disable-breakpad \
+  --disable-features=Translate,MediaRouter,AutofillServerCommunication \
+  --password-store=basic \
+  --incognito \
+  --start-maximized \
+  --no-sandbox

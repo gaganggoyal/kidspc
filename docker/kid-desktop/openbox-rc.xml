@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Minimal window manager configuration.
+
+  Everything that could take a child out of their activity is removed: no root
+  menu, no window decorations to close things with, no desktop switching, and
+  no keybindings at all. The way out of an app is the KidPC overlay, not the
+  window manager.
+-->
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+  <resistance><strength>10</strength></resistance>
+  <focus>
+    <focusNew>yes</focusNew>
+    <followMouse>no</followMouse>
+  </focus>
+  <desktops>
+    <number>1</number>
+    <names><name>KidPC</name></names>
+  </desktops>
+  <theme>
+    <name>Clearlooks</name>
+    <titleLayout></titleLayout>
+    <keepBorder>no</keepBorder>
+  </theme>
+  <keyboard>
+    <!-- Deliberately empty: no Alt+F4, no Alt+Tab, no terminal shortcut. -->
+  </keyboard>
+  <mouse>
+    <dragThreshold>8</dragThreshold>
+  </mouse>
+  <applications>
+    <application class="*">
+      <decor>no</decor>
+      <maximized>yes</maximized>
+    </application>
+  </applications>
+</openbox_config>

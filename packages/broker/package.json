@@ -1,0 +1,11 @@
+{
+  "name": "@kidpc/broker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@kidpc/shared": "workspace:*",
+    "@kidpc/policy": "workspace:*"
+  }
+}

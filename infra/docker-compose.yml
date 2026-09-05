@@ -1,0 +1,118 @@
+# KidPC -- local/single-host topology.
+#
+# Network shape is the security story, so read this first:
+#
+#   sessions  (internal: true)  desktops + egress + api
+#       Desktops live here and NOTHING here can reach the internet. Their only
+#       route out is the egress proxy, which only forwards to origins that
+#       child's parent has actually granted.
+#   control                     api + postgres + egress
+#       Control-plane traffic, and the egress proxy's own internet access.
+#   edge                        web + api
+#       The only network with anything published to the host.
+#
+# KNOWN LIMITATION -- the API container mounts the Docker socket so it can
+# provision desktops, which makes it effectively root on the host. That is
+# acceptable for a single-host pilot and NOT acceptable in production. The fix
+# is to split the broker into its own minimal service holding the socket, with
+# the API talking to it over a narrow RPC; the `SessionDriver` seam already
+# exists for exactly that move.
+
+name: kidpc
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: kidpc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: kidpc
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [control]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U kidpc -d kidpc']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ..
+      dockerfile: infra/api.Dockerfile
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4000
+      DATABASE_URL: postgres://kidpc:${POSTGRES_PASSWORD}@postgres:5432/kidpc
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET (32+ chars)}
+      CONSENT_PEPPER: ${CONSENT_PEPPER:?set CONSENT_PEPPER (16+ chars)}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:8080}
+      SESSION_DRIVER: docker
+      DESKTOP_IMAGE: kidpc/desktop:dev
+      DESKTOP_NETWORK: kidpc_sessions
+      DESKTOP_CONNECT: network
+      # Credentials are per session; the host:port here is just where to find it.
+      EGRESS_PROXY: egress:3128
+      CONSENT_VERIFIER: ${CONSENT_VERIFIER:-digilocker}
+      DIGILOCKER_CLIENT_ID: ${DIGILOCKER_CLIENT_ID:-}
+      DIGILOCKER_CLIENT_SECRET: ${DIGILOCKER_CLIENT_SECRET:-}
+    volumes:
+      # See KNOWN LIMITATION above.
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [edge, control, sessions]
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:4000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+
+  egress:
+    build:
+      context: ..
+      dockerfile: infra/egress.Dockerfile
+    environment:
+      API_URL: http://api:4000
+      PORT: 3128
+    # On `sessions` to receive desktop traffic, on `control` for its own route
+    # to the internet and to the control plane. This asymmetry is the point:
+    # desktops cannot reach `control`, so they cannot bypass this process.
+    networks: [sessions, control]
+    depends_on:
+      api: { condition: service_started }
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      dockerfile: infra/web.Dockerfile
+    ports:
+      - '${WEB_PORT:-8080}:80'
+    networks: [edge]
+    depends_on:
+      api: { condition: service_started }
+    restart: unless-stopped
+
+  # Not a long-running service: `docker compose build desktop` bakes the image
+  # the broker launches per session.
+  desktop:
+    build:
+      context: ../docker/kid-desktop
+    image: kidpc/desktop:dev
+    profiles: [build-only]
+
+networks:
+  edge:
+  control:
+  sessions:
+    name: kidpc_sessions
+    # No gateway to the outside world. A desktop that somehow escapes its
+    # process confinement still has nowhere to call home.
+    internal: true
+
+volumes:
+  pgdata:

@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.pgdata/
+.data/
+coverage/
+*.tsbuildinfo
+.vite/
+
+# Capacity model scratch output
+tools/*.local.*
