@@ -18,6 +18,17 @@ import { type Delivery } from './catalog.js';
  */
 export const TRIAL_DAYS = 7;
 
+/**
+ * What each child beyond the included two costs, as a fraction of the plan's
+ * monthly price. Held here rather than per plan because it is one commercial
+ * decision -- half price for a sibling -- and two copies of it would eventually
+ * disagree.
+ */
+export const EXTRA_CHILD_RATE = 0.5;
+
+/** Households larger than this are a support conversation, not a form. */
+export const MAX_CHILDREN = 8;
+
 export const PLAN_IDS = ['lite', 'pro'] as const;
 export type PlanId = (typeof PLAN_IDS)[number];
 
@@ -29,6 +40,8 @@ export interface Plan {
   listPriceInr: number;
   /** Rupees per month, during the launch offer. */
   offerPriceInr: number;
+  /** Children covered by the base price, before any per-child addition. */
+  includedChildren: number;
   /** Which delivery kinds this plan includes; the app list follows from it. */
   includes: readonly Delivery[];
   /** Points that are not simply "which apps", in the order they matter. */
@@ -52,6 +65,7 @@ export const PLANS: readonly Plan[] = [
     tagline: 'Everything a child needs on the family TV.',
     listPriceInr: 999,
     offerPriceInr: 299,
+    includedChildren: 2,
     includes: ['local'],
     extras: [
       'Every parent control: daily and weekly limits, curfews, per-app permissions',
@@ -66,6 +80,7 @@ export const PLANS: readonly Plan[] = [
     tagline: 'A whole Linux computer, streamed to the same screen.',
     listPriceInr: 1999,
     offerPriceInr: 999,
+    includedChildren: 2,
     includes: ['local', 'hosted'],
     recommended: true,
     extras: [
@@ -88,6 +103,32 @@ export function planById(id: PlanId): Plan {
 /** Whole-percent saving, rounded down so the claim is never overstated. */
 export function discountPercent(plan: Plan): number {
   return Math.floor(((plan.listPriceInr - plan.offerPriceInr) / plan.listPriceInr) * 100);
+}
+
+/**
+ * What a household pays each month.
+ *
+ * The base price covers `includedChildren`; each child beyond that adds
+ * EXTRA_CHILD_RATE of it. Rounded to whole rupees at the last step rather than
+ * per child, so three children cost what the page says rather than a rupee
+ * either side of it.
+ *
+ * `offer` picks which base price to build on, so the launch discount applies to
+ * the siblings too instead of quietly not applying.
+ */
+export function monthlyPriceInr(
+  plan: Plan,
+  children: number,
+  { offer = true }: { offer?: boolean } = {},
+): number {
+  const base = offer ? plan.offerPriceInr : plan.listPriceInr;
+  const extra = Math.max(0, children - plan.includedChildren);
+  return Math.round(base * (1 + extra * EXTRA_CHILD_RATE));
+}
+
+/** The monthly cost of one additional child, at the price a household is on. */
+export function extraChildPriceInr(plan: Plan, { offer = true }: { offer?: boolean } = {}): number {
+  return Math.round((offer ? plan.offerPriceInr : plan.listPriceInr) * EXTRA_CHILD_RATE);
 }
 
 /**

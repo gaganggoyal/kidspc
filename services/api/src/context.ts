@@ -12,6 +12,8 @@ import type { Config } from './config.js';
 import type { DatabaseHandle } from './db/client.js';
 import type { Repos } from './repos.js';
 import type { ConsentVerifier } from './consent/verifier.js';
+import type { Mailer } from './email/mailer.js';
+import type { Outbox } from './email/outbox.js';
 
 /** Everything a route handler is allowed to reach. Assembled once at boot. */
 export interface AppContext {
@@ -20,6 +22,8 @@ export interface AppContext {
   repos: Repos;
   manager: SessionManager;
   consent: ConsentVerifier;
+  mailer: Mailer;
+  outbox: Outbox;
   now: () => Date;
 }
 

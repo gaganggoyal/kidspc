@@ -1,9 +1,10 @@
 import { buildApp } from './app.js';
-import { createRuntime, startReaper } from './boot.js';
+import { createRuntime, startMailSender, startReaper } from './boot.js';
 
 const runtime = await createRuntime();
 const app = await buildApp(runtime.ctx);
 const stopReaper = startReaper(runtime.ctx);
+const stopMail = startMailSender(runtime.ctx);
 
 await app.listen({ port: runtime.ctx.config.PORT, host: runtime.ctx.config.HOST });
 app.log.info(
@@ -11,6 +12,7 @@ app.log.info(
     driver: runtime.ctx.config.SESSION_DRIVER,
     consent: runtime.ctx.config.CONSENT_VERIFIER,
     database: runtime.ctx.config.DATABASE_URL ? 'postgres' : 'pglite',
+    mail: runtime.ctx.mailer.name,
   },
   'KidPC API ready',
 );
@@ -27,6 +29,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     shuttingDown = true;
     app.log.info(`${signal} received, draining`);
     stopReaper();
+    stopMail();
     void app
       .close()
       .then(() => runtime.shutdown())

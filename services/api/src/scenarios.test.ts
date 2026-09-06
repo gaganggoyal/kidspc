@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { type Harness, createHarness, ist, onboard } from './testing/harness.js';
-import { consentChallenges } from './db/schema.js';
+import { consentChallenges, emailOutbox, planOrders } from './db/schema.js';
+import { backoffMinutes, sendPending } from './email/outbox.js';
 
 /**
  * End-user scenarios.
@@ -1224,5 +1225,169 @@ describe('Scenario: a service that is live but cannot yet onboard a child', () =
     harness = await open();
     const res = await harness.app.inject({ method: 'GET', url: '/healthz' });
     expect(res.json().consent).toBe('unavailable');
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('Scenario: a household asking to subscribe', () => {
+  const post = (h: Harness, body: unknown, token?: string) =>
+    h.app.inject({
+      method: 'POST',
+      url: '/v1/orders',
+      headers: token
+        ? { ...asParent(token), 'content-type': 'application/json' }
+        : { 'content-type': 'application/json' },
+      payload: body as object,
+    });
+
+  it('takes a request from someone with no account, and quotes the price itself', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    const res = await post(h, { email: 'parent@example.com', planId: 'lite', children: 3 });
+
+    expect(res.statusCode).toBe(201);
+    // 299 base + 150 for the third child. Priced from the plan table, not from
+    // anything the client sent.
+    expect(res.json().quotedInr).toBe(449);
+    expect(res.json().orderId).toMatch(/^ord_/);
+  });
+
+  it('ignores a price the client tries to name', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    const res = await post(h, {
+      email: 'cheeky@example.com',
+      planId: 'pro',
+      children: 4,
+      quotedInr: 1,
+      status: 'paid',
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.json().quotedInr).toBe(1998);
+  });
+
+  it('queues a confirmation to the household', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    await post(h, { email: 'queued@example.com', planId: 'lite', children: 1 });
+
+    const queued = await h.runtime.ctx.database.db.select().from(emailOutbox);
+    const confirmation = queued.find((m) => m.template === 'order_received');
+    expect(confirmation).toBeTruthy();
+    expect(confirmation!.toAddress).toBe('queued@example.com');
+    expect(confirmation!.sentAt).toBeNull();
+    // The promise the page makes must be the promise the email keeps.
+    expect(confirmation!.bodyText).toContain('payment link');
+    expect(confirmation!.bodyText).toContain('₹299');
+  });
+
+  it('never asks for or stores a payment detail', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    const res = await post(h, {
+      email: 'card@example.com',
+      planId: 'lite',
+      children: 1,
+      cardNumber: '4111111111111111',
+    });
+    expect(res.statusCode).toBe(201);
+
+    const orders = await h.runtime.ctx.database.db.select().from(planOrders);
+    // Zod strips what it does not declare; this asserts the row cannot carry a
+    // card even if a form someday sends one.
+    expect(JSON.stringify(orders)).not.toContain('4111');
+  });
+
+  it('refuses a household larger than the form supports, rather than guessing', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    // 400 is this service's answer to a malformed request; the point of the
+    // test is that each of these is refused rather than guessed at.
+    expect((await post(h, { email: 'big@example.com', planId: 'lite', children: 9 })).statusCode).toBe(400);
+    expect((await post(h, { email: 'none@example.com', planId: 'lite', children: 0 })).statusCode).toBe(400);
+    expect((await post(h, { email: 'nope@example.com', planId: 'gold', children: 1 })).statusCode).toBe(400);
+    expect((await post(h, { email: 'not-an-email', planId: 'lite', children: 1 })).statusCode).toBe(400);
+  });
+
+  it('links the request to a guardian when one is signed in', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    const token = await h.registerGuardian('linked@example.com');
+    const res = await post(h, { email: 'linked@example.com', planId: 'pro', children: 2 }, token);
+
+    const orderId = res.json().orderId as string;
+    const mine = await h.app.inject({
+      method: 'GET',
+      url: `/v1/orders/${orderId}`,
+      headers: asParent(token),
+    });
+    expect(mine.json().order.quotedInr).toBe(999);
+
+    // Another guardian cannot read it, and is not told it exists.
+    const stranger = await h.registerGuardian('stranger-order@example.com');
+    const theirs = await h.app.inject({
+      method: 'GET',
+      url: `/v1/orders/${orderId}`,
+      headers: asParent(stranger),
+    });
+    expect(theirs.json().order).toBeNull();
+  });
+});
+
+describe('Scenario: the email a parent actually receives', () => {
+  it('queues a welcome the moment an account is created', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    await h.registerGuardian('welcome@example.com');
+
+    const queued = await h.runtime.ctx.database.db.select().from(emailOutbox);
+    const welcome = queued.find((m) => m.template === 'welcome');
+    expect(welcome).toBeTruthy();
+    expect(welcome!.toAddress).toBe('welcome@example.com');
+    // Says the thing that is true and awkward, rather than only the nice parts.
+    expect(welcome!.bodyText).toContain('verify that you are their parent');
+  });
+
+  it('sends nothing twice, and marks what it sent', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    await h.registerGuardian('once@example.com');
+
+    const sent: string[] = [];
+    const mailer = { name: 'log' as const, send: async (m: { to: string }) => void sent.push(m.to) };
+
+    const first = await sendPending(h.runtime.ctx.database.db, mailer, h.now);
+    const second = await sendPending(h.runtime.ctx.database.db, mailer, h.now);
+
+    expect(first.sent).toBe(1);
+    expect(second.sent).toBe(0);
+    expect(sent).toEqual(['once@example.com']);
+  });
+
+  it('keeps a failed message and backs off instead of dropping or spinning', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    await h.registerGuardian('fails@example.com');
+
+    const failing = {
+      name: 'log' as const,
+      send: async () => {
+        throw new Error('550 mailbox unavailable');
+      },
+    };
+    const result = await sendPending(h.runtime.ctx.database.db, failing, h.now);
+    expect(result).toEqual({ sent: 0, failed: 1 });
+
+    const [row] = await h.runtime.ctx.database.db.select().from(emailOutbox);
+    // Still queued, with the reason recorded and the next attempt pushed out.
+    expect(row!.sentAt).toBeNull();
+    expect(row!.attempts).toBe(1);
+    expect(row!.lastError).toContain('550');
+    expect(row!.nextTryAt.getTime()).toBeGreaterThan(h.now().getTime());
+
+    // And it is not retried until that time arrives.
+    expect((await sendPending(h.runtime.ctx.database.db, failing, h.now)).failed).toBe(0);
+  });
+
+  it('backs off further each time, then settles rather than growing forever', async () => {
+    expect(backoffMinutes(0)).toBe(1);
+    expect(backoffMinutes(1)).toBe(5);
+    expect(backoffMinutes(4)).toBe(1440);
+    // A mailbox that does not exist should be retried daily and kept, not
+    // hammered and not silently discarded.
+    expect(backoffMinutes(99)).toBe(1440);
   });
 });

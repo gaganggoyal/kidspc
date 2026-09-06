@@ -164,7 +164,8 @@ export type AuditAction =
   | 'session.end'
   | 'session.denied'
   | 'data.export'
-  | 'data.erase';
+  | 'data.erase'
+  | 'order.requested';
 
 /**
  * Append-only accountability log. DPDP puts the burden of demonstrating lawful
@@ -177,7 +178,7 @@ export interface AuditEvent {
   actorType: 'guardian' | 'child' | 'system';
   actorId: string | null;
   action: AuditAction;
-  subjectType: 'guardian' | 'child' | 'session' | 'consent' | null;
+  subjectType: 'guardian' | 'child' | 'session' | 'consent' | 'order' | null;
   subjectId: string | null;
   /** Operational detail only -- never behavioural profiling material. */
   meta: Record<string, unknown>;

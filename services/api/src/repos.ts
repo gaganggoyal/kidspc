@@ -670,7 +670,7 @@ export class AuditRepo {
     actorType: 'guardian' | 'child' | 'system';
     actorId: string | null;
     action: AuditAction;
-    subjectType?: 'guardian' | 'child' | 'session' | 'consent' | null;
+    subjectType?: 'guardian' | 'child' | 'session' | 'consent' | 'order' | null;
     subjectId?: string | null;
     meta?: Record<string, unknown>;
   }) {

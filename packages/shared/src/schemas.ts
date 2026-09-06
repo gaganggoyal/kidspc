@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_CHILDREN, PLAN_IDS } from './plans.js';
 import { AGE_BANDS } from './age.js';
 
 // ---------------------------------------------------------------------------
@@ -238,3 +239,39 @@ export const resetChildInput = z
     message: 'A new 4-digit PIN is required to reset a PIN',
     path: ['pin'],
   });
+
+// ---------------------------------------------------------------------------
+// Plan requests and outgoing mail
+// ---------------------------------------------------------------------------
+
+/**
+ * Where a plan request has got to. `requested` is what the form creates;
+ * everything after it is moved by hand, because the payment link is sent by
+ * hand. There is no automatic transition to `paid` and there should not be one
+ * until a payment provider is actually integrated.
+ */
+export const ORDER_STATUSES = ['requested', 'link_sent', 'paid', 'cancelled'] as const;
+export const orderStatus = z.enum(ORDER_STATUSES);
+export type OrderStatus = (typeof ORDER_STATUSES)[number];
+
+/**
+ * Every message this service can send, named. A closed set rather than free
+ * text: it is what makes "how many welcome emails failed yesterday" a query
+ * instead of a grep, and it stops a caller inventing a template that no
+ * unsubscribe or audit path knows about.
+ */
+export const EMAIL_TEMPLATES = ['welcome', 'order_received', 'order_internal'] as const;
+export const emailTemplate = z.enum(EMAIL_TEMPLATES);
+export type EmailTemplate = (typeof EMAIL_TEMPLATES)[number];
+
+export const createOrderInput = z.object({
+  email,
+  contactName: z.string().trim().min(1).max(80).optional(),
+  planId: z.enum(PLAN_IDS),
+  /**
+   * Households above MAX_CHILDREN are a conversation rather than a form, and
+   * the database carries the same bound as a CHECK constraint.
+   */
+  children: z.coerce.number().int().min(1).max(MAX_CHILDREN),
+});
+export type CreateOrderInput = z.infer<typeof createOrderInput>;

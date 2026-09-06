@@ -16,6 +16,7 @@ import {
   updateChildInput,
 } from '@kidpc/shared';
 import { requireGuardian } from '../app.js';
+import { welcomeEmail } from '../email/templates.js';
 import { limit } from '../limits.js';
 import { type AppContext, buildChildView, loadChildForGuardian } from '../context.js';
 import { defaultPolicyFor } from '../repos.js';
@@ -77,6 +78,16 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
       subjectType: 'guardian',
       subjectId: guardian.id,
     });
+
+    // Queued, not sent: registration must not fail because a mail server is
+    // slow, and must not succeed-but-silently-drop because one is misconfigured.
+    await ctx.outbox.enqueue(
+      welcomeEmail({
+        to: guardian.email,
+        displayName: guardian.displayName,
+        publicUrl: config.PUBLIC_URL,
+      }),
+    );
 
     return reply.status(201).send({
       guardian,

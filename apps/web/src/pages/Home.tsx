@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AGE_BANDS,
@@ -5,14 +6,17 @@ import {
   CATALOG,
   PLANS,
   PRODUCT_NAME,
+  type PlanId,
   TRIAL_DAYS,
   appsForBand,
   deliveryOf,
+  extraChildPriceInr,
   discountPercent,
   formatInr,
   localApps,
 } from '@kidpc/shared';
 import { getTokens } from '../api';
+import { PlanRequest } from './PlanRequest';
 import { CATEGORY_GLYPH } from './Launcher';
 
 /**
@@ -41,6 +45,9 @@ export function Home() {
    * is reading. Tab and Enter still reach and press the buttons.
    */
   const signedIn = Boolean(getTokens().guardian);
+  // Which plan's request form is open, if any. One at a time: two forms on a
+  // pricing page is two half-filled forms.
+  const [requesting, setRequesting] = useState<PlanId | null>(null);
   const activities = localApps(CATALOG);
 
   return (
@@ -262,6 +269,11 @@ export function Home() {
                     <span className="save">Launch offer, save {discountPercent(plan)}%</span>
                   </p>
 
+                  <p className="plan-household">
+                    Up to {plan.includedChildren} children included · each extra child{' '}
+                    {formatInr(extraChildPriceInr(plan))}/month
+                  </p>
+
                   <ul className="plan-feats">
                     <li>
                       <strong>{apps.length} activities</strong> — {apps.map((a) => a.name).join(', ')}
@@ -273,12 +285,16 @@ export function Home() {
 
                   {plan.pending && <p className="plan-pending">{plan.pending}</p>}
 
-                  <Link
-                    to="/signin?new=1"
-                    className={plan.recommended ? 'btn primary big' : 'btn big'}
-                  >
-                    Start {TRIAL_DAYS} days free
-                  </Link>
+                  {requesting === plan.id ? (
+                    <PlanRequest plan={plan} onClose={() => setRequesting(null)} />
+                  ) : (
+                    <button
+                      className={plan.recommended ? 'primary big' : 'big'}
+                      onClick={() => setRequesting(plan.id)}
+                    >
+                      Choose {plan.name}
+                    </button>
+                  )}
                 </article>
               );
             })}

@@ -9,6 +9,7 @@ import type { AppContext } from './context.js';
 import { type Principal, verifyAccessToken } from './auth/tokens.js';
 import { registerParentRoutes } from './routes/parent.js';
 import { registerKidRoutes } from './routes/kid.js';
+import { registerOrderRoutes } from './routes/orders.js';
 import { registerStreamRoutes } from './routes/stream.js';
 import { registerInternalRoutes } from './routes/internal.js';
 
@@ -124,11 +125,17 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     // It is the difference between "deployed" and "open for business", and it
     // belongs somewhere an operator can see without reading the env file.
     consent: ctx.consent.method,
+    // 'log' means mail is being queued and written to the log, not delivered.
+    // Reported because the two are indistinguishable from outside until
+    // somebody waits for an email that is never coming.
+    mail: ctx.mailer.name,
+    mailPending: await ctx.outbox.pendingCount(),
     appsOrigin: ctx.config.APPS_ORIGIN,
   }));
 
   await app.register(async (instance) => registerParentRoutes(instance, ctx), { prefix: '/v1' });
   await app.register(async (instance) => registerKidRoutes(instance, ctx), { prefix: '/v1' });
+  await app.register(async (instance) => registerOrderRoutes(instance, ctx), { prefix: '/v1' });
   await app.register(async (instance) => registerStreamRoutes(instance, ctx));
   await app.register(async (instance) => registerInternalRoutes(instance, ctx));
 

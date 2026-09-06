@@ -9,6 +9,30 @@ import { z } from 'zod';
  * pretend desktop driver, a generated signing key). Rather than trusting a
  * deployment checklist, the process refuses to start.
  */
+/**
+ * An unset environment variable and an empty one are the same thing.
+ *
+ * Compose writes `FOO: ${FOO:-}` as `FOO=""`, so every optional setting arrives
+ * as an empty string rather than as absent. Without this, `z.string().email()`
+ * rejects the empty value and the process refuses to boot over a variable
+ * nobody set -- which is exactly how this deploy failed.
+ */
+const optional = <T extends z.ZodTypeAny>(inner: T) =>
+  z.preprocess((v) => (v === '' ? undefined : v), inner.optional());
+
+/**
+ * Boolean environment variables, read the way an operator writes them.
+ *
+ * `z.coerce.boolean()` is JavaScript truthiness: it turns "0", "false" and "no"
+ * into `true`, so SMTP_SECURE=0 would have silently kept implicit TLS on.
+ */
+const envBoolean = (fallback: boolean) =>
+  z.preprocess((v) => {
+    if (v === undefined || v === '') return fallback;
+    if (typeof v !== 'string') return v;
+    return !['0', 'false', 'no', 'off'].includes(v.trim().toLowerCase());
+  }, z.boolean());
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
@@ -16,11 +40,11 @@ const schema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 
   /** Postgres URL. When absent we fall back to an in-process PGlite database. */
-  DATABASE_URL: z.string().url().optional(),
+  DATABASE_URL: optional(z.string().url()),
   PGLITE_DIR: z.string().default('.data/pglite'),
 
   /** HS256 key for access tokens. Must be supplied in production. */
-  JWT_SECRET: z.string().min(32).optional(),
+  JWT_SECRET: optional(z.string().min(32)),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().default(15 * 60),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().default(60),
 
@@ -64,10 +88,29 @@ const schema = z.object({
    * service runs and refuses to onboard any child. See UnavailableConsentVerifier.
    */
   CONSENT_VERIFIER: z.enum(['mock', 'digilocker', 'unavailable']).default('mock'),
-  DIGILOCKER_CLIENT_ID: z.string().optional(),
-  DIGILOCKER_CLIENT_SECRET: z.string().optional(),
+  DIGILOCKER_CLIENT_ID: optional(z.string()),
+  DIGILOCKER_CLIENT_SECRET: optional(z.string()),
   /** Pepper mixed into consent proof digests. Rotating it invalidates re-checks. */
-  CONSENT_PEPPER: z.string().min(16).optional(),
+  CONSENT_PEPPER: optional(z.string().min(16)),
+
+  /**
+   * Outgoing mail. Same variable names and the same provider as the other
+   * services on this host (Zoho, 465, implicit TLS), so one server has one mail
+   * configuration to reason about.
+   *
+   * All optional: without them the process queues mail and logs it instead of
+   * sending, which is what keeps a deployment honest before its mailbox exists.
+   */
+  SMTP_HOST: optional(z.string()),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(465),
+  SMTP_SECURE: envBoolean(true),
+  SMTP_USER: optional(z.string()),
+  SMTP_PASS: optional(z.string()),
+  /** e.g. "Online Kids PC <hello@kidspc.online>" */
+  SMTP_FROM: optional(z.string()),
+  /** Where plan requests are announced. Falls back to SMTP_USER. */
+  ORDERS_EMAIL: optional(z.string().email()),
+  MAIL_INTERVAL_MS: z.coerce.number().int().min(5_000).default(60_000),
 
   REAP_INTERVAL_MS: z.coerce.number().int().min(5_000).default(30_000),
 

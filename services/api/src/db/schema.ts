@@ -16,6 +16,9 @@ import type {
   AllowedWindow,
   Delivery,
   ConsentScope,
+  EmailTemplate,
+  OrderStatus,
+  PlanId,
   SessionEndReason,
   SessionLimit,
   SessionState,
@@ -216,4 +219,44 @@ export const auditEvents = pgTable(
     meta: jsonb('meta').$type<Record<string, unknown>>().notNull().default({}),
   },
   (t) => [index('audit_subject_idx').on(t.subjectType, t.subjectId), index('audit_at_idx').on(t.at)],
+);
+
+/**
+ * Queued outgoing mail. See migration 0002 for why it is a queue rather than an
+ * SMTP call inside the request that caused it.
+ */
+export const emailOutbox = pgTable(
+  'email_outbox',
+  {
+    id: text('id').primaryKey(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    toAddress: text('to_address').notNull(),
+    subject: text('subject').notNull(),
+    bodyText: text('body_text').notNull(),
+    bodyHtml: text('body_html'),
+    template: text('template').$type<EmailTemplate>().notNull(),
+    sentAt: ts('sent_at'),
+    attempts: integer('attempts').notNull().default(0),
+    lastError: text('last_error'),
+    nextTryAt: ts('next_try_at').notNull().defaultNow(),
+  },
+  (t) => [index('email_outbox_pending_idx').on(t.nextTryAt)],
+);
+
+/** A household asking to subscribe. Nothing is charged; see migration 0002. */
+export const planOrders = pgTable(
+  'plan_orders',
+  {
+    id: text('id').primaryKey(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    email: text('email').notNull(),
+    contactName: text('contact_name'),
+    planId: text('plan_id').$type<PlanId>().notNull(),
+    children: integer('children').notNull(),
+    quotedInr: integer('quoted_inr').notNull(),
+    guardianId: text('guardian_id').references(() => guardians.id, { onDelete: 'set null' }),
+    status: text('status').$type<OrderStatus>().notNull().default('requested'),
+    note: text('note'),
+  },
+  (t) => [index('plan_orders_created_idx').on(t.createdAt)],
 );

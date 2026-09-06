@@ -983,3 +983,32 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 }
 .plan .btn { margin-top: 6px; width: 100%; }
 .plans-note { margin-top: var(--pad); max-width: 68ch; }
+
+/* ---- plan request ------------------------------------------------------- */
+
+.plan-household {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.plan button.big { width: 100%; margin-top: 6px; }
+
+/* Replaces the plan's button in place rather than opening a dialog. A modal on
+   a TV is a focus trap somebody has to escape with a remote, and the card
+   already has the context the form needs. */
+.request-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+  padding: var(--pad);
+  background: var(--surface-2);
+  border-radius: var(--radius);
+}
+.request-panel h3 { margin: 0; font-size: 1.1rem; }
+.request-panel p { margin: 0; }
+.request-panel .field { margin-bottom: 0; }
+.request-panel .row { gap: 10px; }
+.request-panel .row button { flex: 1; }

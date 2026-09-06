@@ -108,6 +108,9 @@ describe('health', () => {
       mode: 'full',
       driver: 'loopback',
       consent: 'dev_mock',
+      // No SMTP in tests, so mail is queued and logged rather than delivered.
+      mail: 'log',
+      mailPending: 0,
       appsOrigin: 'https://apps.kidspc.online',
     });
   });
