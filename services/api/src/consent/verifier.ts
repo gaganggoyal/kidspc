@@ -20,7 +20,14 @@ import type { Config } from '../config.js';
  *      who they say" are different answers with different consequences.
  */
 export interface ConsentVerifier {
-  readonly method: ConsentMethod;
+  /**
+   * `'unavailable'` is not a consent method -- it is the absence of one, which
+   * is why it widens this type rather than joining `ConsentMethod`. Nothing can
+   * ever be persisted under it, and the type system enforces that: every code
+   * path that writes a method to the database takes `ConsentMethod`, so a
+   * deployment in this state cannot record a consent even by accident.
+   */
+  readonly method: ConsentMethod | 'unavailable';
   /** Everything the client needs to carry out the check. */
   begin(input: BeginInput): Promise<BeginResult>;
   /** Validate what the client brought back. */
@@ -143,8 +150,40 @@ export class DigiLockerConsentVerifier implements ConsentVerifier {
   }
 }
 
+/**
+ * No verifier at all.
+ *
+ * A deployment can be live and correct without being able to onboard children:
+ * the marketing surface, guardian registration and the parent dashboard all
+ * work, and every attempt to consent for a child is refused with an honest
+ * explanation. This exists because the alternatives were both worse -- running
+ * the mock verifier in production means a fake identity check on real
+ * children's data, and pointing CONSENT_VERIFIER at DigiLocker with invented
+ * credentials produces a failure that looks like an outage instead of a
+ * decision.
+ *
+ * Fail-closed: `begin` refuses before a challenge row is created, so there is
+ * no half-finished consent to clean up when a real verifier arrives.
+ */
+export class UnavailableConsentVerifier implements ConsentVerifier {
+  readonly method = 'unavailable' as const;
+
+  async begin(): Promise<BeginResult> {
+    throw new ConsentUnavailableError(
+      'This deployment has no parental-consent verifier configured, so it cannot lawfully onboard a child. ' +
+        'Set CONSENT_VERIFIER once DigiLocker partner credentials or a payment-instrument verifier are available.',
+    );
+  }
+
+  async verify(): Promise<VerifyResult> {
+    throw new ConsentUnavailableError('No parental-consent verifier is configured.');
+  }
+}
+
 export function createConsentVerifier(config: Config): ConsentVerifier {
   switch (config.CONSENT_VERIFIER) {
+    case 'unavailable':
+      return new UnavailableConsentVerifier();
     case 'digilocker':
       return new DigiLockerConsentVerifier(
         config.DIGILOCKER_CLIENT_ID ?? '',

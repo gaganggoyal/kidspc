@@ -107,6 +107,7 @@ describe('health', () => {
       ok: true,
       mode: 'full',
       driver: 'loopback',
+      consent: 'dev_mock',
       appsOrigin: 'https://apps.kidspc.online',
     });
   });

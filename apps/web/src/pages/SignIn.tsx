@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { PRODUCT_NAME, PRODUCT_TAGLINE } from '@kidpc/shared';
 import { ApiError, api, setGuardianToken } from '../api';
 
 /**
@@ -36,7 +37,7 @@ export function SignIn() {
         setError(cause.userMessage);
         setFieldErrors(cause.details as Record<string, string>);
       } else {
-        setError('We could not reach KidPC. Check your connection and try again.');
+        setError(`We could not reach ${PRODUCT_NAME}. Check your connection and try again.`);
       }
     } finally {
       setBusy(false);
@@ -45,9 +46,9 @@ export function SignIn() {
 
   return (
     <div className="page" style={{ maxWidth: 460 }}>
-      <h1>KidPC</h1>
+      <h1>{PRODUCT_NAME}</h1>
       <p className="muted">
-        A safe computer for your child, on the screen you already own.
+        {PRODUCT_TAGLINE}
       </p>
 
       <form className="card stack" onSubmit={submit}>
@@ -121,8 +122,8 @@ export function SignIn() {
       </form>
 
       <p className="small muted" style={{ marginTop: 24 }}>
-        KidPC does not track children or show them advertising. You can export or delete
-        everything we hold at any time from the parent dashboard.
+        {PRODUCT_NAME} does not track children or show them advertising. You can export or
+        delete everything we hold at any time from the parent dashboard.
       </p>
     </div>
   );

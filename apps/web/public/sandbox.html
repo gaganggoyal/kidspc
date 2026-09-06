@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Preview</title>
+<style>
+  html,
+  body {
+    margin: 0;
+    height: 100%;
+  }
+</style>
+<script>
+  /*
+   * The Code Playground's preview frame.
+   *
+   * The obvious implementation is an iframe with `srcdoc`, and that is what
+   * this was. It works in development and fails in production, silently: a
+   * srcdoc document has the URL `about:srcdoc`, and documents on local schemes
+   * INHERIT the embedding page's Content-Security-Policy. Ours is
+   * `script-src 'self'`, so every child's `<script>` was about to be blocked
+   * the moment this went behind a real edge.
+   *
+   * Loading the frame from an actual https URL instead means it gets its own
+   * policy, from this file's response headers -- one that permits inline script
+   * inside the sandbox and nothing else, not even a network request. The frame
+   * is still declared `sandbox="allow-scripts"` WITHOUT `allow-same-origin`, so
+   * despite being served from our origin it executes in an opaque one and can
+   * reach no cookie, no storage and no session token of ours.
+   */
+  addEventListener('message', function (event) {
+    if (typeof event.data !== 'string') return;
+    // Replaces this document wholesale, listener included -- which is why the
+    // playground remounts the frame for each run rather than posting twice.
+    document.open();
+    document.write(event.data);
+    document.close();
+  });
+</script>

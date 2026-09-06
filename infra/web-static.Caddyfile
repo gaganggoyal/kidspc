@@ -1,0 +1,21 @@
+# Static file server for the built client.
+#
+# This is not the edge -- it holds no certificate and publishes no host port.
+# It exists so the machine's real edge can `reverse_proxy` to one address
+# instead of bind-mounting our build into its own container, which would mean
+# recreating the edge (and dropping every other site on the host) every time
+# we deploy.
+:80 {
+	root * /srv
+	encode zstd gzip
+
+	# Vite fingerprints these filenames, so they can be cached hard and
+	# forever. index.html deliberately is not: it is how a TV picks up a new
+	# build without anyone clearing anything.
+	@static path /assets/*
+	header @static Cache-Control "public, max-age=31536000, immutable"
+
+	# Single-page app: an unknown path is a client route, not a missing file.
+	try_files {path} /index.html
+	file_server
+}

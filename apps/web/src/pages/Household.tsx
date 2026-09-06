@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { PRODUCT_SHORT_NAME } from '@kidpc/shared';
 import { ApiError, type ChildDto, type HouseholdDto, api, setChildToken, setGuardianToken } from '../api';
 import { useAutoFocusFirst, useSpatialNavigation } from '../tv';
 
@@ -65,7 +66,7 @@ export function Household() {
     <div className="tv">
       <div className="page stack">
         <div className="spread">
-          <h1>Who's using KidPC?</h1>
+          <h1>Who&apos;s using {PRODUCT_SHORT_NAME}?</h1>
           <div className="row">
             <Link className="btn" to="/parent">
               Parent settings

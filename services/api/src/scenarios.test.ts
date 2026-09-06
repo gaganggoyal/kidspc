@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { type Harness, createHarness, ist, onboard } from './testing/harness.js';
+import { consentChallenges } from './db/schema.js';
 
 /**
  * End-user scenarios.
@@ -1118,5 +1120,109 @@ describe('Scenario: a parent putting something right', () => {
       payload: { scope: 'limits' },
     });
     expect(res.statusCode).toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('Scenario: a service that is live but cannot yet onboard a child', () => {
+  /**
+   * The state kidspc.online launches in. A parent can register and sign in, but
+   * no child can be given an account until a real verifier exists. The point of
+   * these tests is that the refusal is *structural* -- not a message on a
+   * screen that a future refactor can route around.
+   */
+  const open = async () =>
+    createHarness(ist('2026-03-14T10:00:00'), { CONSENT_VERIFIER: 'unavailable' });
+
+  it('lets a parent register and sign in', async () => {
+    harness = await open();
+    const token = await harness.registerGuardian('live@example.com');
+    const me = await harness.app.inject({
+      method: 'GET',
+      url: '/v1/me',
+      headers: asParent(token),
+    });
+    expect(me.statusCode).toBe(200);
+  });
+
+  it('refuses to start a consent challenge, and says why', async () => {
+    harness = await open();
+    const token = await harness.registerGuardian('live2@example.com');
+    const childId = await harness.createChild(token, {
+      displayName: 'Ravi',
+      birthYear: 2015,
+      birthMonth: 9,
+      pin: '2222',
+    });
+
+    const res = await harness.app.inject({
+      method: 'POST',
+      url: `/v1/children/${childId}/consent/start`,
+      headers: { ...asParent(token), 'content-type': 'application/json' },
+      payload: { method: 'digilocker', scopes: ['account', 'progress'] },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe('consent_unavailable');
+    // 503 would page an on-call engineer for a deliberate configuration.
+    expect(res.statusCode).not.toBe(503);
+  });
+
+  it('creates no challenge row to clean up later', async () => {
+    harness = await open();
+    const token = await harness.registerGuardian('live3@example.com');
+    const childId = await harness.createChild(token, {
+      displayName: 'Ravi',
+      birthYear: 2015,
+      birthMonth: 9,
+      pin: '2222',
+    });
+    await harness.app.inject({
+      method: 'POST',
+      url: `/v1/children/${childId}/consent/start`,
+      headers: { ...asParent(token), 'content-type': 'application/json' },
+      payload: { method: 'digilocker', scopes: ['account'] },
+    });
+
+    // Fail-closed means refusing before any state is written, so that the day a
+    // real verifier is configured there are no orphaned challenges in flight.
+    const challenges = await harness.runtime.ctx.database.db
+      .select()
+      .from(consentChallenges)
+      .where(eq(consentChallenges.childId, childId));
+    expect(challenges).toHaveLength(0);
+    expect(await harness.runtime.ctx.repos.consents.activeFor(childId)).toBeNull();
+  });
+
+  it('refuses the child a token at all, which is stronger than refusing a session', async () => {
+    harness = await open();
+    const token = await harness.registerGuardian('live4@example.com');
+    const childId = await harness.createChild(token, {
+      displayName: 'Ravi',
+      birthYear: 2015,
+      birthMonth: 9,
+      pin: '2222',
+    });
+
+    // The correct PIN, and still refused. The gate is on consent, not on the
+    // session route -- so a child never holds a credential in the first place
+    // and there is no authorised surface left to get wrong.
+    const login = await harness.app.inject({
+      method: 'POST',
+      url: '/v1/auth/child/login',
+      headers: { ...asParent(token), 'content-type': 'application/json' },
+      payload: { childId, pin: '2222' },
+    });
+
+    expect(login.statusCode).toBe(403);
+    expect(login.json().error.code).toBe('consent_required');
+    expect(login.json().accessToken).toBeUndefined();
+  });
+
+  it('reports the state on /healthz rather than only in the env file', async () => {
+    harness = await open();
+    const res = await harness.app.inject({ method: 'GET', url: '/healthz' });
+    expect(res.json().consent).toBe('unavailable');
   });
 });

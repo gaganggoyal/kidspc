@@ -59,7 +59,11 @@ const schema = z.object({
    */
   DESKTOP_CONNECT: z.enum(['network', 'published']).default('network'),
 
-  CONSENT_VERIFIER: z.enum(['mock', 'digilocker']).default('mock'),
+  /**
+   * `unavailable` is a deliberate production state, not a misconfiguration: the
+   * service runs and refuses to onboard any child. See UnavailableConsentVerifier.
+   */
+  CONSENT_VERIFIER: z.enum(['mock', 'digilocker', 'unavailable']).default('mock'),
   DIGILOCKER_CLIENT_ID: z.string().optional(),
   DIGILOCKER_CLIENT_SECRET: z.string().optional(),
   /** Pepper mixed into consent proof digests. Rotating it invalidates re-checks. */

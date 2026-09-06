@@ -10,6 +10,11 @@ import { ActivityShell, type ActivityApi } from './ActivityShell';
  * session token. That single missing flag is the difference between a coding
  * tool and a cross-site scripting hole aimed at its own users.
  *
+ * The frame loads /sandbox.html and is handed the document by postMessage,
+ * rather than taking it via `srcdoc`. See that file: a srcdoc document inherits
+ * the embedding page's Content-Security-Policy, which would block every child's
+ * script in production while working perfectly in development.
+ *
  * Their code stays in this browser and is never uploaded.
  */
 const STORAGE_KEY = 'kidpc.code.v1';
@@ -26,6 +31,10 @@ function Playground({ activity }: { activity: ActivityApi }) {
   const [pane, setPane] = useState<Pane>('html');
   const [source, setSource] = useState(STARTER);
   const [preview, setPreview] = useState(STARTER);
+  // Bumped on every run so React remounts the frame. The preview document
+  // replaces the sandbox page wholesale, so each run needs a fresh one.
+  const [runId, setRunId] = useState(0);
+  const frame = useRef<HTMLIFrameElement>(null);
   const runs = useRef(0);
 
   useEffect(() => {
@@ -35,6 +44,7 @@ function Playground({ activity }: { activity: ActivityApi }) {
         const parsed = JSON.parse(stored) as typeof STARTER;
         setSource(parsed);
         setPreview(parsed);
+        setRunId((n) => n + 1);
       }
     } catch {
       // Corrupt or unavailable storage: fall back to the starter project.
@@ -59,6 +69,7 @@ function Playground({ activity }: { activity: ActivityApi }) {
 
   const run = () => {
     setPreview(source);
+    setRunId((n) => n + 1);
     runs.current += 1;
     activity.report('score', runs.current);
     try {
@@ -98,12 +109,15 @@ function Playground({ activity }: { activity: ActivityApi }) {
       </div>
 
       <iframe
+        key={runId}
+        ref={frame}
         className="code-preview"
         title="Preview"
         // No allow-same-origin: the preview gets an opaque origin and cannot
         // reach anything of ours. Do not add it.
         sandbox="allow-scripts allow-modals"
-        srcDoc={document_}
+        src="/sandbox.html"
+        onLoad={() => frame.current?.contentWindow?.postMessage(document_, '*')}
       />
     </div>
   );

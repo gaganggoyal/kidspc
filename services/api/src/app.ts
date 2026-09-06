@@ -120,6 +120,10 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     // the setting rather than the reality is how an operator ends up debugging
     // a desktop that was never going to exist.
     driver: ctx.config.DEPLOYMENT_MODE === 'lite' ? 'none' : ctx.config.SESSION_DRIVER,
+    // 'unavailable' means the service is running but cannot onboard a child.
+    // It is the difference between "deployed" and "open for business", and it
+    // belongs somewhere an operator can see without reading the env file.
+    consent: ctx.consent.method,
     appsOrigin: ctx.config.APPS_ORIGIN,
   }));
 

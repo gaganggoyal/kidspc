@@ -21,7 +21,6 @@
 		# over HTTPS -- it cannot be undone quickly.
 		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
 		X-Content-Type-Options "nosniff"
-		X-Frame-Options "DENY"
 		Referrer-Policy "no-referrer"
 		# A service for children has no reason to touch any of these.
 		Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()"
@@ -38,8 +37,25 @@ www.{$KIDPC_DOMAIN} {
 	encode zstd gzip
 	root * /srv
 
-	header {
-		Content-Security-Policy "default-src 'self'; connect-src 'self' wss://{$KIDPC_DOMAIN}; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+	# Two policies, because the Code Playground runs a child's own inline
+	# JavaScript and `script-src 'self'` forbids that -- correctly, for our
+	# pages. /sandbox.html is loaded into an opaque-origin frame purely so it
+	# can carry the looser policy without ours being loosened.
+	#
+	# X-Frame-Options is set here per path rather than in the (security) snippet,
+	# and that is not tidiness. Caddy applies the first-registered header wrapper
+	# LAST, so a site-wide `X-Frame-Options DENY` silently overwrites a
+	# path-scoped override further down -- verified against a live response, not
+	# the config. DENY blocks same-origin framing too, which would leave the
+	# preview permanently blank. One value per path, no overriding.
+	@app not path /sandbox.html
+	header @app {
+		Content-Security-Policy "default-src 'self'; connect-src 'self' wss://{$KIDPC_DOMAIN}; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		X-Frame-Options "DENY"
+	}
+	header /sandbox.html {
+		Content-Security-Policy "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-ancestors 'self'; form-action 'none'; base-uri 'none'"
+		X-Frame-Options "SAMEORIGIN"
 	}
 
 	# Control-plane routes are for other KidPC components and must never be
@@ -83,6 +99,9 @@ www.{$KIDPC_DOMAIN} {
 
 	header {
 		Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'; frame-ancestors 'none'"
+		# Set here rather than in (security), which no longer carries it: this
+		# host has no sandbox frame, so it wants the blanket refusal.
+		X-Frame-Options "DENY"
 		Cache-Control "public, max-age=3600"
 	}
 }

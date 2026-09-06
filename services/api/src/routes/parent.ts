@@ -8,6 +8,7 @@ import {
   defaultAllowedAppIds,
   errors,
   loginInput,
+  PRODUCT_NAME,
   policyInput,
   registerGuardianInput,
   resetChildInput,
@@ -278,7 +279,7 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
     );
     if (!band) {
       throw errors.validation('Child is below the supported age', {
-        birthYear: 'KidPC is designed for children aged 5 and up.',
+        birthYear: `${PRODUCT_NAME} is designed for children aged 5 and up.`,
       });
     }
 
@@ -466,6 +467,19 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
     const { child } = await loadChildForGuardian(ctx, guardianId, id);
     const input = startConsentInput.parse({ ...(req.body as object), childId: child.id });
 
+    // A deployment with no verifier refuses here, before a challenge row
+    // exists, and says why. Without this the method check below reports the
+    // state as "unsupported method: unavailable", which reads like a client
+    // bug. 409 rather than 503 deliberately: this is a settled configuration,
+    // not an outage, and it should not page anyone at three in the morning.
+    if (ctx.consent.method === 'unavailable') {
+      throw errors.conflict(
+        'consent_unavailable',
+        'No parental-consent verifier is configured',
+        'We cannot set up a child account yet — parental consent checks are not available on this service. Your own account is unaffected.',
+      );
+    }
+
     if (input.method !== ctx.consent.method) {
       throw errors.validation('Unsupported consent method', {
         method: `This deployment verifies consent via "${ctx.consent.method}".`,
@@ -618,7 +632,7 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
         createdAt: guardian.createdAt,
       },
       children: kids,
-      note: 'This is everything KidPC holds about your household. We do not build behavioural profiles of children.',
+      note: `This is everything ${PRODUCT_NAME} holds about your household. We do not build behavioural profiles of children.`,
     };
   });
 

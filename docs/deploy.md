@@ -14,6 +14,15 @@ in production, and `digilocker` throws rather than pretending, so today there is
 no value of that setting which both starts and works. That is deliberate: the
 one failure in this system with a regulator attached to it should be loud.
 
+`CONSENT_VERIFIER=unavailable` is how the service runs anyway, honestly. It
+boots, guardians can register and sign in, and every attempt to consent for a
+child is refused with an explanation. It is fail-closed by construction rather
+than by care: `begin()` throws before a challenge row exists, and child login
+requires an active consent — so a child never receives a token at all, and there
+is no authorised surface left to get wrong. `/healthz` reports
+`"consent":"unavailable"`, which is the difference between *deployed* and *open
+for business*.
+
 Two ways forward, both needing a decision you have to make:
 
 | Path | What it needs | Effort |

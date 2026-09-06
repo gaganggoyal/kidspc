@@ -1,0 +1,124 @@
+# Online Kids PC, on a host whose edge already belongs to something else.
+#
+# The main docker-compose.yml assumes a dedicated machine: it brings its own
+# Caddy and binds :80 and :443. On a VPS already serving other sites, that
+# compose cannot start -- and stopping the incumbent edge to make room would
+# take every one of those sites down with it.
+#
+# So this file brings no edge at all. It runs the control plane and a static
+# file server on an *existing* Docker network, publishes no host ports, and
+# leaves the machine's real edge to route to them. Adding the site is then one
+# block in that edge's Caddyfile plus `caddy reload`, which is zero-downtime
+# for everything already running.
+#
+# Lite mode only, and not by omission: provisioning desktops on a shared host
+# means competing for RAM with someone else's production traffic. There is no
+# Docker socket mounted here, no egress proxy and no session network, because
+# nothing in this deployment can start a container.
+#
+#   docker compose -f infra/docker-compose.shared-edge.yml --env-file .env.production up -d --build
+
+name: kidspc
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: '10m', max-file: '3' }
+
+services:
+  # Builds the client into a volume the web container serves, then exits.
+  web-build:
+    build:
+      context: ..
+      dockerfile: infra/web.Dockerfile
+      args:
+        VITE_PUBLIC_URL: https://${KIDPC_DOMAIN}
+    volumes:
+      - web-dist:/out
+    command: ['sh', '-c', 'rm -rf /out/* && cp -r /app/apps/web/dist/. /out/']
+    restart: 'no'
+    logging: *logging
+
+  web:
+    image: caddy:2-alpine
+    volumes:
+      - ./web-static.Caddyfile:/etc/caddy/Caddyfile:ro
+      - web-dist:/srv:ro
+    networks:
+      # An explicit alias, because this network is shared with another project
+      # and `web` is a name two compose files could plausibly both want.
+      edge:
+        aliases: [kidspc-web]
+    depends_on:
+      web-build: { condition: service_completed_successfully }
+    restart: unless-stopped
+    logging: *logging
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: kidpc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: kidpc
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # `control` only. The database is not reachable from the shared network,
+    # so nothing else on this host can see it even by accident.
+    networks: [control]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U kidpc -d kidpc']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    logging: *logging
+
+  api:
+    build:
+      context: ..
+      dockerfile: infra/api.Dockerfile
+      args:
+        WITH_DOCKER_CLI: '0'
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4000
+      DATABASE_URL: postgres://kidpc:${POSTGRES_PASSWORD}@postgres:5432/kidpc
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET (32+ chars)}
+      CONSENT_PEPPER: ${CONSENT_PEPPER:?set CONSENT_PEPPER (16+ chars)}
+      WEB_ORIGIN: https://${KIDPC_DOMAIN}
+      PUBLIC_URL: https://${KIDPC_DOMAIN}
+      # Unused in lite mode -- no desktop exists to load an app bundle -- but
+      # config still requires it to be https, so it points at the domain that
+      # will serve bundles if this ever grows a full deployment.
+      APPS_ORIGIN: https://${KIDPC_APPS_DOMAIN:-apps.kidspc.online}
+      DEPLOYMENT_MODE: lite
+      CONSENT_VERIFIER: ${CONSENT_VERIFIER:?see docs/deploy.md -- 'unavailable' is the honest setting until a real verifier exists}
+      DIGILOCKER_CLIENT_ID: ${DIGILOCKER_CLIENT_ID:-}
+      DIGILOCKER_CLIENT_SECRET: ${DIGILOCKER_CLIENT_SECRET:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    networks:
+      edge:
+        aliases: [kidspc-api]
+      control:
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:4000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+    logging: *logging
+
+networks:
+  # The host's existing edge network, created by whichever project owns port
+  # 443. Declared external so this compose joins it rather than trying to own
+  # it -- `docker compose down` here must never delete somebody else's network.
+  edge:
+    name: ${EDGE_NETWORK:?set EDGE_NETWORK to the network the host edge runs on}
+    external: true
+  control:
+
+volumes:
+  pgdata:
+  web-dist:

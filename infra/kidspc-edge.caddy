@@ -1,0 +1,75 @@
+
+# ---------------------------------------------------------------------------
+# Online Kids PC — kidspc.online
+#
+# Runs from /root/kidspc (infra/docker-compose.shared-edge.yml). That compose
+# brings no edge of its own and publishes no host ports; it joins this network
+# so these two names resolve:
+#
+#   kidspc-api:4000   control plane (Fastify)
+#   kidspc-web:80     the built client, served by its own small Caddy
+#
+# Deploying the app never touches this file or this container, so the other
+# sites on this host are unaffected by an Online Kids PC release.
+# ---------------------------------------------------------------------------
+
+www.kidspc.online {
+	redir https://kidspc.online{uri} permanent
+}
+
+kidspc.online {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		# A service for children has no reason to touch any of these.
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+		-Server
+	}
+
+	# Two policies, because the Code Playground runs a child's own inline
+	# JavaScript and `script-src 'self'` forbids that -- correctly, for our
+	# pages. /sandbox.html is loaded into an opaque-origin frame purely so it
+	# can carry the looser policy without ours being loosened.
+	#
+	# X-Frame-Options is set here per path rather than in the block above, and
+	# that is not tidiness. Caddy applies the first-registered header wrapper
+	# LAST, so a site-wide `X-Frame-Options DENY` silently overwrites a
+	# path-scoped override further down -- verified against the live response,
+	# not the config. DENY blocks same-origin framing too, which would leave
+	# the preview permanently blank. One value per path, no overriding.
+	@app not path /sandbox.html
+	header @app {
+		Content-Security-Policy "default-src 'self'; connect-src 'self' wss://kidspc.online; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		X-Frame-Options "DENY"
+	}
+	header /sandbox.html {
+		Content-Security-Policy "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-ancestors 'self'; form-action 'none'; base-uri 'none'"
+		X-Frame-Options "SAMEORIGIN"
+	}
+
+	# Control-plane routes are for other components and must never be reachable
+	# from a browser. Denied here as well as inside the API, because one of
+	# those two will eventually be misconfigured.
+	handle /internal/* {
+		respond 404
+	}
+
+	handle /v1/* {
+		reverse_proxy kidspc-api:4000
+	}
+
+	# Desktop streams. Unused in lite mode, but routed so that enabling full
+	# mode is a compose change rather than an edge change.
+	handle /stream/* {
+		reverse_proxy kidspc-api:4000 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		reverse_proxy kidspc-web:80
+	}
+}

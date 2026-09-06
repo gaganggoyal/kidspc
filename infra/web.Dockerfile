@@ -9,7 +9,7 @@ WORKDIR /app
 ARG VITE_PUBLIC_URL
 ENV VITE_PUBLIC_URL=${VITE_PUBLIC_URL}
 
-COPY pnpm-workspace.yaml package.json .npmrc ./
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json .npmrc ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile --filter @kidpc/web...

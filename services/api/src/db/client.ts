@@ -67,6 +67,23 @@ export async function createDatabase(config: Config): Promise<DatabaseHandle> {
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'migrations');
 
 /**
+ * Drizzle's two drivers disagree about what `execute` returns, and the type
+ * system cannot see it: the PGlite driver yields `{ rows: [...] }`, postgres-js
+ * yields the row array itself.
+ *
+ * This replaces an `as unknown as { rows }` cast, which type-checked, passed
+ * every test on PGlite, and then threw on the first query against a real
+ * Postgres server -- the migrator crashed before applying a single migration.
+ * A cast is an assertion that something is true; this one asserted the shape we
+ * happened to develop against.
+ */
+export function rowsOf<T>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  const rows = (result as { rows?: unknown } | null)?.rows;
+  return Array.isArray(rows) ? (rows as T[]) : [];
+}
+
+/**
  * Apply pending migrations in filename order.
  *
  * Hand-written SQL rather than generated diffs: the schema carries constraints
@@ -82,11 +99,9 @@ export async function migrate(handle: DatabaseHandle, log: (msg: string) => void
   `);
 
   const applied = new Set(
-    (
-      (await handle.db.execute(sql`SELECT name FROM _migrations`)) as unknown as {
-        rows: Array<{ name: string }>;
-      }
-    ).rows.map((r) => r.name),
+    rowsOf<{ name: string }>(await handle.db.execute(sql`SELECT name FROM _migrations`)).map(
+      (r) => r.name,
+    ),
   );
 
   const files = (await readdir(MIGRATIONS_DIR)).filter((f) => f.endsWith('.sql')).sort();

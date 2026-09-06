@@ -1,0 +1,21 @@
+# The build context is the repository root, so everything here would otherwise
+# be uploaded to the Docker daemon on every build -- including, on a deployment
+# host, the env file sitting next to the compose file.
+.git
+node_modules
+**/node_modules
+**/dist
+.data
+.pgdata
+coverage
+*.tsbuildinfo
+.vite
+*.log
+.DS_Store
+
+# Never into a build context. Nothing COPYs them, but a file that is not sent
+# cannot be leaked by a future COPY . that someone adds in a hurry.
+.env
+.env.*
+!.env.example
+!.env.production.example
