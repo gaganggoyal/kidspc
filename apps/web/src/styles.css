@@ -24,6 +24,10 @@
   --pad: 16px;
   --font: 16px;
   --focus: 0 0 0 4px #ffffff, 0 0 0 8px var(--accent);
+  /* The drawn television on the home page. A token because a hardcoded dark
+     bezel disappears entirely on a dark ground -- measured at 1.16:1. */
+  --bezel: #26241f;
+  --bezel-screen: var(--bg);
 
   --font-stack: ui-rounded, 'SF Pro Rounded', 'Segoe UI', Roboto, system-ui, sans-serif;
 }
@@ -41,6 +45,10 @@
     --warn: #e0a458;
     --danger: #e2796b;
     --focus: 0 0 0 4px #17161a, 0 0 0 8px var(--accent);
+    /* Lighter than the page here, not darker: the silhouette is the whole
+       point of the illustration, and a dark bezel on a dark page has none. */
+    --bezel: #4a4556;
+    --bezel-screen: var(--surface);
   }
 }
 
@@ -732,7 +740,6 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 
 /* Alternating ground, so sections separate without rules between them. */
 .band { background: var(--surface-2); }
-.band + .band { background: transparent; }
 
 .hero {
   display: grid;
@@ -776,13 +783,13 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 .hero-art { display: flex; flex-direction: column; align-items: center; }
 .tv-frame {
   width: 100%;
-  background: #26241f;
+  background: var(--bezel);
   border-radius: 18px;
   padding: 12px 12px 20px;
   box-shadow: 0 24px 48px -24px rgba(0, 0, 0, 0.55);
 }
 .tv-screen {
-  background: var(--bg);
+  background: var(--bezel-screen);
   border-radius: 10px;
   padding: 18px;
   display: flex;
@@ -821,7 +828,7 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 .tv-stand {
   width: 22%;
   height: 12px;
-  background: #26241f;
+  background: var(--bezel);
   border-radius: 0 0 6px 6px;
 }
 

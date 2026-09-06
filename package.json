@@ -19,6 +19,7 @@
     "lint": "eslint .",
     "capacity": "tsx tools/capacity.ts",
     "icons": "tsx tools/icons.ts",
+    "contrast": "tsx tools/contrast.ts",
     "demo": "tsx tools/demo.ts",
     "preflight": "tsx tools/preflight.ts",
     "format": "prettier --write ."

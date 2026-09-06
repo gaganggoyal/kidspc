@@ -15,6 +15,14 @@
 	@static path /assets/*
 	header @static Cache-Control "public, max-age=31536000, immutable"
 
+	# ...which only works if we say so. With no Cache-Control at all, a browser
+	# applies its own heuristic freshness and may hold index.html for hours --
+	# still pointing at the previous build's hashed bundles. `no-cache` means
+	# "revalidate before use", not "do not store", so it stays a conditional
+	# request rather than a full download.
+	@html not path /assets/*
+	header @html Cache-Control "no-cache"
+
 	# Single-page app: an unknown path is a client route, not a missing file.
 	try_files {path} /index.html
 	file_server

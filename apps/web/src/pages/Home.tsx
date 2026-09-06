@@ -8,7 +8,6 @@ import {
   localApps,
 } from '@kidpc/shared';
 import { getTokens } from '../api';
-import { useSpatialNavigation } from '../tv';
 import { CATEGORY_GLYPH } from './Launcher';
 
 /**
@@ -25,8 +24,17 @@ import { CATEGORY_GLYPH } from './Launcher';
  * is not a trade worth making.
  */
 export function Home() {
-  // A TV remote should get through the shop window as well as the product.
-  useSpatialNavigation();
+  /*
+   * Deliberately NOT using useSpatialNavigation here, unlike every other
+   * screen. That hook calls preventDefault on each arrow key to move focus by
+   * geometry, which is right for a launcher grid that fits one screen. This
+   * page is a long document with six focusable elements in five thousand
+   * pixels: hijacking the arrows means a visitor cannot scroll it at all, and
+   * pressing Down jumps from the hero straight past every paragraph.
+   *
+   * A D-pad scrolls this page, which is what a remote should do while someone
+   * is reading. Tab and Enter still reach and press the buttons.
+   */
   const signedIn = Boolean(getTokens().guardian);
   const activities = localApps(CATALOG);
 
