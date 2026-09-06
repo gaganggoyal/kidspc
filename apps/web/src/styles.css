@@ -1012,3 +1012,56 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 .request-panel .field { margin-bottom: 0; }
 .request-panel .row { gap: 10px; }
 .request-panel .row button { flex: 1; }
+
+/* ---- how it works ------------------------------------------------------- */
+
+.guide-steps {
+  list-style: none;
+  margin: clamp(24px, 4vw, 44px) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--pad);
+}
+.guide-step {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: calc(var(--pad) * 1.2);
+}
+.guide-head { display: flex; gap: 14px; align-items: flex-start; }
+.guide-head h3 { margin: 0 0 2px; }
+.guide-head p { margin: 0; }
+.guide-number {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+.guide-list {
+  margin: 14px 0 0;
+  padding-left: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.guide-video { margin: 14px 0 0; padding-left: 48px; }
+.guide-video video {
+  width: 100%;
+  max-width: 640px;
+  border-radius: 10px;
+  background: #000;
+  display: block;
+}
+.guide-play { font-size: 0.95rem; }
+
+@media (max-width: 560px) {
+  /* The number column costs more than it earns once the text is this narrow. */
+  .guide-list, .guide-video { padding-left: 0; }
+}

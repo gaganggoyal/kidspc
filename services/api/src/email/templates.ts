@@ -163,3 +163,35 @@ export function orderInternalEmail(input: {
     input.publicUrl,
   );
 }
+
+/**
+ * The message the whole order flow exists to produce.
+ *
+ * Sent by hand, from `pnpm orders send`, because the payment link is created by
+ * hand -- there is no payment provider wired in. When one is, this template is
+ * where the generated link goes and the rest of the flow does not change.
+ */
+export function paymentLinkEmail(input: {
+  to: string;
+  contactName?: string | null;
+  plan: Plan;
+  children: number;
+  quotedInr: number;
+  paymentUrl: string;
+  publicUrl: string;
+}): Composed {
+  return compose(
+    'payment_link',
+    input.to,
+    `Your ${PRODUCT_NAME} ${input.plan.name} payment link`,
+    [
+      input.contactName ? `Hello ${input.contactName},` : 'Hello,',
+      `Here is the link to start your ${PRODUCT_NAME} ${input.plan.name} subscription for ${input.children} ${input.children === 1 ? 'child' : 'children'}, at ${formatInr(input.quotedInr)} per month:`,
+      input.paymentUrl,
+      `Your first ${TRIAL_DAYS} days are free. You can cancel before they are up and nothing will be taken.`,
+      `If you have not created your account yet, you can do that at ${input.publicUrl}/signin — it takes about two minutes.`,
+      'Reply to this email if anything looks wrong. A person reads it.',
+    ],
+    input.publicUrl,
+  );
+}

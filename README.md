@@ -244,6 +244,10 @@ Full runbook in [docs/deploy.md](docs/deploy.md), including the DNS records for
 kidspc.online and an honest list of what still blocks launch. Getting it onto
 the screen it is built for is [docs/tv.md](docs/tv.md).
 
+**[docs/setup.md](docs/setup.md) is the operator's list**: the things that need
+a person with an account somewhere — Zoho, BigRock, Razorpay — in the order that
+unblocks the most.
+
 ```bash
 cp .env.production.example .env.production   # fill in
 pnpm preflight .env.production               # gates the deploy, exits non-zero

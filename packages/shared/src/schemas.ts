@@ -260,7 +260,12 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
  * instead of a grep, and it stops a caller inventing a template that no
  * unsubscribe or audit path knows about.
  */
-export const EMAIL_TEMPLATES = ['welcome', 'order_received', 'order_internal'] as const;
+export const EMAIL_TEMPLATES = [
+  'welcome',
+  'order_received',
+  'order_internal',
+  'payment_link',
+] as const;
 export const emailTemplate = z.enum(EMAIL_TEMPLATES);
 export type EmailTemplate = (typeof EMAIL_TEMPLATES)[number];
 

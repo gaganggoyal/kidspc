@@ -16,6 +16,7 @@ import {
   localApps,
 } from '@kidpc/shared';
 import { getTokens } from '../api';
+import { HowItWorks } from './HowItWorks';
 import { PlanRequest } from './PlanRequest';
 import { CATEGORY_GLYPH } from './Launcher';
 
@@ -58,6 +59,7 @@ export function Home() {
           <span>{PRODUCT_NAME}</span>
         </Link>
         <nav className="home-nav-links">
+          <a href="#how">How it works</a>
           <a href="#plans">Plans</a>
           {signedIn ? (
             <Link to="/household" className="btn primary">
@@ -174,6 +176,8 @@ export function Home() {
           ))}
         </div>
       </section>
+
+      <HowItWorks />
 
       <section className="band">
         <div className="home-section">
