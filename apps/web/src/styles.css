@@ -103,8 +103,14 @@ button, .btn {
 }
 .tv button, .tv .btn { min-height: 64px; padding: 16px 28px; }
 
-button:hover { background: var(--line); }
-button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.btn { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+button:hover, .btn:hover { background: var(--line); }
+button.primary, .btn.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+}
+button.primary:hover, .btn.primary:hover { filter: brightness(1.08); background: var(--accent); }
 button.danger { color: var(--danger); }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 button:active:not(:disabled) { transform: scale(0.98); }
@@ -670,4 +676,216 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 .reset-item p {
   margin: 0;
   flex: 1;
+}
+
+/* ---- public home page --------------------------------------------------- */
+
+/*
+ * The shop window. It is the only screen in this product aimed at an adult who
+ * has never heard of it, so it is wider, quieter and more typographic than the
+ * app behind it -- but it uses the same tokens, so it cannot drift away from
+ * the thing it is selling.
+ */
+.home {
+  --measure: 1120px;
+}
+.home h2 {
+  font-size: clamp(1.5rem, 3.2vw, 2.1rem);
+  margin-bottom: 0.5em;
+}
+.home h3 {
+  font-size: 1.05rem;
+  margin-bottom: 0.35em;
+}
+.home .lede {
+  font-size: clamp(1rem, 1.6vw, 1.2rem);
+  color: var(--ink-soft);
+  max-width: 62ch;
+  line-height: 1.6;
+}
+
+.home-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pad);
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: calc(var(--pad) * 0.75) var(--pad);
+}
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+.wordmark img { border-radius: 9px; }
+
+.home-section {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: clamp(40px, 7vw, 88px) var(--pad);
+}
+
+/* Alternating ground, so sections separate without rules between them. */
+.band { background: var(--surface-2); }
+.band + .band { background: transparent; }
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: clamp(24px, 5vw, 64px);
+  align-items: center;
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: clamp(24px, 5vw, 72px) var(--pad) clamp(40px, 7vw, 88px);
+}
+.hero h1 {
+  font-size: clamp(2rem, 5.2vw, 3.4rem);
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  margin-bottom: 0.5em;
+}
+.hero .row { margin: calc(var(--pad) * 1.5) 0 var(--pad); }
+.btn.big { min-height: 54px; padding: 14px 26px; font-size: 1.05rem; }
+
+.trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+.trust li { display: flex; align-items: center; gap: 8px; }
+.trust li::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* ---- the drawn television ---- */
+
+.hero-art { display: flex; flex-direction: column; align-items: center; }
+.tv-frame {
+  width: 100%;
+  background: #26241f;
+  border-radius: 18px;
+  padding: 12px 12px 20px;
+  box-shadow: 0 24px 48px -24px rgba(0, 0, 0, 0.55);
+}
+.tv-screen {
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  aspect-ratio: 16 / 10;
+}
+.tv-greeting { font-weight: 700; font-size: 0.95rem; }
+.tv-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  flex: 1;
+}
+.tv-tile {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+}
+.tv-tile .glyph { font-size: 1.2rem; }
+/* The one lit tile: focus is how a TV shows you where you are. */
+.tv-tile:nth-child(2) {
+  border-color: transparent;
+  box-shadow: 0 0 0 3px var(--accent);
+}
+.tv-clock { font-size: 0.72rem; color: var(--ink-soft); }
+.tv-stand {
+  width: 22%;
+  height: 12px;
+  background: #26241f;
+  border-radius: 0 0 6px 6px;
+}
+
+/* ---- content grids ---- */
+
+.tri, .duo {
+  display: grid;
+  gap: clamp(20px, 3vw, 36px);
+  margin-top: clamp(24px, 4vw, 44px);
+}
+.tri { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.duo { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.tri p, .duo p { margin: 0; line-height: 1.6; }
+
+.promo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--pad);
+  margin-top: clamp(24px, 4vw, 44px);
+}
+.promo-tile {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: calc(var(--pad) * 1.1);
+}
+.promo-tile .glyph { font-size: 1.9rem; line-height: 1; display: block; margin-bottom: 10px; }
+.promo-tile p { margin: 0 0 4px; line-height: 1.5; }
+
+/* Each promise gets a mark, because a list of four negatives reads as fine
+   print otherwise -- and these are the reason a parent chooses this. */
+.promise h3 { padding-left: 30px; position: relative; }
+.promise h3::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+  font-weight: 700;
+}
+.promise .duo p { padding-left: 30px; }
+
+.closing { text-align: center; }
+.closing .lede { margin-left: auto; margin-right: auto; }
+.closing .btn { margin-top: var(--pad); }
+
+.home-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--pad);
+  align-items: center;
+  flex-wrap: wrap;
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: var(--pad);
+  border-top: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+.home-foot a { color: var(--ink-soft); }
+
+.back-home { display: inline-block; margin-bottom: 12px; text-decoration: none; }
+
+@media (max-width: 860px) {
+  .hero { grid-template-columns: 1fr; }
+  /* The artwork explains the product; below the copy, not above it. */
+  .hero-art { order: 2; max-width: 480px; margin-inline: auto; }
 }

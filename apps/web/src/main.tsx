@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import './styles.css';
 import { getTokens, onTokenChange, tryRefresh } from './api';
+import { Home } from './pages/Home';
 import { SignIn } from './pages/SignIn';
 import { Household } from './pages/Household';
 import { Launcher } from './pages/Launcher';
@@ -59,7 +60,7 @@ function RequireGuardian({ children }: { children: React.ReactNode }) {
 
   if (tokens.guardian) return <>{children}</>;
   if (checking) return <div className="page"><div className="skeleton" style={{ height: 200 }} /></div>;
-  return <Navigate to="/" replace state={{ from: location.pathname }} />;
+  return <Navigate to="/signin" replace state={{ from: location.pathname }} />;
 }
 
 function RequireChild({ children }: { children: React.ReactNode }) {
@@ -73,7 +74,8 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<SignIn />} />
+        <Route path="/" element={<Home />} />
+        <Route path="/signin" element={<SignIn />} />
         <Route
           path="/household"
           element={

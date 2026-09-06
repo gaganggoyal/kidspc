@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { PRODUCT_NAME, PRODUCT_TAGLINE } from '@kidpc/shared';
 import { ApiError, api, setGuardianToken } from '../api';
 
@@ -10,7 +10,13 @@ import { ApiError, api, setGuardianToken } from '../api';
  */
 export function SignIn() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<'signin' | 'register'>('signin');
+  // The home page's primary call to action is "create an account", so it links
+  // here with ?new=1 rather than dropping a first-time visitor on a form that
+  // asks for a password they have not chosen yet.
+  const [params] = useSearchParams();
+  const [mode, setMode] = useState<'signin' | 'register'>(
+    params.get('new') ? 'register' : 'signin',
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -46,6 +52,9 @@ export function SignIn() {
 
   return (
     <div className="page" style={{ maxWidth: 460 }}>
+      <Link to="/" className="small muted back-home">
+        ← {PRODUCT_NAME}
+      </Link>
       <h1>{PRODUCT_NAME}</h1>
       <p className="muted">
         {PRODUCT_TAGLINE}

@@ -5,7 +5,7 @@ import { useAutoFocusFirst, useSpatialNavigation } from '../tv';
 import { AVATARS } from './Household';
 import { Welcome } from './Welcome';
 
-const CATEGORY_GLYPH: Record<string, string> = {
+export const CATEGORY_GLYPH: Record<string, string> = {
   create: '🎨',
   code: '🧩',
   type: '⌨️',

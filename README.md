@@ -37,7 +37,9 @@ three children with three different catalogues, a seven-year-old refused the
 Python IDE, a session granted and leased, a sibling refused access to it, and
 time running out. It leaves the demo household as it found it.
 
-**The UI.** http://localhost:5173, sign in as the demo parent, pick a child.
+**The UI.** http://localhost:5173 is the public home page — what a parent
+who has never heard of this sees. Sign-in is at `/signin`. Sign in as the demo
+parent, pick a child.
 The launcher is built for a TV, so arrow keys navigate it and Enter selects —
 try it with the keyboard alone. Opening a session shows *"This is a simulated
 session"*: with the loopback driver there is no desktop behind it. Everything
