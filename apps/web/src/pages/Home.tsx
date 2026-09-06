@@ -3,8 +3,13 @@ import {
   AGE_BANDS,
   AGE_BAND_SPECS,
   CATALOG,
+  PLANS,
   PRODUCT_NAME,
+  TRIAL_DAYS,
   appsForBand,
+  deliveryOf,
+  discountPercent,
+  formatInr,
   localApps,
 } from '@kidpc/shared';
 import { getTokens } from '../api';
@@ -45,15 +50,18 @@ export function Home() {
           <img src="/icon-192.png" alt="" width={36} height={36} />
           <span>{PRODUCT_NAME}</span>
         </Link>
-        {signedIn ? (
-          <Link to="/household" className="btn primary">
-            Continue
-          </Link>
-        ) : (
-          <Link to="/signin" className="btn">
-            Parent sign in
-          </Link>
-        )}
+        <nav className="home-nav-links">
+          <a href="#plans">Plans</a>
+          {signedIn ? (
+            <Link to="/household" className="btn primary">
+              Continue
+            </Link>
+          ) : (
+            <Link to="/signin" className="btn">
+              Parent sign in
+            </Link>
+          )}
+        </nav>
       </header>
 
       <section className="hero">
@@ -70,13 +78,14 @@ export function Home() {
           </p>
           <div className="row">
             <Link to={signedIn ? '/household' : '/signin?new=1'} className="btn primary big">
-              {signedIn ? 'Go to your household' : 'Create a parent account'}
+              {signedIn ? 'Go to your household' : `Start ${TRIAL_DAYS} days free`}
             </Link>
-            <a href="#inside" className="btn big">
-              See what&apos;s inside
+            <a href="#plans" className="btn big">
+              See the plans
             </a>
           </div>
           <ul className="trust">
+            <li>{TRIAL_DAYS} days free</li>
             <li>No adverts</li>
             <li>No tracking</li>
             <li>No hardware to buy</li>
@@ -221,6 +230,65 @@ export function Home() {
               </div>
             );
           })}
+        </div>
+      </section>
+
+
+      <section className="band" id="plans">
+        <div className="home-section">
+          <h2>Choose a plan</h2>
+          <p className="lede">
+            {TRIAL_DAYS} days free to start with, so you can find out whether your child actually
+            uses it before you decide anything.
+          </p>
+
+          <div className="plans">
+            {PLANS.map((plan) => {
+              // Derived from the catalogue, not listed by hand: a new activity
+              // lands in the right tier without anyone editing a price table.
+              const apps = CATALOG.filter((app) => plan.includes.includes(deliveryOf(app.launch)));
+              return (
+                <article className={plan.recommended ? 'plan recommended' : 'plan'} key={plan.id}>
+                  {plan.recommended && <span className="plan-badge">Best value</span>}
+                  <h3>{plan.name}</h3>
+                  <p className="muted plan-tagline">{plan.tagline}</p>
+
+                  <p className="price">
+                    {formatInr(plan.offerPriceInr)}
+                    <span className="per"> / month</span>
+                  </p>
+                  <p className="was">
+                    <s>{formatInr(plan.listPriceInr)}</s>{' '}
+                    <span className="save">Launch offer, save {discountPercent(plan)}%</span>
+                  </p>
+
+                  <ul className="plan-feats">
+                    <li>
+                      <strong>{apps.length} activities</strong> — {apps.map((a) => a.name).join(', ')}
+                    </li>
+                    {plan.extras.map((extra) => (
+                      <li key={extra}>{extra}</li>
+                    ))}
+                  </ul>
+
+                  {plan.pending && <p className="plan-pending">{plan.pending}</p>}
+
+                  <Link
+                    to="/signin?new=1"
+                    className={plan.recommended ? 'btn primary big' : 'btn big'}
+                  >
+                    Start {TRIAL_DAYS} days free
+                  </Link>
+                </article>
+              );
+            })}
+          </div>
+
+          <p className="small muted plans-note">
+            Nothing is charged yet. There is no payment system connected to this service and we do
+            not ask for a card — the prices are here so you know what they will be. Pro&apos;s
+            streamed desktop is still being built.
+          </p>
         </div>
       </section>
 

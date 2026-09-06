@@ -71,6 +71,10 @@ const PAIRINGS: Pairing[] = [
   { what: 'muted text on a card', fg: 'ink-soft', bg: 'surface', need: 4.5 },
   { what: 'primary button label', fg: 'accent-ink', bg: 'accent', need: 4.5 },
   { what: 'accent mark on the page', fg: 'accent', bg: 'bg', need: 3 },
+  // The plan cards put accent-coloured text on a card: the saving percentage,
+  // and the tick before each feature. Both are small and bold, so they are held
+  // to the body-text threshold rather than the large-text one.
+  { what: 'accent text on a card', fg: 'accent', bg: 'surface', need: 4.5 },
   { what: 'danger text on a card', fg: 'danger', bg: 'surface', need: 4.5 },
   { what: 'warning text on a card', fg: 'warn', bg: 'surface', need: 4.5 },
   { what: 'television bezel', fg: 'bezel', bg: 'bg', need: 3, decorative: true },

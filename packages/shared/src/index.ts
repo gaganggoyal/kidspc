@@ -2,6 +2,7 @@ export * from './age.js';
 export * from './brand.js';
 export * from './time.js';
 export * from './catalog.js';
+export * from './plans.js';
 export * from './schemas.js';
 export * from './types.js';
 export * from './errors.js';

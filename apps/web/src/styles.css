@@ -896,3 +896,90 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   /* The artwork explains the product; below the copy, not above it. */
   .hero-art { order: 2; max-width: 480px; margin-inline: auto; }
 }
+
+/* ---- plans -------------------------------------------------------------- */
+
+.home-nav-links { display: flex; align-items: center; gap: var(--pad); }
+.home-nav-links a:not(.btn) { color: var(--ink-soft); text-decoration: none; font-weight: 600; }
+.home-nav-links a:not(.btn):hover { color: var(--ink); }
+
+.plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--pad);
+  margin-top: clamp(24px, 4vw, 44px);
+  align-items: start;
+}
+.plan {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: calc(var(--pad) * 1.4);
+}
+/* The recommended tier is marked by weight, not by colour alone -- the badge
+   still says which one it is if the border is invisible to you. */
+.plan.recommended { border-color: var(--accent); border-width: 2px; }
+.plan-badge {
+  position: absolute;
+  top: 0;
+  right: var(--pad);
+  transform: translateY(-50%);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.plan h3 { font-size: 1.4rem; margin: 0; }
+.plan-tagline { margin: 0; }
+
+.price {
+  font-size: clamp(2rem, 4vw, 2.6rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 8px 0 0;
+  line-height: 1;
+}
+.price .per { font-size: 0.9rem; font-weight: 600; color: var(--ink-soft); letter-spacing: 0; }
+.was { margin: 0; font-size: 0.9rem; color: var(--ink-soft); }
+.was s { opacity: 0.75; }
+.save { color: var(--accent); font-weight: 700; }
+
+.plan-feats {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.plan-feats li { padding-left: 26px; position: relative; }
+.plan-feats li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* Not styled as an error. It is a fact about what you are buying, and it should
+   read as candour rather than as something having gone wrong. */
+.plan-pending {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  background: var(--surface-2);
+  border-left: 3px solid var(--warn);
+  border-radius: 0 8px 8px 0;
+  padding: 10px 12px;
+}
+.plan .btn { margin-top: 6px; width: 100%; }
+.plans-note { margin-top: var(--pad); max-width: 68ch; }
