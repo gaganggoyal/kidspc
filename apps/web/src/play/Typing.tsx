@@ -77,7 +77,7 @@ export function TypingGame({ activity }: { activity: ActivityApi }) {
   const best = activity.best('words_written');
 
   return (
-    <div className="stack" style={{ alignItems: 'center', textAlign: 'center', gap: 24 }}>
+    <div className="play-stage">
       <div className="chips" role="group" aria-label="Difficulty">
         {(Object.keys(WORDS) as Array<keyof typeof WORDS>).map((id) => (
           <button key={id} className="chip" aria-pressed={level === id} onClick={() => setLevel(id)}>

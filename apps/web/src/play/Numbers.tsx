@@ -88,7 +88,7 @@ export function NumbersGame({ activity }: { activity: ActivityApi }) {
   const best = activity.best('puzzles_solved');
 
   return (
-    <div className="stack" style={{ alignItems: 'center', textAlign: 'center', gap: 24 }}>
+    <div className="play-stage">
       <p className="muted" style={{ margin: 0 }}>
         Level {level} · {solved} solved{best !== null && best > solved ? ` · best ${best}` : ''}
         {streak >= 2 ? ` · ${streak} in a row!` : ''}

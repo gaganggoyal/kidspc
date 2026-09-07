@@ -91,7 +91,18 @@ body {
   --font: clamp(16px, 0.42vw + 14px, 24px);
   --pad: clamp(16px, 1.4vw, 28px);
   --radius: clamp(14px, 1vw, 20px);
+  /* A column, not the whole window. A television wants to fill its safe area;
+     a laptop wants a page. Held as a token so the media query below can widen
+     it without depending on where either rule sits in this file. */
+  --page-max: 1080px;
   font-size: var(--font);
+
+  /* Lets a short screen -- the profile picker, the code pad -- sit in the
+     middle of a tall window instead of clinging to the top with four hundred
+     pixels of nothing underneath it. */
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 /*
@@ -113,6 +124,9 @@ body {
     --font: 24px;
     --pad: 28px;
     --radius: 20px;
+    /* Fill the safe area: on a panel the margin is the overscan inset, and a
+       narrow column three metres away wastes the screen. */
+    --page-max: 1400px;
     /* Many TVs still overscan: the outer ~4% of the picture is cropped by the
        panel. The inset is the difference between a usable and an unusable
        launcher on a cheap set -- and pure wasted space on a laptop, which is
@@ -128,7 +142,14 @@ h2 { font-size: 1.4em; }
 p { margin: 0 0 1em; }
 
 .page { max-width: 960px; margin: 0 auto; padding: calc(var(--pad) * 1.5); }
-.tv .page { max-width: 1400px; }
+.tv .page { max-width: min(var(--page-max), 100%); }
+/*
+ * Auto margins rather than `align-items: center`, deliberately: an auto margin
+ * on a flex item centres it when there is room and simply stops when there is
+ * not, where centring overflows in both directions and only one of them can be
+ * scrolled to.
+ */
+.tv > .page { width: 100%; margin-block: auto; }
 
 .stack { display: flex; flex-direction: column; gap: var(--pad); }
 .row { display: flex; gap: var(--pad); align-items: center; flex-wrap: wrap; }
@@ -249,6 +270,9 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 .time-bar.low > i { background: var(--warn); }
 .time-bar.out > i { background: var(--danger); }
 
+/* Left-aligned, sharing the heading's edge. Centring them looked deliberate
+   only while the page was 1400px wide; in a column the two rows disagreeing
+   about where the page starts is the more obvious mistake. */
 .profiles { display: flex; gap: var(--pad); flex-wrap: wrap; }
 .profile {
   display: flex;
@@ -426,6 +450,33 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   letter-spacing: 0.1em;
 }
 
+/*
+ * A stage for the activities that are only a few controls.
+ *
+ * Number Ninja and Typing Garden are a line of text, one big thing and a few
+ * buttons. On a television that fills the view; on a 1440x900 laptop it is a
+ * small cluster adrift in a field of background, which reads as a layout that
+ * failed rather than as a game with room around it. A surface under it makes
+ * the space deliberate.
+ *
+ * Activities with their own structure -- Paint's tool column, the code editor
+ * and its preview, the puzzle board and its program -- already read as
+ * composed and are left alone; a card around a card is worse than neither.
+ */
+.play-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: calc(var(--pad) * 1.2);
+  width: 100%;
+  max-width: 620px;
+  padding: calc(var(--pad) * 1.8) calc(var(--pad) * 1.5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) * 1.4);
+}
+
 /* ---- numbers ----------------------------------------------------------- */
 
 .big-sum {
@@ -437,6 +488,9 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   display: grid;
   grid-template-columns: repeat(2, minmax(140px, 1fr));
   gap: var(--pad);
+  /* Fills the stage rather than shrinking to the widest number on it, so the
+     four targets do not change size when the question changes. */
+  width: 100%;
 }
 .answer-grid .answer {
   font-size: 1.8em;
@@ -594,6 +648,16 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   height: 100%;
   max-width: 1280px;
 }
+/*
+ * A measure, because this one is for writing.
+ *
+ * The shared rule above allows 1280px so the code editor and its preview each
+ * get a real half. Prose in a 1280px column is a 180-character line, which is
+ * unreadable -- and unreadable is a strange thing to hand a child who is
+ * learning to write.
+ */
+.writer-layout { max-width: min(820px, 100%); margin-inline: auto; }
+
 .code-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1208,6 +1272,9 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 
 /* The same prompt on the child's own screen, at ten feet. */
 .challenge-tile { background: var(--wash); border-color: var(--wash-line); }
+/* `.stack` stretches its children, which turned this into a button as wide as
+   the screen. It is a call to action, not a banner. */
+.challenge-tile button { align-self: start; }
 
 /* A catalogue tile that is a door rather than a description. */
 .try-tile {
