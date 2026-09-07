@@ -40,7 +40,11 @@ export const GUIDE_STEPS: readonly GuideStep[] = [
     summary: 'One email address and a password. Two minutes, on any device.',
     seconds: 60,
     steps: [
-      'Open kidspc.online and choose "Start 7 days free".',
+      // Not quoted with its number in it: the button reads "Start 14 days
+      // free" for anyone who arrived on another parent's link, and an
+      // instruction naming a button that is not on the screen is worse than a
+      // vague one.
+      'Open kidspc.online and choose the free trial button in the top block.',
       'Enter your name, your email address and a password.',
       'Pick a password you can type on a TV remote — length beats punctuation.',
       'You land on your household screen, and a welcome email arrives.',
