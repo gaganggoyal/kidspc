@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { PLANS, planById, trialDaysFor } from './plans.js';
 import {
   REFERRAL_BONUS_DAYS,
   normaliseReferralCode,
-  referredTrialDays,
   referralCodeFor,
   referralInviteText,
   referralLink,
@@ -67,11 +67,10 @@ describe('what a parent actually shares', () => {
       code: 'KPC-4G7QMX',
       publicUrl: 'https://kidspc.online',
       childName: 'Meera',
-      trialDays: referredTrialDays(7),
+      trialDays: trialDaysFor(planById('lite'), { referred: true }),
     });
     expect(text).toContain('Meera has');
     expect(text).toContain('14 days free');
-    expect(referredTrialDays(7)).toBe(7 + REFERRAL_BONUS_DAYS);
     expect(text).toContain('https://kidspc.online/?ref=KPC-4G7QMX');
   });
 
@@ -82,6 +81,21 @@ describe('what a parent actually shares', () => {
       trialDays: 14,
     });
     expect(text).toContain('The kids have');
+  });
+
+  it('lengthens a trial and never invents one', () => {
+    const lite = planById('lite');
+    const pro = planById('pro');
+    expect(trialDaysFor(lite)).toBe(lite.trialDays);
+    expect(trialDaysFor(lite, { referred: true })).toBe(lite.trialDays + REFERRAL_BONUS_DAYS);
+    // Pro streams a Linux desktop on hardware we pay for. A code must not be
+    // able to hand out a free fortnight of it.
+    expect(pro.trialDays).toBe(0);
+    expect(trialDaysFor(pro, { referred: true })).toBe(0);
+    // And that holds for any plan added later, not just these two.
+    for (const plan of PLANS) {
+      if (plan.trialDays === 0) expect(trialDaysFor(plan, { referred: true })).toBe(0);
+    }
   });
 
   it('escapes the message into the share url', () => {

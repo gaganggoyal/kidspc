@@ -97,22 +97,22 @@ export function referralInviteText(input: {
   code: string;
   publicUrl: string;
   childName?: string | null;
-  /** The *total* free days the invited household gets, not the bonus alone. */
+  /**
+   * The *total* free days the invited household gets, not the bonus alone.
+   * Comes from `trialDaysFor` so it cannot promise a trial on a plan that has
+   * none -- this module deliberately knows nothing about plans.
+   */
   trialDays: number;
 }): string {
   const who = input.childName ? `${input.childName} has` : 'The kids have';
   return [
     `${who} been using Online Kids PC on our TV — drawing, typing, little coding puzzles. No ads, and I set how long they get.`,
     ``,
-    `If you want to try it, this link gives you ${input.trialDays} days free instead of the usual week:`,
+    `If you want to try it, this link gives you ${input.trialDays} days free on the Lite plan instead of the usual week:`,
     referralLink(input.publicUrl, input.code),
   ].join('\n');
 }
 
-/** How long a referred household's trial runs. One place, so nothing disagrees. */
-export function referredTrialDays(baseTrialDays: number): number {
-  return baseTrialDays + REFERRAL_BONUS_DAYS;
-}
 
 /**
  * A WhatsApp share URL. Plain wa.me rather than an SDK: no script to load, no

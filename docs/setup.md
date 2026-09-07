@@ -18,8 +18,10 @@ Current state of https://kidspc.online:
 | Child profiles | **blocked** — no way to verify a parent (step 5) |
 | Plan requests | working — orders recorded, emails queued |
 | Referrals | working — codes captured, longer trial honoured, rewards paid by hand (step 2) |
+| Company & policy pages | live — about, contact, terms, privacy, refunds, delivery (three facts still blank, step 4a) |
+| Contact form | working — messages queued to your desk, with a copy to the sender |
 | Email | **queued, not sending** — no mailbox (step 1) |
-| Pro plan | priced and listed, streamed desktop not built (step 6) |
+| Pro plan | priced and listed, no free trial, streamed desktop not built (step 6) |
 
 How all of that is meant to bring people in is written up separately, in
 [growth.md](growth.md).
@@ -160,8 +162,12 @@ You will need somewhere for that link to point — see step 4.
 ### Referrals
 
 Every parent account has a share link, shown in their parent dashboard. A
-household arriving on one gets 14 free days instead of 7 automatically, and the
-`orders list` line for them ends `via KPC-XXXXXX`.
+household arriving on one gets 14 free days of Lite instead of 7 automatically,
+and the `orders list` line for them ends `via KPC-XXXXXX`.
+
+A code on a **Pro** order changes nothing about the trial, because Pro has none
+— it streams a desktop on hardware we pay for from the first day. The referrer
+still earns their free month if that household stays.
 
 The reward is not automatic and cannot be, because nothing here can pay anybody.
 When a referred household actually pays:
@@ -192,7 +198,7 @@ camera and nobody should be — no children in the footage, including your own.
 
 | # | Video | Length | What to show |
 |---|---|---|---|
-| 1 | Create your parent account | ~60s | The home page, "Start 7 days free", filling the form, landing on the household screen |
+| 1 | Create your parent account | ~60s | The home page, the free-trial button, filling the form, landing on the household screen |
 | 2 | Add your child | ~75s | "Add a child", name and avatar, birth month and year, setting the four-digit code |
 | 3 | Set the limits | ~90s | Parent dashboard, minutes per day, a weekday window, ticking activities |
 | 4 | Open it on the TV | ~90s | The TV browser, typing the address, signing in, adding to home screen, a child picking their face and typing the code |
@@ -233,13 +239,48 @@ screen. Keep each file under about 20 MB.
 Nothing can be charged today. There is no payment code in the service at all,
 which is why the plan buttons ask for an email and promise a link.
 
-The quickest route that changes nothing else:
+### 4a. Fill in three facts first
+
+Razorpay's merchant review reads the website. Five of the six pages it looks for
+are already live — [terms](https://kidspc.online/terms),
+[privacy](https://kidspc.online/privacy),
+[refunds](https://kidspc.online/refunds),
+[delivery](https://kidspc.online/delivery) and
+[contact](https://kidspc.online/contact) — and prices are on the home page.
+
+Three facts are deliberately blank, because inventing them would have put a
+false registered address on a policy page. They are all in one file,
+`packages/shared/src/company.ts`:
+
+```ts
+export const LEGAL_ENTITY: string | null = null;    // the registered name, if there is one
+export const POSTAL_ADDRESS: string | null = null;  // required by the review
+export const PHONE: string | null = null;           // required by the review
+```
+
+Fill those in and redeploy. Until you do, the contact page simply omits the
+address and phone rows rather than showing a placeholder — which is honest, but
+it is also the thing a reviewer will reject you for.
+
+If there is no registered company yet, a sole proprietorship in your own name is
+enough for Razorpay and is what `LEGAL_ENTITY = null` currently describes ("
+operated by Gagandeep Goyal and Vansh Sharma").
+
+### 4b. Then the account
 
 1. Create a **Razorpay** account and complete KYC (needs PAN, bank account,
    business proof — allow a few days).
 2. In the dashboard, create **Payment Links** or a Subscription plan for each
    price: ₹299, ₹449, ₹598 … and ₹999, ₹1,499, ₹1,998.
 3. Paste the matching link into `orders send`.
+
+Note that only Lite carries a free trial. Pro is billed from the first month,
+because a Pro session runs a streamed Linux desktop on hardware billed by the
+hour — so a Pro payment link should charge immediately, and a Lite one should
+not charge for the first 7 days (14 for a referred household). The refund
+promise that covers Pro instead is on the
+[refunds page](https://kidspc.online/refunds): a full refund within
+7 days of the first charge, no questions.
 
 That gets you paid without writing any integration. When the volume makes that
 tedious, the same Razorpay account also solves step 5 — which is the real

@@ -19,12 +19,11 @@
  */
 import { asc, desc, eq } from 'drizzle-orm';
 import {
-  TRIAL_DAYS,
   formatInr,
   normaliseReferralCode,
   planById,
   referralCodeFor,
-  referredTrialDays,
+  trialDaysFor,
 } from '@kidpc/shared';
 import { loadConfig } from '../config.js';
 import { createDatabase } from '../db/client.js';
@@ -115,9 +114,9 @@ try {
           paymentUrl,
           publicUrl: config.PUBLIC_URL,
           // The trial we already promised them in the confirmation. Recomputed
-          // from the stored code rather than remembered, so the two messages
-          // cannot come to disagree about how many free days they have.
-          trialDays: order.referralCode ? referredTrialDays(TRIAL_DAYS) : TRIAL_DAYS,
+          // from the plan and the stored code rather than remembered, so the
+          // two messages cannot come to disagree about the free days.
+          trialDays: trialDaysFor(plan, { referred: Boolean(order.referralCode) }),
         }),
       );
       await database.db

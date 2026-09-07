@@ -30,7 +30,7 @@ the demand. The parent carries it out of the house.
 ```
   A child plays the free preview            /try — no account, no data, no cost to serve
             ↓  asks for more of it
-  A parent starts a trial                   the household is what they are buying
+  A parent starts a Lite trial              the household is what they are buying
             ↓  Monday
   The weekly challenge gives a reason to return
             ↓  the child finishes it
@@ -40,7 +40,7 @@ the demand. The parent carries it out of the house.
             ↓  a cousin's parent taps it
   Their child plays the free preview         and the loop closes
             ↓
-  They subscribe on the code                 14 days free instead of 7
+  They subscribe on the code                 14 days of Lite instead of 7
             ↓
   The referring household gets a free month
 ```
@@ -102,8 +102,15 @@ It prints, because Indian households put certificates on walls.
 
 `packages/shared/src/referral.ts`. Six Crockford characters, derived from the
 guardian id rather than stored, so issuing one needs no column and no migration.
-The referred household gets 14 free days instead of 7; the referrer gets a month
-once the household they sent actually pays.
+The referred household gets 14 free days of Lite instead of 7; the referrer gets
+a month once the household they sent actually pays.
+
+**The trial belongs to Lite, not to the product.** Lite runs in the household's
+own browser and costs nothing to give away for a week. A Pro trial would
+provision a streamed Linux desktop -- real memory on a real machine -- for
+somebody who has paid nothing, so Pro is billed from the first month.
+`trialDaysFor` therefore *lengthens* a trial and never creates one: a referral
+code pasted into a Pro order buys nobody a free fortnight of hardware.
 
 Three details that matter:
 

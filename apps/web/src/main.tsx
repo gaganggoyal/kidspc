@@ -6,6 +6,9 @@ import { getTokens, onTokenChange, tryRefresh } from './api';
 import { captureReferral } from './referral';
 import { Home } from './pages/Home';
 import { TryIt } from './pages/TryIt';
+import { About } from './pages/About';
+import { Contact } from './pages/Contact';
+import { Delivery, Privacy, Refunds, Terms } from './pages/Policies';
 import { SignIn } from './pages/SignIn';
 import { Household } from './pages/Household';
 import { Launcher } from './pages/Launcher';
@@ -84,6 +87,18 @@ function App() {
         */}
         <Route path="/try" element={<TryIt />} />
         <Route path="/try/:appId" element={<TryIt />} />
+        {/*
+          The company and policy pages. Public, static, and reachable from the
+          footer of every page -- a payment provider's merchant review looks for
+          exactly this set, and a customer looking for the refund rules should
+          not have to search for them.
+        */}
+        <Route path="/about" element={<About />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/refunds" element={<Refunds />} />
+        <Route path="/delivery" element={<Delivery />} />
         <Route path="/signin" element={<SignIn />} />
         <Route
           path="/household"

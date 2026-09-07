@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { REFERRAL_BONUS_DAYS, TRIAL_DAYS, referralCodeFor } from '@kidpc/shared';
+import { REFERRAL_BONUS_DAYS, TRIAL_DAYS, planById, referralCodeFor, trialDaysFor } from '@kidpc/shared';
 import { type Harness, createHarness, ist, onboard } from './testing/harness.js';
 import { consentChallenges, emailOutbox, planOrders } from './db/schema.js';
 import { backoffMinutes, sendPending } from './email/outbox.js';
@@ -1379,6 +1379,28 @@ describe('Scenario: one parent sending another', () => {
     expect(order!.referralCode).toBeNull();
   });
 
+  it('will not conjure a trial on a plan that has none', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    const res = await post(h, {
+      email: 'pro-referred@example.com',
+      planId: 'pro',
+      children: 2,
+      referralCode: referralCodeFor('gdn_someone'),
+    });
+
+    // Pro streams a Linux desktop on hardware we pay for by the hour. A code
+    // pasted into the form must not be able to hand out a free fortnight of it.
+    expect(res.statusCode).toBe(201);
+    expect(res.json().referred).toBe(true);
+    expect(res.json().trialDays).toBe(0);
+    expect(trialDaysFor(planById('pro'), { referred: true })).toBe(0);
+
+    const queued = await h.runtime.ctx.database.db.select().from(emailOutbox);
+    const confirmation = queued.find((m) => m.template === 'order_received');
+    expect(confirmation!.bodyText).toContain('does not come with a free trial');
+    expect(confirmation!.bodyText).not.toMatch(/days are free/);
+  });
+
   it('promises the longer trial in the email as well as on the page', async () => {
     const h = await open(ist('2026-03-14T10:00:00'));
     await post(h, {
@@ -1412,6 +1434,74 @@ describe('Scenario: one parent sending another', () => {
     expect(internal!.bodyText).toContain(code);
     // And says the one thing that stops a reward being given out too early.
     expect(internal!.bodyText).toContain('only after they pay');
+  });
+});
+
+describe('Scenario: somebody writing in', () => {
+  const post = (h: Harness, body: unknown) =>
+    h.app.inject({
+      method: 'POST',
+      url: '/v1/contact',
+      headers: { 'content-type': 'application/json' },
+      payload: body as object,
+    });
+
+  it('sends the message on and tells the sender it arrived', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'), { ORDERS_EMAIL: 'desk@example.com' });
+    const res = await post(h, {
+      name: 'Priya',
+      email: 'priya@example.com',
+      message: 'My daughter cannot get into her profile and it says she needs approval.',
+    });
+
+    expect(res.statusCode).toBe(202);
+
+    const queued = await h.runtime.ctx.database.db.select().from(emailOutbox);
+    const toDesk = queued.find((m) => m.toAddress === 'desk@example.com');
+    const toSender = queued.find((m) => m.toAddress === 'priya@example.com');
+
+    expect(toDesk!.bodyText).toContain('priya@example.com');
+    expect(toDesk!.bodyText).toContain('cannot get into her profile');
+    // Whoever answers must reply to Priya, not to the service's own mailbox.
+    expect(toDesk!.bodyText).toContain('Reply to that address');
+    // And Priya gets her own words back, so she is not left wondering.
+    expect(toSender!.bodyText).toContain('cannot get into her profile');
+  });
+
+  it('still acknowledges when there is nowhere to forward it', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    const res = await post(h, {
+      name: 'Arjun',
+      email: 'arjun@example.com',
+      message: 'Does this work on a Samsung television from 2019?',
+    });
+
+    // The outbox is durable, so a deployment whose mailbox is configured later
+    // sends this on its first sweep rather than having lost it.
+    expect(res.statusCode).toBe(202);
+    const queued = await h.runtime.ctx.database.db.select().from(emailOutbox);
+    expect(queued.find((m) => m.toAddress === 'arjun@example.com')).toBeTruthy();
+  });
+
+  it('refuses what is not a message', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    expect((await post(h, { name: 'A', email: 'not-an-email', message: 'hello there' })).statusCode).toBe(400);
+    expect((await post(h, { name: 'A', email: 'a@example.com', message: 'hi' })).statusCode).toBe(400);
+    expect((await post(h, { name: '', email: 'a@example.com', message: 'hello there' })).statusCode).toBe(400);
+  });
+
+  it('keeps no record of a stranger beyond the mail it has to send', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    await post(h, {
+      name: 'Nobody',
+      email: 'nobody@example.com',
+      message: 'Just asking a question, I have no account.',
+    });
+
+    // No account, no order, no support ticket. A table that accumulates
+    // unread messages from strangers is a liability with no owner.
+    const guardians = await h.runtime.ctx.database.db.select().from(planOrders);
+    expect(guardians).toHaveLength(0);
   });
 });
 

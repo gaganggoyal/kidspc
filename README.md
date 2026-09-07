@@ -252,6 +252,14 @@ unblocks the most.
 and the referral code exist, and why every ordinary viral mechanic for a
 children's app is off the table here.
 
+The public company and policy pages — about, contact, terms, privacy, refunds
+and delivery — are React pages like any other, in `apps/web/src/pages`. Every
+figure in them (prices, trial lengths, the refund window, household size) is
+read from the domain rather than typed in, so a policy page cannot come to
+contradict the pricing page. The handful of facts that are not established yet
+live in `packages/shared/src/company.ts` as `null`, and the pages omit them
+rather than printing a placeholder.
+
 ```bash
 cp .env.production.example .env.production   # fill in
 pnpm preflight .env.production               # gates the deploy, exits non-zero

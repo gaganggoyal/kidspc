@@ -266,6 +266,7 @@ export const EMAIL_TEMPLATES = [
   'order_received',
   'order_internal',
   'payment_link',
+  'contact_message',
 ] as const;
 export const emailTemplate = z.enum(EMAIL_TEMPLATES);
 export type EmailTemplate = (typeof EMAIL_TEMPLATES)[number];
@@ -292,3 +293,19 @@ export const createOrderInput = z.object({
     .transform((v) => (v ? normaliseReferralCode(v) : null)),
 });
 export type CreateOrderInput = z.infer<typeof createOrderInput>;
+
+/**
+ * Somebody writing in.
+ *
+ * The smallest useful set: an address to reply to, a name so the reply can
+ * open properly, and what they wanted to say. No phone number, no subject
+ * taxonomy, no "how did you hear about us" -- every extra field on a contact
+ * form is a reason not to fill it in, and this one exists because a parent
+ * with a question is the most valuable person on the site.
+ */
+export const contactMessageInput = z.object({
+  email,
+  name: z.string().trim().min(1).max(80),
+  message: z.string().trim().min(10).max(4000),
+});
+export type ContactMessageInput = z.infer<typeof contactMessageInput>;

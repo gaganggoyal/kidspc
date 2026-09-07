@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import {
   PRODUCT_NAME,
   type Challenge,
-  REFERRAL_BONUS_DAYS,
-  TRIAL_DAYS,
+  TRIAL_PLAN_ID,
+  planById,
   referralLink,
+  trialDaysFor,
   whatsappShareUrl,
 } from '@kidpc/shared';
 
@@ -71,6 +72,7 @@ export function ShowAGrownUp({
   if (!open) return null;
 
   const origin = window.location.origin;
+  const trialPlan = planById(TRIAL_PLAN_ID);
   const who = name.trim();
   const link = referralCode ? referralLink(origin, referralCode) : origin;
 
@@ -80,7 +82,7 @@ export function ShowAGrownUp({
     ...achievements.map((a) => `${a.label}: ${a.value}`),
     '',
     referralCode
-      ? `Free to try, and this link gives you ${TRIAL_DAYS + REFERRAL_BONUS_DAYS} days instead of ${TRIAL_DAYS}: ${link}`
+      ? `Free to try, and this link gives you ${trialDaysFor(trialPlan, { referred: true })} days of ${trialPlan.name} instead of ${trialPlan.trialDays}: ${link}`
       : `Free to try, no account needed: ${link}`,
   ]
     .filter(Boolean)

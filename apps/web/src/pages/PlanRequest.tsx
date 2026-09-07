@@ -2,10 +2,9 @@ import { useState } from 'react';
 import {
   MAX_CHILDREN,
   type Plan,
-  TRIAL_DAYS,
   formatInr,
   monthlyPriceInr,
-  referredTrialDays,
+  trialDaysFor,
 } from '@kidpc/shared';
 import { ApiError, api } from '../api';
 import { currentReferral } from '../referral';
@@ -38,7 +37,7 @@ export function PlanRequest({ plan, onClose }: { plan: Plan; onClose: () => void
   // Read once at render rather than at submit, so the extra free days are
   // promised on the form before anyone commits to anything.
   const referralCode = currentReferral();
-  const trialDays = referralCode ? referredTrialDays(TRIAL_DAYS) : TRIAL_DAYS;
+  const trialDays = trialDaysFor(plan, { referred: Boolean(referralCode) });
 
   // Shown live as the household size changes, and computed from the same
   // function the server prices with -- so the figure on screen is the figure in
@@ -84,7 +83,9 @@ export function PlanRequest({ plan, onClose }: { plan: Plan; onClose: () => void
         <p>{done.message}</p>
         <p className="small muted">
           {plan.name}, {children} {children === 1 ? 'child' : 'children'} —{' '}
-          {formatInr(done.quotedInr)} per month after your {done.trialDays} free days.
+          {formatInr(done.quotedInr)} per month
+          {done.trialDays > 0 ? ` after your ${done.trialDays} free days` : ', from the first month'}
+          .
         </p>
         <button onClick={onClose}>Close</button>
       </div>
@@ -102,10 +103,17 @@ export function PlanRequest({ plan, onClose }: { plan: Plan; onClose: () => void
         details.
       </p>
 
-      {referralCode && (
+      {referralCode && trialDays > 0 && (
         <p className="small referred-note">
           Someone sent you here ({referralCode}), so your first {trialDays} days are free instead
-          of {TRIAL_DAYS}.
+          of {plan.trialDays}.
+        </p>
+      )}
+
+      {plan.trialDays === 0 && (
+        <p className="small muted">
+          {plan.name} has no free trial — it runs a real computer on our hardware, so it is billed
+          from the first month. {plan.name === 'Pro' ? 'Lite is the free way to find out whether your household will use this.' : ''}
         </p>
       )}
 

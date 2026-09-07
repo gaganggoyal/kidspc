@@ -10,6 +10,7 @@ import { type Principal, verifyAccessToken } from './auth/tokens.js';
 import { registerParentRoutes } from './routes/parent.js';
 import { registerKidRoutes } from './routes/kid.js';
 import { registerOrderRoutes } from './routes/orders.js';
+import { registerContactRoutes } from './routes/contact.js';
 import { registerStreamRoutes } from './routes/stream.js';
 import { registerInternalRoutes } from './routes/internal.js';
 
@@ -136,6 +137,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   await app.register(async (instance) => registerParentRoutes(instance, ctx), { prefix: '/v1' });
   await app.register(async (instance) => registerKidRoutes(instance, ctx), { prefix: '/v1' });
   await app.register(async (instance) => registerOrderRoutes(instance, ctx), { prefix: '/v1' });
+  await app.register(async (instance) => registerContactRoutes(instance, ctx), { prefix: '/v1' });
   await app.register(async (instance) => registerStreamRoutes(instance, ctx));
   await app.register(async (instance) => registerInternalRoutes(instance, ctx));
 

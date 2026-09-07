@@ -3,12 +3,13 @@ import { Link } from 'react-router-dom';
 import {
   CATALOG,
   PRODUCT_NAME,
-  TRIAL_DAYS,
+  TRIAL_PLAN_ID,
   appsForBand,
+  planById,
   referralCodeFor,
   referralInviteText,
   referralLink,
-  referredTrialDays,
+  trialDaysFor,
   whatsappShareUrl,
 } from '@kidpc/shared';
 import { ApiError, type ChildDto, type HouseholdDto, type PolicyDto, api } from '../api';
@@ -743,12 +744,15 @@ function PolicyEditor({ child, onSaved }: { child: ChildDto; onSaved: () => Prom
 function ReferPanel({ guardianId, childName }: { guardianId: string; childName: string | null }) {
   const [copied, setCopied] = useState(false);
   const code = referralCodeFor(guardianId);
+  // The offer is Lite's, because Lite is the only plan with a trial to extend.
+  const trialPlan = planById(TRIAL_PLAN_ID);
+  const invitedTrialDays = trialDaysFor(trialPlan, { referred: true });
   const link = referralLink(window.location.origin, code);
   const message = referralInviteText({
     code,
     publicUrl: window.location.origin,
     childName,
-    trialDays: referredTrialDays(TRIAL_DAYS),
+    trialDays: invitedTrialDays,
   });
 
   const copy = async () => {
@@ -779,8 +783,8 @@ function ReferPanel({ guardianId, childName }: { guardianId: string; childName: 
     <div className="card stack" id="refer">
       <h2 style={{ margin: 0 }}>Give a month, get a month</h2>
       <p className="muted" style={{ margin: 0 }}>
-        A family who joins on your link starts with {referredTrialDays(TRIAL_DAYS)} free days
-        instead of {TRIAL_DAYS}. Once they stay, your next month is on us.
+        A family who joins on your link starts {trialPlan.name} with {invitedTrialDays} free days
+        instead of {trialPlan.trialDays}. Once they stay, your next month is on us.
       </p>
 
       <div className="refer-code">

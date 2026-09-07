@@ -1,4 +1,5 @@
 import { type Delivery } from './catalog.js';
+import { REFERRAL_BONUS_DAYS } from './referral.js';
 
 /**
  * What the plans cost.
@@ -29,6 +30,17 @@ export const EXTRA_CHILD_RATE = 0.5;
 /** Households larger than this are a support conversation, not a form. */
 export const MAX_CHILDREN = 8;
 
+/**
+ * How long after a first charge a household can change its mind and have the
+ * money back in full.
+ *
+ * A commercial decision rather than a legal minimum -- India has no statutory
+ * cooling-off period for a digital subscription. It lives here rather than in
+ * the refunds page because a payment provider, a customer and whoever answers
+ * the email all have to be told the same number.
+ */
+export const REFUND_WINDOW_DAYS = 7;
+
 export const PLAN_IDS = ['lite', 'pro'] as const;
 export type PlanId = (typeof PLAN_IDS)[number];
 
@@ -42,6 +54,16 @@ export interface Plan {
   offerPriceInr: number;
   /** Children covered by the base price, before any per-child addition. */
   includedChildren: number;
+  /**
+   * Free days before the first charge. Zero means no trial at all.
+   *
+   * Per plan rather than global, because they genuinely differ: Lite runs in
+   * the household's own browser and costs us nothing to give away for a week,
+   * while a Pro trial would provision a Linux desktop -- real memory on a real
+   * machine -- for someone who has paid nothing. A single TRIAL_DAYS constant
+   * quietly promised the second one on every page that mentioned the first.
+   */
+  trialDays: number;
   /** Which delivery kinds this plan includes; the app list follows from it. */
   includes: readonly Delivery[];
   /** Points that are not simply "which apps", in the order they matter. */
@@ -66,6 +88,7 @@ export const PLANS: readonly Plan[] = [
     listPriceInr: 999,
     offerPriceInr: 299,
     includedChildren: 2,
+    trialDays: TRIAL_DAYS,
     includes: ['local'],
     extras: [
       'A profile for each child, with their own PIN and their own progress',
@@ -82,6 +105,11 @@ export const PLANS: readonly Plan[] = [
     listPriceInr: 1999,
     offerPriceInr: 999,
     includedChildren: 2,
+    // No trial. Every Pro session is a streamed Linux desktop on hardware we
+    // pay for by the hour, so a free fortnight of it is a bill, not a sample.
+    // Lite is the free way to find out whether a household will use this at
+    // all, and it shares every activity that runs in the browser.
+    trialDays: 0,
     includes: ['local', 'hosted'],
     recommended: true,
     extras: [
@@ -94,6 +122,21 @@ export const PLANS: readonly Plan[] = [
       'The streamed desktop is still in development. Pro is priced and listed here, but not yet open.',
   },
 ];
+
+/**
+ * How many free days a household actually gets.
+ *
+ * The referral bonus extends a trial; it never creates one. Adding seven days
+ * to a plan that offers none would hand out free streamed desktops to anyone
+ * who pasted a code, which is the opposite of what the referral is for.
+ */
+export function trialDaysFor(plan: Plan, { referred = false }: { referred?: boolean } = {}): number {
+  if (plan.trialDays === 0) return 0;
+  return plan.trialDays + (referred ? REFERRAL_BONUS_DAYS : 0);
+}
+
+/** The plan whose trial the marketing pages talk about when none is named. */
+export const TRIAL_PLAN_ID: PlanId = 'lite';
 
 export function planById(id: PlanId): Plan {
   const plan = PLANS.find((p) => p.id === id);

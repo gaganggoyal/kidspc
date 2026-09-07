@@ -1,5 +1,6 @@
 export * from './age.js';
 export * from './brand.js';
+export * from './company.js';
 export * from './time.js';
 export * from './catalog.js';
 export * from './plans.js';

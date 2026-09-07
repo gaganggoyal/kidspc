@@ -7,7 +7,7 @@ import {
   PLANS,
   PRODUCT_NAME,
   type PlanId,
-  TRIAL_DAYS,
+  TRIAL_PLAN_ID,
   appsForBand,
   challengeForWeek,
   deliveryOf,
@@ -16,10 +16,12 @@ import {
   findApp,
   formatInr,
   localApps,
-  referredTrialDays,
+  planById,
+  trialDaysFor,
 } from '@kidpc/shared';
 import { getTokens } from '../api';
 import { currentReferral } from '../referral';
+import { SiteFooter, SiteHeader } from './SiteChrome';
 import { HowItWorks } from './HowItWorks';
 import { PlanRequest } from './PlanRequest';
 import { CATEGORY_GLYPH } from './Launcher';
@@ -54,7 +56,10 @@ export function Home() {
   // the form, because a promise made only at the point of payment reads like a
   // sales tactic rather than a gift from a friend.
   const referralCode = currentReferral();
-  const trialDays = referralCode ? referredTrialDays(TRIAL_DAYS) : TRIAL_DAYS;
+  // The headline trial is Lite's, because Lite is the only plan that has one.
+  // Pro streams a Linux desktop, and a free fortnight of that is a bill.
+  const trialPlan = planById(TRIAL_PLAN_ID);
+  const trialDays = trialDaysFor(trialPlan, { referred: Boolean(referralCode) });
   const challenge = challengeForWeek(new Date());
   const challengeApp = findApp(challenge.appId);
   // Which plan's request form is open, if any. One at a time: two forms on a
@@ -66,29 +71,11 @@ export function Home() {
     <div className="home">
       {referralCode && (
         <div className="invited-bar">
-          You were invited by another parent, so your trial is {trialDays} days instead of{' '}
-          {TRIAL_DAYS}.
+          You were invited by another parent, so your {trialPlan.name} trial is {trialDays} days
+          instead of {trialPlan.trialDays}.
         </div>
       )}
-      <header className="home-nav">
-        <Link to="/" className="wordmark">
-          <img src="/icon-192.png" alt="" width={36} height={36} />
-          <span>{PRODUCT_NAME}</span>
-        </Link>
-        <nav className="home-nav-links">
-          <a href="#how">How it works</a>
-          <a href="#plans">Plans</a>
-          {signedIn ? (
-            <Link to="/household" className="btn primary">
-              Continue
-            </Link>
-          ) : (
-            <Link to="/signin" className="btn">
-              Parent sign in
-            </Link>
-          )}
-        </nav>
-      </header>
+      <SiteHeader home />
 
       <section className="hero">
         <div className="hero-copy">
@@ -295,8 +282,9 @@ export function Home() {
         <div className="home-section">
           <h2>Choose a plan</h2>
           <p className="lede">
-            {TRIAL_DAYS} days free to start with, so you can find out whether your child actually
-            uses it before you decide anything.
+            {trialPlan.name} starts with {trialDays} free days, so you can find out whether your
+            child actually uses it before you decide anything. Pro has no trial — it runs a real
+            computer on our hardware from the first day.
           </p>
 
           <div className="plans">
@@ -322,6 +310,16 @@ export function Home() {
                   <p className="plan-household">
                     Up to {plan.includedChildren} children included · each extra child{' '}
                     {formatInr(extraChildPriceInr(plan))}/month
+                  </p>
+
+                  {/* Said on the card rather than once at the top of the
+                      section, because it is the one thing that differs between
+                      these two and a reader comparing them will not scroll back
+                      up to find out. */}
+                  <p className={plan.trialDays > 0 ? 'plan-trial' : 'plan-trial none'}>
+                    {plan.trialDays > 0
+                      ? `${trialDaysFor(plan, { referred: Boolean(referralCode) })} days free first`
+                      : 'No free trial — billed from the start'}
                   </p>
 
                   <ul className="plan-feats">
@@ -364,9 +362,9 @@ export function Home() {
           <div>
             <h2>Give a month, get a month</h2>
             <p className="muted">
-              Every household has a link to share. A family who joins on yours starts with{' '}
-              {referredTrialDays(TRIAL_DAYS)} free days instead of {TRIAL_DAYS}, and once they
-              stay, your next month is on us.
+              Every household has a link to share. A family who joins on yours starts{' '}
+              {trialPlan.name} with {trialDaysFor(trialPlan, { referred: true })} free days
+              instead of {trialPlan.trialDays}, and once they stay, your next month is on us.
             </p>
             <p className="small muted">
               Parents share it, never children. There is no friend list, no profile anyone else
@@ -444,10 +442,7 @@ export function Home() {
         </p>
       </section>
 
-      <footer className="home-foot">
-        <span>{PRODUCT_NAME}</span>
-        <Link to="/signin">Parent sign in</Link>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

@@ -1,10 +1,4 @@
-import {
-  type EmailTemplate,
-  PRODUCT_NAME,
-  type Plan,
-  TRIAL_DAYS,
-  formatInr,
-} from '@kidpc/shared';
+import { type EmailTemplate, PRODUCT_NAME, type Plan, formatInr } from '@kidpc/shared';
 
 /**
  * Message bodies.
@@ -114,12 +108,16 @@ export function orderReceivedEmail(input: {
   children: number;
   quotedInr: number;
   publicUrl: string;
-  /** Total free days, which is longer when they arrived on someone's code. */
-  trialDays?: number;
+  /**
+   * Total free days: longer when they arrived on someone's code, and zero on a
+   * plan with no trial. Required rather than defaulted -- a default here is how
+   * a Pro customer gets told about a free week that does not exist.
+   */
+  trialDays: number;
   referred?: boolean;
 }): Composed {
   const greeting = input.contactName ? `Hello ${input.contactName},` : 'Hello,';
-  const trialDays = input.trialDays ?? TRIAL_DAYS;
+  const { trialDays } = input;
   return compose(
     'order_received',
     input.to,
@@ -128,9 +126,11 @@ export function orderReceivedEmail(input: {
       greeting,
       `Thank you — we have your request for ${PRODUCT_NAME} ${input.plan.name}, for ${input.children} ${input.children === 1 ? 'child' : 'children'}, at ${formatInr(input.quotedInr)} per month.`,
       'We will email you a payment link shortly. There is nothing to do until then, and we have not asked for or stored any card details.',
-      input.referred
-        ? `Someone sent you here, so your first ${trialDays} days are free rather than the usual ${TRIAL_DAYS}. The link will not charge you today.`
-        : `Your first ${trialDays} days are free, so the link will not charge you today.`,
+      trialDays === 0
+        ? `${input.plan.name} does not come with a free trial — the link starts the subscription, and the first month is charged when you use it.`
+        : input.referred
+          ? `Someone sent you here, so your first ${trialDays} days are free rather than the usual ${input.plan.trialDays}. The link will not charge you today.`
+          : `Your first ${trialDays} days are free, so the link will not charge you today.`,
       input.plan.pending
         ? `About ${input.plan.name}: ${input.plan.pending} We will tell you the moment it opens, and you will not be billed for it before then.`
         : `You can already create your account and set up your household at ${input.publicUrl}/signin`,
@@ -192,9 +192,10 @@ export function paymentLinkEmail(input: {
   quotedInr: number;
   paymentUrl: string;
   publicUrl: string;
-  trialDays?: number;
+  /** Zero on a plan with no trial. See orderReceivedEmail for why it is required. */
+  trialDays: number;
 }): Composed {
-  const trialDays = input.trialDays ?? TRIAL_DAYS;
+  const { trialDays } = input;
   return compose(
     'payment_link',
     input.to,
@@ -203,9 +204,68 @@ export function paymentLinkEmail(input: {
       input.contactName ? `Hello ${input.contactName},` : 'Hello,',
       `Here is the link to start your ${PRODUCT_NAME} ${input.plan.name} subscription for ${input.children} ${input.children === 1 ? 'child' : 'children'}, at ${formatInr(input.quotedInr)} per month:`,
       input.paymentUrl,
-      `Your first ${trialDays} days are free. You can cancel before they are up and nothing will be taken.`,
+      trialDays === 0
+        ? `${input.plan.name} has no free trial, so following this link starts the subscription. You can cancel it at any time and you will not be charged again.`
+        : `Your first ${trialDays} days are free. You can cancel before they are up and nothing will be taken.`,
       `If you have not created your account yet, you can do that at ${input.publicUrl}/signin — it takes about two minutes.`,
       'Reply to this email if anything looks wrong. A person reads it.',
+    ],
+    input.publicUrl,
+  );
+}
+
+/**
+ * Somebody wrote in from the contact page.
+ *
+ * Two messages, not one: this is the copy that reaches whoever answers, and
+ * `contactAckEmail` is the one that reaches the person who wrote. Sending only
+ * the first leaves them wondering whether the form worked, which is how a
+ * question becomes a chargeback.
+ *
+ * The sender's own address goes in `replyTo`-shaped text rather than in the
+ * From header, because forging a From is how mail ends up in spam -- so the
+ * address is stated in the body and a human presses reply-all to it.
+ */
+export function contactMessageEmail(input: {
+  to: string;
+  from: string;
+  name: string;
+  message: string;
+  publicUrl: string;
+}): Composed {
+  return compose(
+    'contact_message',
+    input.to,
+    `Message from ${input.name} <${input.from}>`,
+    [
+      `From: ${input.name} <${input.from}>`,
+      'Reply to that address, not to this one.',
+      '---',
+      input.message,
+    ],
+    input.publicUrl,
+  );
+}
+
+/** Sent back to whoever wrote, so they know it arrived. */
+export function contactAckEmail(input: {
+  to: string;
+  name: string;
+  message: string;
+  publicUrl: string;
+}): Composed {
+  return compose(
+    'contact_message',
+    input.to,
+    `We have your message — ${PRODUCT_NAME}`,
+    [
+      `Hello ${input.name},`,
+      `Thank you for writing. A person reads every message sent to ${PRODUCT_NAME} and you will get a reply, usually within two working days.`,
+      'This is what you sent, so you have a copy:',
+      '---',
+      input.message,
+      '---',
+      'If it was urgent — a child cannot get in, or something is wrong with a payment — reply to this email and say so, and it goes to the top.',
     ],
     input.publicUrl,
   );

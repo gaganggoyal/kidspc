@@ -1,11 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import {
-  TRIAL_DAYS,
   createOrderInput,
   monthlyPriceInr,
   newId,
   planById,
-  referredTrialDays,
+  trialDaysFor,
 } from '@kidpc/shared';
 import { eq } from 'drizzle-orm';
 import type { AppContext } from '../context.js';
@@ -50,7 +49,9 @@ export function registerOrderRoutes(app: FastifyInstance, ctx: AppContext): void
      * by a person, from `pnpm orders referrer`.
      */
     const referralCode = input.referralCode ?? null;
-    const trialDays = referralCode ? referredTrialDays(TRIAL_DAYS) : TRIAL_DAYS;
+    // Per plan: a code lengthens a trial and never invents one, so arriving on
+    // someone's link does not conjure a free fortnight of streamed desktop.
+    const trialDays = trialDaysFor(plan, { referred: Boolean(referralCode) });
 
     // A signed-in guardian gets their request linked to their account; a
     // stranger does not, and neither is asked to prove anything here.
@@ -120,9 +121,12 @@ export function registerOrderRoutes(app: FastifyInstance, ctx: AppContext): void
       referred: Boolean(referralCode),
       // The client shows this rather than composing its own promise, so the
       // page and the email cannot come to say different things.
-      message: referralCode
-        ? `Thank you — we have your request, and the code you arrived with. We will email you a payment link shortly, and your first ${trialDays} days are free rather than the usual ${TRIAL_DAYS}. No card details were asked for or stored.`
-        : 'Thank you — we have your request. We will email you a payment link shortly. No card details were asked for or stored.',
+      message:
+        trialDays > 0 && referralCode
+          ? `Thank you — we have your request, and the code you arrived with. We will email you a payment link shortly, and your first ${trialDays} days are free rather than the usual ${plan.trialDays}. No card details were asked for or stored.`
+          : trialDays > 0
+            ? `Thank you — we have your request. We will email you a payment link shortly, and your first ${trialDays} days are free. No card details were asked for or stored.`
+            : `Thank you — we have your request. ${plan.name} has no free trial, so the link we email you starts the subscription. No card details were asked for or stored.`,
     };
   });
 

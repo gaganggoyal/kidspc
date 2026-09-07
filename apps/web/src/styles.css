@@ -1169,6 +1169,15 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   font-size: 0.95rem;
   white-space: nowrap;
 }
+.plan-trial {
+  margin: 0;
+  font-weight: 700;
+  color: var(--accent);
+}
+/* The absence of a trial is information, not a failure, so it is set in the
+   muted ink rather than in the warning colour. */
+.plan-trial.none { color: var(--ink-soft); font-weight: 400; }
+
 .referred-note {
   color: var(--accent);
   font-weight: 700;
@@ -1290,4 +1299,116 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 
 @media (max-width: 760px) {
   .refer-card { grid-template-columns: 1fr; }
+}
+
+/* ===========================================================================
+   The company and policy pages.
+
+   Five documents a parent may actually have to read, plus the footer that
+   makes them reachable from anywhere. Measured for reading rather than for
+   filling a screen: a terms page set to the full width of a laptop is a terms
+   page nobody finishes, and these are exactly the pages where "nobody finished
+   it" is the problem being solved.
+   ======================================================================== */
+
+.prose {
+  /* ~68 characters at this size. Wider reads as a wall; narrower turns a
+     numbered clause into a column of fragments. */
+  max-width: 68ch;
+  margin: 0 auto;
+  padding: clamp(32px, 6vw, 72px) var(--pad) clamp(48px, 8vw, 96px);
+}
+.prose h1 { font-size: clamp(1.9rem, 4.5vw, 2.6rem); margin-bottom: 0.35em; }
+.prose h2 {
+  margin: 2em 0 0.5em;
+  padding-top: 0.9em;
+  border-top: 1px solid var(--line);
+}
+.prose h3 { margin: 1.6em 0 0.4em; font-size: 1.05rem; }
+.prose p, .prose li { line-height: 1.65; }
+.prose ul { padding-left: 1.2em; margin: 0 0 1em; }
+.prose li { margin-bottom: 0.5em; }
+.prose a { color: var(--accent); }
+.prose-updated { margin-top: -0.4em; }
+/* The first heading follows the lede, not a section, so it keeps its rule off. */
+.prose > h2:first-of-type { border-top: 0; padding-top: 0; }
+
+.contact-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pad);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: clamp(20px, 4vw, 32px);
+  margin: 0 0 1.5em;
+}
+/* Matched to the text inputs above rather than styled separately: a textarea
+   on a different ground from the field above it looks like a mistake. */
+.contact-form textarea {
+  width: 100%;
+  font: inherit;
+  padding: 10px 14px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  resize: vertical;
+}
+.contact-form button { align-self: flex-start; }
+
+.contact-details {
+  display: grid;
+  gap: 14px;
+  margin: 0 0 1em;
+}
+.contact-details dt {
+  font-size: 0.78rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+.contact-details dd { margin: 2px 0 0; }
+
+.site-foot {
+  background: var(--surface-2);
+  border-top: 1px solid var(--line);
+  padding: clamp(32px, 5vw, 56px) var(--pad) clamp(20px, 3vw, 32px);
+}
+.site-foot-cols {
+  max-width: var(--measure);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.6fr repeat(3, 1fr);
+  gap: clamp(20px, 4vw, 48px);
+}
+.site-foot-cols p { margin: 8px 0 0; max-width: 34ch; }
+.site-foot-cols nav { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.site-foot-cols nav h2 {
+  font-size: 0.78rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0 0 2px;
+}
+.site-foot-cols nav a { color: var(--ink); text-decoration: none; font-size: 0.95rem; }
+.site-foot-cols nav a:hover { text-decoration: underline; }
+
+.site-foot-base {
+  max-width: var(--measure);
+  margin: clamp(24px, 4vw, 40px) auto 0;
+  padding-top: var(--pad);
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--pad);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 860px) {
+  .site-foot-cols { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 520px) {
+  .site-foot-cols { grid-template-columns: 1fr; }
 }

@@ -2,15 +2,16 @@ import { Link, Navigate, useParams } from 'react-router-dom';
 import {
   AGE_BAND_SPECS,
   CATALOG,
-  PRODUCT_NAME,
-  TRIAL_DAYS,
+  TRIAL_PLAN_ID,
   challengeForWeek,
   findApp,
   localApps,
+  planById,
 } from '@kidpc/shared';
 import { DemoShell } from '../play/DemoShell';
 import { GAMES } from '../play/games';
 import { CATEGORY_GLYPH } from './Launcher';
+import { SiteFooter, SiteHeader } from './SiteChrome';
 
 /**
  * The public preview.
@@ -53,18 +54,7 @@ export function TryIt() {
 
   return (
     <div className="home">
-      <header className="home-nav">
-        <Link to="/" className="wordmark">
-          <img src="/icon-192.png" alt="" width={36} height={36} />
-          <span>{PRODUCT_NAME}</span>
-        </Link>
-        <nav className="home-nav-links">
-          <Link to="/#plans">Plans</Link>
-          <Link to="/signin" className="btn">
-            Parent sign in
-          </Link>
-        </nav>
-      </header>
+      <SiteHeader />
 
       <section className="home-section try-head">
         <h1>Try it now</h1>
@@ -128,15 +118,13 @@ export function TryIt() {
             </div>
           </div>
           <Link to="/#plans" className="btn primary big" style={{ marginTop: 'var(--pad)' }}>
-            See the plans — {TRIAL_DAYS} days free
+            See the plans — {planById(TRIAL_PLAN_ID).name} is{' '}
+            {planById(TRIAL_PLAN_ID).trialDays} days free
           </Link>
         </div>
       </section>
 
-      <footer className="home-foot">
-        <Link to="/">{PRODUCT_NAME}</Link>
-        <Link to="/signin">Parent sign in</Link>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
