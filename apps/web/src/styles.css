@@ -28,6 +28,11 @@
      bezel disappears entirely on a dark ground -- measured at 1.16:1. */
   --bezel: #26241f;
   --bezel-screen: var(--bg);
+  /* An accent-tinted ground for the two surfaces that have to look different
+     from every other card on the page without shouting: this week's challenge,
+     and the card a parent is about to forward. */
+  --wash: #e9f1eb;
+  --wash-line: #c3ddcd;
 
   --font-stack: ui-rounded, 'SF Pro Rounded', 'Segoe UI', Roboto, system-ui, sans-serif;
 }
@@ -49,6 +54,8 @@
        point of the illustration, and a dark bezel on a dark page has none. */
     --bezel: #4a4556;
     --bezel-screen: var(--surface);
+    --wash: #1b2721;
+    --wash-line: #2f4a3b;
   }
 }
 
@@ -297,11 +304,16 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   padding: 12px max(var(--pad), var(--safe-x));
   border-bottom: 1px solid var(--line);
   background: var(--surface);
+  /* Ten-foot type in a 430px-wide phone browser does not fit on one line, and
+     a bar that does not wrap pushes the whole document sideways -- which then
+     drags every fixed overlay on the page out with it. */
+  flex-wrap: wrap;
 }
 .activity-bar h1 {
   margin: 0;
   font-size: 1.15em;
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   text-align: center;
 }
 .activity-bar .clock {
@@ -1064,4 +1076,218 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 @media (max-width: 560px) {
   /* The number column costs more than it earns once the text is this narrow. */
   .guide-list, .guide-video { padding-left: 0; }
+}
+
+/* ===========================================================================
+   The preview, the weekly challenge, and the card that leaves the house.
+
+   Three surfaces added for one loop: a child plays without an account, a prompt
+   gives them a reason to come back on Monday, and a parent forwards something
+   their own child made. Everything here is built from the same tokens as the
+   rest of the page -- the point is that these read as part of the product
+   rather than as marketing bolted onto it.
+   ======================================================================== */
+
+/* Someone arrived on another parent's link. Said before the page, not after
+   the price. */
+.invited-bar {
+  background: var(--accent);
+  color: var(--accent-ink);
+  text-align: center;
+  padding: 10px var(--pad);
+  font-size: 0.95rem;
+}
+
+.challenge-card {
+  background: var(--wash);
+  border: 1px solid var(--wash-line);
+  border-radius: var(--radius);
+  padding: clamp(20px, 3vw, 34px);
+}
+.challenge-card h2 { margin: 6px 0 8px; }
+.challenge-card .row { align-items: center; flex-wrap: wrap; gap: var(--pad); }
+.challenge-card .row .small { flex: 1 1 260px; }
+.challenge-prompt {
+  font-size: clamp(1.05rem, 2vw, 1.3rem);
+  line-height: 1.45;
+  margin: 0 0 10px;
+}
+
+/* The eyebrow above a challenge or a certificate. Small, spaced, quiet. */
+.cert-label {
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+/* The same prompt on the child's own screen, at ten feet. */
+.challenge-tile { background: var(--wash); border-color: var(--wash-line); }
+
+/* A catalogue tile that is a door rather than a description. */
+.try-tile {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+.try-tile:hover { border-color: var(--accent); transform: translateY(-2px); }
+.try-tile:focus-visible { border-color: var(--accent); }
+.try-cue { color: var(--accent); font-weight: 700; }
+@media (prefers-reduced-motion: reduce) {
+  .try-tile { transition: none; }
+  .try-tile:hover { transform: none; }
+}
+
+.try-head { padding-bottom: 0; }
+/* The heading and the challenge below it are one thought, so they get one
+   gap between them rather than two section paddings stacked. */
+.try-head + .home-section { padding-top: clamp(20px, 3vw, 32px); }
+
+.refer-card {
+  display: grid;
+  grid-template-columns: 1.4fr 0.6fr;
+  gap: clamp(20px, 4vw, 48px);
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: clamp(22px, 4vw, 40px);
+}
+.refer-card h2 { margin: 0 0 10px; }
+.refer-card p { margin: 0 0 10px; }
+.refer-code {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  overflow-x: auto;
+}
+.refer-code code {
+  display: block;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+.referred-note {
+  color: var(--accent);
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+
+/* The "free preview" marker in the activity bar. */
+.pill {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.8em;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+/* The one invitation the preview makes, and it is a bar rather than a dialog:
+   nothing covers a game a child is in the middle of. */
+.invite-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: var(--pad);
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding: 14px var(--pad);
+}
+.invite-bar p { margin: 0; max-width: 52ch; font-size: 0.8em; }
+
+/* --- Show a grown-up ---------------------------------------------------- */
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: var(--pad);
+  background: rgba(0, 0, 0, 0.55);
+  overflow-y: auto;
+}
+.sheet {
+  width: min(560px, 100%);
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pad);
+  font-size: 16px;
+}
+.sheet-actions {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--pad);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sheet-actions .row { flex-wrap: wrap; }
+
+.certificate {
+  background: var(--wash);
+  border: 1px solid var(--wash-line);
+  border-radius: var(--radius);
+  padding: clamp(22px, 5vw, 36px);
+  text-align: center;
+}
+.cert-eyebrow {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+}
+.cert-title { margin: 0 0 4px; font-size: clamp(1.4rem, 4vw, 1.9rem); }
+.cert-date { margin: 0 0 20px; color: var(--ink-soft); font-size: 0.9rem; }
+.cert-challenge {
+  border-top: 1px solid var(--wash-line);
+  border-bottom: 1px solid var(--wash-line);
+  padding: 16px 0;
+  margin: 0 0 16px;
+}
+.cert-challenge strong { display: block; font-size: 1.1rem; margin: 4px 0 6px; }
+.cert-challenge p { margin: 0; }
+.cert-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+}
+.cert-stats dt { font-size: 0.78rem; color: var(--ink-soft); }
+.cert-stats dd {
+  margin: 2px 0 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cert-note { margin: 0; font-size: 0.88rem; color: var(--ink-soft); }
+
+/* Indian households print certificates and put them on a wall, so this is a
+   real output rather than a convenience: everything but the card goes. */
+@media print {
+  body { background: #fff; }
+  .sheet-backdrop { position: static; background: none; padding: 0; display: block; }
+  .no-print, .home-nav, .home-foot, .invite-bar, .activity-bar { display: none !important; }
+  body > #root > *:not(:has(.certificate)) { display: none !important; }
+  .certificate {
+    background: #fff;
+    color: #000;
+    border: 2px solid #000;
+    break-inside: avoid;
+  }
+  .cert-eyebrow, .cert-stats dt, .cert-date, .cert-note { color: #000; }
+}
+
+@media (max-width: 760px) {
+  .refer-card { grid-template-columns: 1fr; }
 }

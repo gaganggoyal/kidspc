@@ -248,6 +248,10 @@ the screen it is built for is [docs/tv.md](docs/tv.md).
 a person with an account somewhere — Zoho, BigRock, Razorpay — in the order that
 unblocks the most.
 
+[docs/growth.md](docs/growth.md) is why the free preview, the weekly challenge
+and the referral code exist, and why every ordinary viral mechanic for a
+children's app is off the table here.
+
 ```bash
 cp .env.production.example .env.production   # fill in
 pnpm preflight .env.production               # gates the deploy, exits non-zero

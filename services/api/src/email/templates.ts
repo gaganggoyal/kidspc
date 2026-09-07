@@ -114,8 +114,12 @@ export function orderReceivedEmail(input: {
   children: number;
   quotedInr: number;
   publicUrl: string;
+  /** Total free days, which is longer when they arrived on someone's code. */
+  trialDays?: number;
+  referred?: boolean;
 }): Composed {
   const greeting = input.contactName ? `Hello ${input.contactName},` : 'Hello,';
+  const trialDays = input.trialDays ?? TRIAL_DAYS;
   return compose(
     'order_received',
     input.to,
@@ -124,7 +128,9 @@ export function orderReceivedEmail(input: {
       greeting,
       `Thank you — we have your request for ${PRODUCT_NAME} ${input.plan.name}, for ${input.children} ${input.children === 1 ? 'child' : 'children'}, at ${formatInr(input.quotedInr)} per month.`,
       'We will email you a payment link shortly. There is nothing to do until then, and we have not asked for or stored any card details.',
-      `Your first ${TRIAL_DAYS} days are free, so the link will not charge you today.`,
+      input.referred
+        ? `Someone sent you here, so your first ${trialDays} days are free rather than the usual ${TRIAL_DAYS}. The link will not charge you today.`
+        : `Your first ${trialDays} days are free, so the link will not charge you today.`,
       input.plan.pending
         ? `About ${input.plan.name}: ${input.plan.pending} We will tell you the moment it opens, and you will not be billed for it before then.`
         : `You can already create your account and set up your household at ${input.publicUrl}/signin`,
@@ -144,6 +150,7 @@ export function orderInternalEmail(input: {
   children: number;
   quotedInr: number;
   guardianId?: string | null;
+  referralCode?: string | null;
   publicUrl: string;
 }): Composed {
   return compose(
@@ -157,8 +164,14 @@ export function orderInternalEmail(input: {
       `Email: ${input.email}`,
       `Name: ${input.contactName ?? '(not given)'}`,
       `Existing account: ${input.guardianId ?? 'no'}`,
+      `Referred by: ${input.referralCode ?? '(nobody)'}`,
       `Order id: ${input.orderId}`,
       'Send the payment link, then move the order to link_sent.',
+      ...(input.referralCode
+        ? [
+            `This household came in on a code. Run "pnpm orders referrer ${input.referralCode}" to find out whose month to credit, and do it only after they pay.`,
+          ]
+        : []),
     ],
     input.publicUrl,
   );
@@ -179,7 +192,9 @@ export function paymentLinkEmail(input: {
   quotedInr: number;
   paymentUrl: string;
   publicUrl: string;
+  trialDays?: number;
 }): Composed {
+  const trialDays = input.trialDays ?? TRIAL_DAYS;
   return compose(
     'payment_link',
     input.to,
@@ -188,7 +203,7 @@ export function paymentLinkEmail(input: {
       input.contactName ? `Hello ${input.contactName},` : 'Hello,',
       `Here is the link to start your ${PRODUCT_NAME} ${input.plan.name} subscription for ${input.children} ${input.children === 1 ? 'child' : 'children'}, at ${formatInr(input.quotedInr)} per month:`,
       input.paymentUrl,
-      `Your first ${TRIAL_DAYS} days are free. You can cancel before they are up and nothing will be taken.`,
+      `Your first ${trialDays} days are free. You can cancel before they are up and nothing will be taken.`,
       `If you have not created your account yet, you can do that at ${input.publicUrl}/signin — it takes about two minutes.`,
       'Reply to this email if anything looks wrong. A person reads it.',
     ],

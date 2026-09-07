@@ -23,7 +23,7 @@ function countWords(text: string): number {
   return trimmed === '' ? 0 : trimmed.split(/\s+/).length;
 }
 
-function WriterPad({ activity }: { activity: ActivityApi }) {
+export function WriterPad({ activity }: { activity: ActivityApi }) {
   const [text, setText] = useState('');
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [prompt, setPrompt] = useState(() => PROMPTS[Math.floor(Math.random() * PROMPTS.length)]!);

@@ -27,7 +27,7 @@ const STARTER = {
 
 type Pane = 'html' | 'css' | 'js';
 
-function Playground({ activity }: { activity: ActivityApi }) {
+export function Playground({ activity }: { activity: ActivityApi }) {
   const [pane, setPane] = useState<Pane>('html');
   const [source, setSource] = useState(STARTER);
   const [preview, setPreview] = useState(STARTER);

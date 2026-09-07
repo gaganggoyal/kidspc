@@ -3,7 +3,9 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import './styles.css';
 import { getTokens, onTokenChange, tryRefresh } from './api';
+import { captureReferral } from './referral';
 import { Home } from './pages/Home';
+import { TryIt } from './pages/TryIt';
 import { SignIn } from './pages/SignIn';
 import { Household } from './pages/Household';
 import { Launcher } from './pages/Launcher';
@@ -75,6 +77,13 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
+        {/*
+          The public preview. Deliberately outside RequireChild: it has no
+          session, makes no request, and exists precisely for people who do not
+          have an account yet.
+        */}
+        <Route path="/try" element={<TryIt />} />
+        <Route path="/try/:appId" element={<TryIt />} />
         <Route path="/signin" element={<SignIn />} />
         <Route
           path="/household"
@@ -124,6 +133,13 @@ function App() {
     </BrowserRouter>
   );
 }
+
+/*
+ * Read `?ref=` before React paints, so a visitor who lands on a referral link
+ * and immediately navigates does not lose it. Nothing is sent -- the code is
+ * kept on their own device until, and unless, they place an order.
+ */
+captureReferral();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

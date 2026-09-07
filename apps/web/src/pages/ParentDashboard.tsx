@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CATALOG, appsForBand } from '@kidpc/shared';
+import {
+  CATALOG,
+  PRODUCT_NAME,
+  TRIAL_DAYS,
+  appsForBand,
+  referralCodeFor,
+  referralInviteText,
+  referralLink,
+  referredTrialDays,
+  whatsappShareUrl,
+} from '@kidpc/shared';
 import { ApiError, type ChildDto, type HouseholdDto, type PolicyDto, api } from '../api';
 import { AVATARS } from './Household';
 
@@ -40,6 +50,9 @@ export function ParentDashboard() {
   if (!household) return <div className="page"><div className="skeleton" style={{ height: 240 }} /></div>;
 
   const child = household.children.find((c) => c.id === selected) ?? null;
+  // Named in the message a parent forwards, because "Meera has been using it"
+  // is a recommendation and "a family has been using it" is an advertisement.
+  const firstChildName = household.children.find((c) => !c.archivedAt)?.displayName ?? null;
 
   return (
     <div className="page stack">
@@ -85,6 +98,8 @@ export function ParentDashboard() {
       )}
 
       {child && <ChildPanel key={child.id} child={child} onChanged={load} />}
+
+      <ReferPanel guardianId={household.guardian.id} childName={firstChildName} />
 
       <PrivacyPanel />
     </div>
@@ -705,6 +720,85 @@ function PolicyEditor({ child, onSaved }: { child: ChildDto; onSaved: () => Prom
         </button>
         {saved && <span className="muted small">Saved.</span>}
       </div>
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+
+/**
+ * The referral panel.
+ *
+ * This is the only place in the product that asks anybody to tell anybody else
+ * about it, and it is on the parent's settings screen rather than anywhere a
+ * child goes. That placement is the policy: children do not recruit, do not
+ * share, and are never shown a reward for bringing a friend.
+ *
+ * The share itself is a `wa.me` link and the operating system's own share
+ * sheet. No SDK, no pixel, no third-party origin, and no way for us to learn
+ * that a parent shared anything -- we find out when somebody arrives with the
+ * code, and not before.
+ */
+function ReferPanel({ guardianId, childName }: { guardianId: string; childName: string | null }) {
+  const [copied, setCopied] = useState(false);
+  const code = referralCodeFor(guardianId);
+  const link = referralLink(window.location.origin, code);
+  const message = referralInviteText({
+    code,
+    publicUrl: window.location.origin,
+    childName,
+    trialDays: referredTrialDays(TRIAL_DAYS),
+  });
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Clipboard access is refused often enough -- insecure contexts, some
+      // in-app browsers -- that the link is shown in full above regardless.
+      setCopied(false);
+    }
+  };
+
+  const share = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: PRODUCT_NAME, text: message });
+        return;
+      } catch {
+        return;
+      }
+    }
+    window.open(whatsappShareUrl(message), '_blank', 'noopener,noreferrer');
+  };
+
+  return (
+    <div className="card stack" id="refer">
+      <h2 style={{ margin: 0 }}>Give a month, get a month</h2>
+      <p className="muted" style={{ margin: 0 }}>
+        A family who joins on your link starts with {referredTrialDays(TRIAL_DAYS)} free days
+        instead of {TRIAL_DAYS}. Once they stay, your next month is on us.
+      </p>
+
+      <div className="refer-code">
+        <span className="muted small">Your link</span>
+        <code>{link}</code>
+      </div>
+
+      <div className="row">
+        <button className="primary" onClick={() => void share()}>
+          Share it
+        </button>
+        <button onClick={() => void copy()}>{copied ? 'Copied ✓' : 'Copy the link'}</button>
+      </div>
+
+      <p className="small muted" style={{ margin: 0 }}>
+        Nothing about your child is in the link — only the code {code}, which tells us whose month
+        to credit. We cannot tell whether you have shared it until someone uses it.
+      </p>
     </div>
   );
 }

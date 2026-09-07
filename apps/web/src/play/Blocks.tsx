@@ -38,7 +38,7 @@ const DELTAS: Array<[number, number]> = [
   [-1, 0], // left
 ];
 
-function BlocksGame({ activity }: { activity: ActivityApi }) {
+export function BlocksGame({ activity }: { activity: ActivityApi }) {
   const [levelIndex, setLevelIndex] = useState(0);
   const [program, setProgram] = useState<Command[]>([]);
   const [running, setRunning] = useState(false);

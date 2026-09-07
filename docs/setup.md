@@ -12,11 +12,17 @@ Current state of https://kidspc.online:
 | | |
 |---|---|
 | Site | live, TLS valid, renews itself |
+| Free preview | working — anyone can play all six activities at /try, no account |
+| Weekly challenge | working — a new prompt every Monday, no server involved |
 | Parent accounts | working — anyone can register today |
 | Child profiles | **blocked** — no way to verify a parent (step 5) |
 | Plan requests | working — orders recorded, emails queued |
+| Referrals | working — codes captured, longer trial honoured, rewards paid by hand (step 2) |
 | Email | **queued, not sending** — no mailbox (step 1) |
 | Pro plan | priced and listed, streamed desktop not built (step 6) |
+
+How all of that is meant to bring people in is written up separately, in
+[growth.md](growth.md).
 
 ---
 
@@ -142,6 +148,7 @@ $C exec api pnpm orders list                              # what is waiting
 $C exec api pnpm orders send ord_xxx https://rzp.io/l/yy  # queue the link
 $C exec api pnpm orders mail                              # send it now
 $C exec api pnpm orders queue                             # what is unsent
+$C exec api pnpm orders referrer KPC-4G7QMX               # whose month to credit
 ```
 
 `orders send` refuses a non-https link and refuses to send twice to the same
@@ -149,6 +156,29 @@ request, because both of those are mistakes you cannot take back once the mail
 has gone.
 
 You will need somewhere for that link to point — see step 4.
+
+### Referrals
+
+Every parent account has a share link, shown in their parent dashboard. A
+household arriving on one gets 14 free days instead of 7 automatically, and the
+`orders list` line for them ends `via KPC-XXXXXX`.
+
+The reward is not automatic and cannot be, because nothing here can pay anybody.
+When a referred household actually pays:
+
+```bash
+$C exec api pnpm orders referrer KPC-4G7QMX
+```
+
+That prints the guardian the code belongs to, every household that arrived on
+it, and which of those have paid without the referrer having been credited. Give
+that referrer their free month — in practice, one month later on the next
+payment link you send them — and note it. If the code resolves to more than one
+guardian, it says so; ask rather than guess.
+
+**Do not credit a referral before the household has paid.** A trial that is
+cancelled on day thirteen is not a referral, and a month given away for one is
+not recoverable.
 
 ---
 

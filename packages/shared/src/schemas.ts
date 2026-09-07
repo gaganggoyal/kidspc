@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { MAX_CHILDREN, PLAN_IDS } from './plans.js';
 import { AGE_BANDS } from './age.js';
+import { normaliseReferralCode } from './referral.js';
 
 // ---------------------------------------------------------------------------
 // Primitives
@@ -278,5 +279,16 @@ export const createOrderInput = z.object({
    * the database carries the same bound as a CHECK constraint.
    */
   children: z.coerce.number().int().min(1).max(MAX_CHILDREN),
+  /**
+   * Whoever sent them, if anyone. Normalised rather than rejected when it is
+   * mistyped, and dropped entirely when it is unrecognisable -- a bad code is
+   * never a reason to refuse someone's money.
+   */
+  referralCode: z
+    .string()
+    .trim()
+    .max(32)
+    .optional()
+    .transform((v) => (v ? normaliseReferralCode(v) : null)),
 });
 export type CreateOrderInput = z.infer<typeof createOrderInput>;

@@ -257,6 +257,10 @@ export const planOrders = pgTable(
     guardianId: text('guardian_id').references(() => guardians.id, { onDelete: 'set null' }),
     status: text('status').$type<OrderStatus>().notNull().default('requested'),
     note: text('note'),
+    /** Whoever sent them, if anyone. See migration 0003. */
+    referralCode: text('referral_code'),
+    /** Set once the referring household has actually had their free month. */
+    referralRewardedAt: ts('referral_rewarded_at'),
   },
   (t) => [index('plan_orders_created_idx').on(t.createdAt)],
 );

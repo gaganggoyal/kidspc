@@ -25,7 +25,7 @@ const COLOURS = [
 const SIZES = [4, 10, 20, 36];
 const STORAGE_KEY = 'kidpc.paint.v1';
 
-function PaintCanvas({ activity }: { activity: ActivityApi }) {
+export function PaintCanvas({ activity }: { activity: ActivityApi }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const strokes = useRef(0);

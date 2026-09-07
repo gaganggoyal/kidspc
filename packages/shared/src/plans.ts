@@ -62,12 +62,13 @@ export const PLANS: readonly Plan[] = [
   {
     id: 'lite',
     name: 'Lite',
-    tagline: 'Everything a child needs on the family TV.',
+    tagline: 'The household: a profile each, and limits that hold.',
     listPriceInr: 999,
     offerPriceInr: 299,
     includedChildren: 2,
     includes: ['local'],
     extras: [
+      'A profile for each child, with their own PIN and their own progress',
       'Every parent control: daily and weekly limits, curfews, per-app permissions',
       'Runs in the browser your TV, laptop or tablet already has',
       'Works with the remote alone — no keyboard needed to get started',

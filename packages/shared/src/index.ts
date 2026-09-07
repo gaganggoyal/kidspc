@@ -3,6 +3,8 @@ export * from './brand.js';
 export * from './time.js';
 export * from './catalog.js';
 export * from './plans.js';
+export * from './challenges.js';
+export * from './referral.js';
 export * from './guides.js';
 export * from './schemas.js';
 export * from './types.js';

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { challengeForWeek } from '@kidpc/shared';
 import { ApiError, type HomeDto, type SessionDto, api, setChildToken } from '../api';
 import { useAutoFocusFirst, useSpatialNavigation } from '../tv';
 import { AVATARS } from './Household';
@@ -106,6 +107,8 @@ export function Launcher() {
   }
 
   const { time } = home;
+  const challenge = challengeForWeek(new Date());
+  const challengeAllowed = home.apps.some((app) => app.id === challenge.appId);
   const usedFraction = time.dailyMinutes > 0 ? time.usedTodayMinutes / time.dailyMinutes : 1;
   const barState = time.remainingMinutes === 0 ? 'out' : time.remainingMinutes <= 10 ? 'low' : '';
 
@@ -188,6 +191,30 @@ export function Launcher() {
             Carry on where you left off
           </button>
         ) : null}
+
+        {/*
+          This week's prompt, and only when this child is actually allowed to
+          open the activity it needs -- a challenge a parent has switched off is
+          a child asking why they cannot do the thing on the screen.
+
+          No streak, no counter of weeks missed, and nothing that turns red on
+          Sunday. It is a suggestion that quietly becomes a different suggestion
+          on Monday.
+        */}
+        {challengeAllowed && (
+          <div className="card stack challenge-tile">
+            <span className="muted small">This week</span>
+            <strong>{challenge.title}</strong>
+            <span>{challenge.prompt}</span>
+            <button
+              className="primary"
+              onClick={() => void start(challenge.appId)}
+              disabled={!home.canStart || starting !== null}
+            >
+              Try it in {home.apps.find((a) => a.id === challenge.appId)?.name}
+            </button>
+          </div>
+        )}
 
         <h2>Your apps</h2>
         <div className="app-grid">

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
+import { REFERRAL_BONUS_DAYS, TRIAL_DAYS, referralCodeFor } from '@kidpc/shared';
 import { type Harness, createHarness, ist, onboard } from './testing/harness.js';
 import { consentChallenges, emailOutbox, planOrders } from './db/schema.js';
 import { backoffMinutes, sendPending } from './email/outbox.js';
@@ -24,8 +25,8 @@ afterEach(async () => {
   harness = null;
 });
 
-async function open(startAt: Date): Promise<Harness> {
-  harness = await createHarness(startAt);
+async function open(startAt: Date, env: Partial<NodeJS.ProcessEnv> = {}): Promise<Harness> {
+  harness = await createHarness(startAt, env);
   return harness;
 }
 
@@ -1327,6 +1328,90 @@ describe('Scenario: a household asking to subscribe', () => {
       headers: asParent(stranger),
     });
     expect(theirs.json().order).toBeNull();
+  });
+});
+
+describe('Scenario: one parent sending another', () => {
+  const post = (h: Harness, body: unknown) =>
+    h.app.inject({
+      method: 'POST',
+      url: '/v1/orders',
+      headers: { 'content-type': 'application/json' },
+      payload: body as object,
+    });
+
+  it('remembers who sent them and gives them the longer trial', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    // Typed the way it arrives off a WhatsApp message: lower case, and with a
+    // letter O where the code has a zero.
+    const res = await post(h, {
+      email: 'sent@example.com',
+      planId: 'lite',
+      children: 2,
+      referralCode: 'kpc-o11abc',
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.json().referred).toBe(true);
+    expect(res.json().trialDays).toBe(TRIAL_DAYS + REFERRAL_BONUS_DAYS);
+
+    const [order] = await h.runtime.ctx.database.db.select().from(planOrders);
+    expect(order!.referralCode).toBe('KPC-011ABC');
+    // Nobody has been paid anything yet, and nothing here can do that.
+    expect(order!.referralRewardedAt).toBeNull();
+  });
+
+  it('takes the order anyway when the code is nonsense', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    const res = await post(h, {
+      email: 'typo@example.com',
+      planId: 'lite',
+      children: 1,
+      referralCode: 'my friend told me',
+    });
+
+    // A mistyped code must never be the reason somebody cannot buy. It is
+    // dropped, the trial is the ordinary one, and the sale goes through.
+    expect(res.statusCode).toBe(201);
+    expect(res.json().referred).toBe(false);
+    expect(res.json().trialDays).toBe(TRIAL_DAYS);
+    const [order] = await h.runtime.ctx.database.db.select().from(planOrders);
+    expect(order!.referralCode).toBeNull();
+  });
+
+  it('promises the longer trial in the email as well as on the page', async () => {
+    const h = await open(ist('2026-03-14T10:00:00'));
+    await post(h, {
+      email: 'invited@example.com',
+      planId: 'lite',
+      children: 2,
+      referralCode: referralCodeFor('gdn_someone'),
+    });
+
+    const queued = await h.runtime.ctx.database.db.select().from(emailOutbox);
+    const confirmation = queued.find((m) => m.template === 'order_received');
+    // The page said fourteen days. An email that says seven is worse than an
+    // email that says nothing.
+    expect(confirmation!.bodyText).toContain(`${TRIAL_DAYS + REFERRAL_BONUS_DAYS} days are free`);
+    expect(confirmation!.bodyText).toContain('Someone sent you here');
+  });
+
+  it('tells whoever sends the payment link whose month to credit', async () => {
+    // The internal notice only exists where there is a desk to send it to.
+    const h = await open(ist('2026-03-14T10:00:00'), { ORDERS_EMAIL: 'desk@example.com' });
+    const code = referralCodeFor('gdn_referrer');
+    await post(h, {
+      email: 'credit@example.com',
+      planId: 'pro',
+      children: 2,
+      referralCode: code,
+    });
+
+    const queued = await h.runtime.ctx.database.db.select().from(emailOutbox);
+    const internal = queued.find((m) => m.template === 'order_internal');
+    expect(internal!.bodyText).toContain(code);
+    // And says the one thing that stops a reward being given out too early.
+    expect(internal!.bodyText).toContain('only after they pay');
   });
 });
 

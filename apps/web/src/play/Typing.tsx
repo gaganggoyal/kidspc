@@ -17,7 +17,7 @@ const WORDS: Record<string, string[]> = {
 
 const STAGES = ['🌱', '🌿', '🪴', '🌷', '🌻', '🌳'];
 
-function TypingGame({ activity }: { activity: ActivityApi }) {
+export function TypingGame({ activity }: { activity: ActivityApi }) {
   const [level, setLevel] = useState<keyof typeof WORDS>('easy');
   const [word, setWord] = useState('');
   const [typed, setTyped] = useState('');

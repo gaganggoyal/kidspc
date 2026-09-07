@@ -42,7 +42,7 @@ function build(level: number): Question {
   };
 }
 
-function NumbersGame({ activity }: { activity: ActivityApi }) {
+export function NumbersGame({ activity }: { activity: ActivityApi }) {
   const [level, setLevel] = useState(1);
   const [streak, setStreak] = useState(0);
   const [solved, setSolved] = useState(0);

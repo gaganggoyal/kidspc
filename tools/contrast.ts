@@ -75,6 +75,12 @@ const PAIRINGS: Pairing[] = [
   // and the tick before each feature. Both are small and bold, so they are held
   // to the body-text threshold rather than the large-text one.
   { what: 'accent text on a card', fg: 'accent', bg: 'surface', need: 4.5 },
+  // The accent-tinted ground under this week's challenge and under the card a
+  // parent forwards. Both carry body text and both carry an accent eyebrow, so
+  // they need the full set rather than a spot check.
+  { what: 'body text on the wash', fg: 'ink', bg: 'wash', need: 4.5 },
+  { what: 'muted text on the wash', fg: 'ink-soft', bg: 'wash', need: 4.5 },
+  { what: 'accent text on the wash', fg: 'accent', bg: 'wash', need: 4.5 },
   { what: 'danger text on a card', fg: 'danger', bg: 'surface', need: 4.5 },
   { what: 'warning text on a card', fg: 'warn', bg: 'surface', need: 4.5 },
   { what: 'television bezel', fg: 'bezel', bg: 'bg', need: 3, decorative: true },

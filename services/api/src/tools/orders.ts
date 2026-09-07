@@ -18,10 +18,17 @@
  * mail because SMTP was only just configured.
  */
 import { asc, desc, eq } from 'drizzle-orm';
-import { formatInr, planById } from '@kidpc/shared';
+import {
+  TRIAL_DAYS,
+  formatInr,
+  normaliseReferralCode,
+  planById,
+  referralCodeFor,
+  referredTrialDays,
+} from '@kidpc/shared';
 import { loadConfig } from '../config.js';
 import { createDatabase } from '../db/client.js';
-import { emailOutbox, planOrders } from '../db/schema.js';
+import { emailOutbox, guardians, planOrders } from '../db/schema.js';
 import { createMailer } from '../email/mailer.js';
 import { Outbox, sendPending } from '../email/outbox.js';
 import { paymentLinkEmail } from '../email/templates.js';
@@ -37,7 +44,8 @@ function usage(): never {
   orders list [all]        pending requests, or every request
   orders send <id> <url>   queue the payment link for one request
   orders mail              flush the outbox now
-  orders queue             what is waiting to be sent`);
+  orders queue             what is waiting to be sent
+  orders referrer <code>   whose free month a referral code belongs to`);
   process.exit(1);
 }
 
@@ -64,6 +72,7 @@ try {
             formatInr(row.quotedInr).padStart(8),
             row.status.padEnd(9),
             row.email,
+            row.referralCode ? `via ${row.referralCode}` : '',
             row.contactName ?? '',
           ].join('  '),
         );
@@ -105,6 +114,10 @@ try {
           quotedInr: order.quotedInr,
           paymentUrl,
           publicUrl: config.PUBLIC_URL,
+          // The trial we already promised them in the confirmation. Recomputed
+          // from the stored code rather than remembered, so the two messages
+          // cannot come to disagree about how many free days they have.
+          trialDays: order.referralCode ? referredTrialDays(TRIAL_DAYS) : TRIAL_DAYS,
         }),
       );
       await database.db
@@ -142,6 +155,63 @@ try {
         );
       }
       console.log(`\n${pending.length} waiting, ${rows.length - pending.length} sent.`);
+      break;
+    }
+
+    case 'referrer': {
+      const [raw] = args;
+      if (!raw) usage();
+      const code = normaliseReferralCode(raw);
+      if (!code) {
+        console.error(`"${raw}" is not a referral code.`);
+        process.exit(1);
+      }
+
+      /*
+       * A scan, because the code is derived from the guardian id rather than
+       * stored -- see packages/shared/src/referral.ts. At this scale that is
+       * milliseconds, and it means there is no table to keep in step.
+       *
+       * Every match is printed, not the first. Six characters is about a
+       * billion codes, so two guardians sharing one is unlikely rather than
+       * impossible, and silently crediting the wrong household a free month is
+       * a worse failure than asking a person to choose.
+       */
+      const all = await database.db.select().from(guardians);
+      const matches = all.filter((g) => referralCodeFor(g.id) === code);
+
+      const referred = await database.db
+        .select()
+        .from(planOrders)
+        .where(eq(planOrders.referralCode, code));
+
+      if (matches.length === 0) {
+        console.log(`${code} belongs to nobody with an account here.`);
+      } else {
+        for (const g of matches) {
+          console.log(`${code}  ${g.id}  ${g.email}  ${g.displayName}`);
+        }
+        if (matches.length > 1) {
+          console.log('\nMore than one guardian derives this code. Ask, do not guess.');
+        }
+      }
+
+      console.log(
+        `\n${referred.length} household${referred.length === 1 ? '' : 's'} arrived on it:`,
+      );
+      for (const order of referred) {
+        console.log(
+          `  ${order.id}  ${order.email.padEnd(32)} ${order.status.padEnd(9)} ${
+            order.referralRewardedAt ? 'rewarded' : 'not yet rewarded'
+          }`,
+        );
+      }
+      const owed = referred.filter((o) => o.status === 'paid' && !o.referralRewardedAt);
+      if (owed.length > 0) {
+        console.log(
+          `\n${owed.length} of those have paid and the referrer has not been credited.`,
+        );
+      }
       break;
     }
 

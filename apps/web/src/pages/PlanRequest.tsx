@@ -5,8 +5,10 @@ import {
   TRIAL_DAYS,
   formatInr,
   monthlyPriceInr,
+  referredTrialDays,
 } from '@kidpc/shared';
 import { ApiError, api } from '../api';
+import { currentReferral } from '../referral';
 
 /**
  * Asking to subscribe.
@@ -26,7 +28,17 @@ export function PlanRequest({ plan, onClose }: { plan: Plan; onClose: () => void
   const [children, setChildren] = useState(2);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ quotedInr: number; message: string } | null>(null);
+  const [done, setDone] = useState<{
+    quotedInr: number;
+    message: string;
+    trialDays: number;
+  } | null>(null);
+
+  // Whoever sent them, remembered from the ?ref= on the link they followed.
+  // Read once at render rather than at submit, so the extra free days are
+  // promised on the form before anyone commits to anything.
+  const referralCode = currentReferral();
+  const trialDays = referralCode ? referredTrialDays(TRIAL_DAYS) : TRIAL_DAYS;
 
   // Shown live as the household size changes, and computed from the same
   // function the server prices with -- so the figure on screen is the figure in
@@ -38,11 +50,20 @@ export function PlanRequest({ plan, onClose }: { plan: Plan; onClose: () => void
     setBusy(true);
     setError(null);
     try {
-      const result = await api<{ quotedInr: number; message: string }>('/orders', {
-        method: 'POST',
-        body: { email, contactName: contactName || undefined, planId: plan.id, children },
-        as: 'none',
-      });
+      const result = await api<{ quotedInr: number; message: string; trialDays: number }>(
+        '/orders',
+        {
+          method: 'POST',
+          body: {
+            email,
+            contactName: contactName || undefined,
+            planId: plan.id,
+            children,
+            referralCode: referralCode ?? undefined,
+          },
+          as: 'none',
+        },
+      );
       setDone(result);
     } catch (cause) {
       setError(
@@ -63,7 +84,7 @@ export function PlanRequest({ plan, onClose }: { plan: Plan; onClose: () => void
         <p>{done.message}</p>
         <p className="small muted">
           {plan.name}, {children} {children === 1 ? 'child' : 'children'} —{' '}
-          {formatInr(done.quotedInr)} per month after your {TRIAL_DAYS} free days.
+          {formatInr(done.quotedInr)} per month after your {done.trialDays} free days.
         </p>
         <button onClick={onClose}>Close</button>
       </div>
@@ -80,6 +101,13 @@ export function PlanRequest({ plan, onClose }: { plan: Plan; onClose: () => void
         We will email you a payment link. Nothing is charged now, and we do not ask for card
         details.
       </p>
+
+      {referralCode && (
+        <p className="small referred-note">
+          Someone sent you here ({referralCode}), so your first {trialDays} days are free instead
+          of {TRIAL_DAYS}.
+        </p>
+      )}
 
       <div className="field">
         <label htmlFor="order-email">Your email</label>

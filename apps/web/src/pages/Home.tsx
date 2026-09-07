@@ -9,13 +9,17 @@ import {
   type PlanId,
   TRIAL_DAYS,
   appsForBand,
+  challengeForWeek,
   deliveryOf,
   extraChildPriceInr,
   discountPercent,
+  findApp,
   formatInr,
   localApps,
+  referredTrialDays,
 } from '@kidpc/shared';
 import { getTokens } from '../api';
+import { currentReferral } from '../referral';
 import { HowItWorks } from './HowItWorks';
 import { PlanRequest } from './PlanRequest';
 import { CATEGORY_GLYPH } from './Launcher';
@@ -46,6 +50,13 @@ export function Home() {
    * is reading. Tab and Enter still reach and press the buttons.
    */
   const signedIn = Boolean(getTokens().guardian);
+  // Someone arrived on another parent's link. Said once at the top and again on
+  // the form, because a promise made only at the point of payment reads like a
+  // sales tactic rather than a gift from a friend.
+  const referralCode = currentReferral();
+  const trialDays = referralCode ? referredTrialDays(TRIAL_DAYS) : TRIAL_DAYS;
+  const challenge = challengeForWeek(new Date());
+  const challengeApp = findApp(challenge.appId);
   // Which plan's request form is open, if any. One at a time: two forms on a
   // pricing page is two half-filled forms.
   const [requesting, setRequesting] = useState<PlanId | null>(null);
@@ -53,6 +64,12 @@ export function Home() {
 
   return (
     <div className="home">
+      {referralCode && (
+        <div className="invited-bar">
+          You were invited by another parent, so your trial is {trialDays} days instead of{' '}
+          {TRIAL_DAYS}.
+        </div>
+      )}
       <header className="home-nav">
         <Link to="/" className="wordmark">
           <img src="/icon-192.png" alt="" width={36} height={36} />
@@ -86,15 +103,21 @@ export function Home() {
             adverts and nothing to plug in.
           </p>
           <div className="row">
-            <Link to={signedIn ? '/household' : '/signin?new=1'} className="btn primary big">
-              {signedIn ? 'Go to your household' : `Start ${TRIAL_DAYS} days free`}
+            {/*
+              The preview leads, and the trial follows it. A parent cannot
+              decide anything from a feature list, and the activities cost us a
+              static file to serve -- so the cheapest thing we own is also the
+              most persuasive, and putting it second was leaving it unused.
+            */}
+            <Link to="/try" className="btn primary big">
+              Try it free — no sign-up
             </Link>
-            <a href="#plans" className="btn big">
-              See the plans
-            </a>
+            <Link to={signedIn ? '/household' : '/signin?new=1'} className="btn big">
+              {signedIn ? 'Go to your household' : `Start ${trialDays} days free`}
+            </Link>
           </div>
           <ul className="trust">
-            <li>{TRIAL_DAYS} days free</li>
+            <li>{trialDays} days free</li>
             <li>No adverts</li>
             <li>No tracking</li>
             <li>No hardware to buy</li>
@@ -123,6 +146,26 @@ export function Home() {
           <div className="tv-stand" />
         </div>
       </section>
+
+      {challengeApp && (
+        <section className="home-section">
+          <div className="challenge-card">
+            <span className="cert-label">This week&apos;s challenge</span>
+            <h2>{challenge.title}</h2>
+            <p className="challenge-prompt">{challenge.prompt}</p>
+            <p className="small muted">{challenge.grownUp}</p>
+            <div className="row">
+              <Link to={`/try/${challenge.appId}`} className="btn primary">
+                Do it in {challengeApp.name}
+              </Link>
+              <span className="small muted">
+                A new one every Monday. The same one for every family — nothing here watches your
+                child to decide what to suggest.
+              </span>
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="band">
         <div className="home-section">
@@ -161,18 +204,21 @@ export function Home() {
           A small, deliberate catalogue — every activity is something you would recognise as
           learning. There is no open app store to wander into.
         </p>
+        {/* Each tile is a way in, not a description. Reading about Paint and
+            then being able to open Paint is the shortest path there is from
+            interest to a child asking for more of it. */}
         <div className="promo-grid">
           {activities.map((app) => (
-            <article className="promo-tile" key={app.id}>
+            <Link className="promo-tile try-tile" key={app.id} to={`/try/${app.id}`}>
               <span className="glyph" aria-hidden="true">
                 {CATEGORY_GLYPH[app.category] ?? '✨'}
               </span>
               <h3>{app.name}</h3>
               <p className="muted">{app.tagline}</p>
               <p className="small muted">
-                From age {AGE_BAND_SPECS[app.minBand].minAge}
+                From age {AGE_BAND_SPECS[app.minBand].minAge} · <span className="try-cue">Play it now</span>
               </p>
-            </article>
+            </Link>
           ))}
         </div>
       </section>
@@ -307,8 +353,38 @@ export function Home() {
           <p className="small muted plans-note">
             Nothing is charged yet. There is no payment system connected to this service and we do
             not ask for a card — the prices are here so you know what they will be. Pro&apos;s
-            streamed desktop is still being built.
+            streamed desktop is still being built. The activities themselves are{' '}
+            <Link to="/try">free to try right now</Link>, with no account at all.
           </p>
+        </div>
+      </section>
+
+      <section className="home-section">
+        <div className="refer-card">
+          <div>
+            <h2>Give a month, get a month</h2>
+            <p className="muted">
+              Every household has a link to share. A family who joins on yours starts with{' '}
+              {referredTrialDays(TRIAL_DAYS)} free days instead of {TRIAL_DAYS}, and once they
+              stay, your next month is on us.
+            </p>
+            <p className="small muted">
+              Parents share it, never children. There is no friend list, no profile anyone else
+              can see, and nothing your child can send to anybody.
+            </p>
+          </div>
+          <div className="stack">
+            {signedIn ? (
+              <Link to="/parent#refer" className="btn primary big">
+                Get your link
+              </Link>
+            ) : (
+              <Link to="/signin?new=1" className="btn primary big">
+                Create an account
+              </Link>
+            )}
+            <span className="small muted">Your link lives in the parent dashboard.</span>
+          </div>
         </div>
       </section>
 

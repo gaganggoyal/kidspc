@@ -1,5 +1,12 @@
 import type { FastifyInstance } from 'fastify';
-import { createOrderInput, monthlyPriceInr, newId, planById } from '@kidpc/shared';
+import {
+  TRIAL_DAYS,
+  createOrderInput,
+  monthlyPriceInr,
+  newId,
+  planById,
+  referredTrialDays,
+} from '@kidpc/shared';
 import { eq } from 'drizzle-orm';
 import type { AppContext } from '../context.js';
 import { planOrders } from '../db/schema.js';
@@ -33,6 +40,18 @@ export function registerOrderRoutes(app: FastifyInstance, ctx: AppContext): void
      */
     const quotedInr = monthlyPriceInr(plan, input.children);
 
+    /*
+     * The referral code has already been normalised, or turned into null,
+     * by the schema. It is never validated against a real guardian here: the
+     * lookup is a scan, it can legitimately return nothing, and a household
+     * that pasted a code slightly wrong must not be turned away at the point
+     * of buying. The longer trial is honoured on the strength of the code
+     * looking like one; whether anyone gets rewarded for it is decided later,
+     * by a person, from `pnpm orders referrer`.
+     */
+    const referralCode = input.referralCode ?? null;
+    const trialDays = referralCode ? referredTrialDays(TRIAL_DAYS) : TRIAL_DAYS;
+
     // A signed-in guardian gets their request linked to their account; a
     // stranger does not, and neither is asked to prove anything here.
     const guardianId = req.principal?.kind === 'guardian' ? req.principal.guardianId : null;
@@ -46,6 +65,7 @@ export function registerOrderRoutes(app: FastifyInstance, ctx: AppContext): void
       children: input.children,
       quotedInr,
       guardianId,
+      referralCode,
       createdAt: ctx.now(),
     });
 
@@ -57,6 +77,8 @@ export function registerOrderRoutes(app: FastifyInstance, ctx: AppContext): void
         children: input.children,
         quotedInr,
         publicUrl: config.PUBLIC_URL,
+        trialDays,
+        referred: Boolean(referralCode),
       }),
     );
 
@@ -72,6 +94,7 @@ export function registerOrderRoutes(app: FastifyInstance, ctx: AppContext): void
           children: input.children,
           quotedInr,
           guardianId,
+          referralCode,
           publicUrl: config.PUBLIC_URL,
         }),
       );
@@ -83,7 +106,7 @@ export function registerOrderRoutes(app: FastifyInstance, ctx: AppContext): void
       action: 'order.requested',
       subjectType: 'order',
       subjectId: id,
-      meta: { planId: input.planId, children: input.children, quotedInr },
+      meta: { planId: input.planId, children: input.children, quotedInr, referralCode },
     });
 
     reply.code(201);
@@ -93,10 +116,13 @@ export function registerOrderRoutes(app: FastifyInstance, ctx: AppContext): void
       planName: plan.name,
       children: input.children,
       quotedInr,
+      trialDays,
+      referred: Boolean(referralCode),
       // The client shows this rather than composing its own promise, so the
       // page and the email cannot come to say different things.
-      message:
-        'Thank you — we have your request. We will email you a payment link shortly. No card details were asked for or stored.',
+      message: referralCode
+        ? `Thank you — we have your request, and the code you arrived with. We will email you a payment link shortly, and your first ${trialDays} days are free rather than the usual ${TRIAL_DAYS}. No card details were asked for or stored.`
+        : 'Thank you — we have your request. We will email you a payment link shortly. No card details were asked for or stored.',
     };
   });
 
