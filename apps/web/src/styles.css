@@ -71,12 +71,55 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* The 10-foot scope. Everything grows; nothing is redefined. */
+/*
+ * The child's scope: the launcher, the profile picker and every activity.
+ *
+ * It used to be "the 10-foot scope" and set a flat 22px, because the product
+ * was designed for a television. That turned out to be a decision about the
+ * route rather than about the screen -- the same markup is read on a phone in
+ * a car, on a laptop at a kitchen table, and on a TV from the sofa, and a
+ * fixed 22px is right for exactly one of those. On a laptop it produced
+ * 64px-tall buttons and headings sized for a room.
+ *
+ * So the scale is fluid, and reaches ten-foot sizes only where the viewport
+ * says it should. The floor is deliberately above the adult 16px: everything
+ * in this scope is operated by a five-year-old, and their targets stay large
+ * at every size.
+ */
 .tv {
-  --font: 22px;
-  --pad: 28px;
-  --radius: 20px;
+  /* 16px at 390, ~19px on a laptop, ~22px on a 1080p panel. */
+  --font: clamp(16px, 0.42vw + 14px, 24px);
+  --pad: clamp(16px, 1.4vw, 28px);
+  --radius: clamp(14px, 1vw, 20px);
   font-size: var(--font);
+}
+
+/*
+ * A television, as opposed to a large monitor.
+ *
+ * `pointer: none` is the honest signal: a set navigated by a D-pad reports no
+ * pointing device at all, which no laptop, phone or tablet does. The second
+ * clause catches touch-first devices big enough to be a panel while excluding
+ * a 12.9-inch tablet in landscape, which is 1366px wide and very much a
+ * hand's distance away.
+ *
+ * A TV whose remote emulates a mouse (LG's, for instance) is indistinguishable
+ * from a laptop here and gets the laptop scale. That is a real limitation; the
+ * fluid scale above means it lands at ~22px on a 1080p panel rather than at
+ * 16px, so it degrades to slightly small rather than to unusable.
+ */
+@media (pointer: none), (min-width: 1400px) and (pointer: coarse) and (hover: none) {
+  .tv {
+    --font: 24px;
+    --pad: 28px;
+    --radius: 20px;
+    /* Many TVs still overscan: the outer ~4% of the picture is cropped by the
+       panel. The inset is the difference between a usable and an unusable
+       launcher on a cheap set -- and pure wasted space on a laptop, which is
+       why it now lives in here rather than on `.tv` itself. */
+    --safe-x: 4vw;
+    --safe-y: 4vh;
+  }
 }
 
 h1, h2, h3 { line-height: 1.15; margin: 0 0 0.4em; letter-spacing: -0.01em; }
@@ -116,7 +159,12 @@ button, .btn {
   cursor: pointer;
   transition: transform 80ms ease, background 120ms ease;
 }
-.tv button, .tv .btn { min-height: 64px; padding: 16px 28px; }
+/* Derived from the scale rather than fixed, so a laptop gets a large button
+   and a television gets a larger one, instead of both getting the TV's. */
+.tv button, .tv .btn {
+  min-height: max(48px, calc(var(--font) * 2.6));
+  padding: calc(var(--font) * 0.7) calc(var(--font) * 1.3);
+}
 
 .btn { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 button:hover, .btn:hover { background: var(--line); }
@@ -272,16 +320,18 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 }
 
 /* ===========================================================================
-   Television
+   Overscan
    ===========================================================================
-   Many TVs still overscan: the outer ~4% of the picture is cropped by the
-   panel, so anything flush to the edge is simply not on screen. The safe inset
-   costs nothing on a monitor and is the difference between a usable and an
-   unusable launcher on a cheap set.
+   The safe inset that keeps a launcher off the cropped edge of a cheap panel.
+   Set to zero here and given a real value only inside the television media
+   query near the top of this file, because on every other device it is 4% of
+   the viewport spent on nothing.
 */
+/* Zero unless the media query above says this really is a television, where
+   `max(var(--pad), 0)` simply falls through to the ordinary padding. */
 .tv {
-  --safe-x: 4vw;
-  --safe-y: 4vh;
+  --safe-x: 0px;
+  --safe-y: 0px;
 }
 .tv .page {
   padding-inline: max(var(--pad), var(--safe-x));
@@ -334,6 +384,12 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   justify-content: center;
   padding: max(var(--pad), var(--safe-y)) max(var(--pad), var(--safe-x));
   overflow: auto;
+}
+/* Centring inside a scroll container clips the top of anything taller than the
+   container -- the overflow goes both ways and only one of them is reachable.
+   `safe` centres until it would do that, then aligns to the start. */
+@supports (align-items: safe center) {
+  .activity-body { align-items: safe center; }
 }
 
 /* ---- typing ------------------------------------------------------------ */
@@ -405,7 +461,7 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   gap: calc(var(--pad) * 1.5);
   align-items: start;
   width: 100%;
-  max-width: 1100px;
+  max-width: 1280px;
 }
 @media (max-width: 760px) {
   .blocks-layout {
@@ -419,7 +475,9 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   padding: 8px;
   background: var(--surface-2);
   border-radius: var(--radius);
-  width: min(48vh, 100%);
+  /* Tall enough to be the thing you are looking at. The column is the other
+     bound, so a short window shrinks it rather than pushing it off-screen. */
+  width: min(58vh, 100%);
   aspect-ratio: 1;
 }
 .grid-board .cell {
@@ -470,7 +528,11 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 
 .paint-layout {
   display: grid;
-  grid-template-columns: minmax(180px, 220px) 1fr;
+  /* Sized from the scale, not from a fixed 220px. The swatch grid is five
+     columns of round buttons whose diameter follows the type size, so a column
+     fixed in pixels overflowed and put half the palette underneath the canvas
+     as soon as the type grew. */
+  grid-template-columns: minmax(min-content, calc(var(--font) * 12)) 1fr;
   gap: var(--pad);
   width: 100%;
   height: 100%;
@@ -497,12 +559,18 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 }
 .swatches {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  /* auto-fit rather than a hard five, so the palette reflows into whatever the
+     column actually is instead of overflowing it. */
+  grid-template-columns: repeat(auto-fit, minmax(38px, 1fr));
   gap: 8px;
 }
 .swatch {
   aspect-ratio: 1;
+  /* Both minimums have to go: the shared button rule sets a 44px floor, and a
+     grid item's automatic minimum size is its content. Either one alone is
+     enough to push the palette out of its column. */
   min-height: 0;
+  min-width: 0;
   padding: 0;
   border-radius: 50%;
   border: 2px solid var(--line);
@@ -524,7 +592,7 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   gap: var(--pad);
   width: 100%;
   height: 100%;
-  max-width: 1100px;
+  max-width: 1280px;
 }
 .code-layout {
   display: grid;
@@ -708,6 +776,11 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
  */
 .home {
   --measure: 1120px;
+  /* The side gutter on every marketing and policy page.
+     16px on a phone, where the screen is the constraint; up to 40px on a
+     laptop, where text running to within a thumb's width of the bezel reads as
+     an unfinished page rather than a generous one. */
+  --gutter: clamp(16px, 3.5vw, 40px);
 }
 .home h2 {
   font-size: clamp(1.5rem, 3.2vw, 2.1rem);
@@ -728,10 +801,11 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--pad);
   max-width: var(--measure);
   margin: 0 auto;
-  padding: calc(var(--pad) * 0.75) var(--pad);
+  padding: calc(var(--pad) * 0.75) var(--gutter);
 }
 .wordmark {
   display: inline-flex;
@@ -747,7 +821,7 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 .home-section {
   max-width: var(--measure);
   margin: 0 auto;
-  padding: clamp(40px, 7vw, 88px) var(--pad);
+  padding: clamp(40px, 7vw, 88px) var(--gutter);
 }
 
 /* Alternating ground, so sections separate without rules between them. */
@@ -760,7 +834,7 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   align-items: center;
   max-width: var(--measure);
   margin: 0 auto;
-  padding: clamp(24px, 5vw, 72px) var(--pad) clamp(40px, 7vw, 88px);
+  padding: clamp(24px, 5vw, 72px) var(--gutter) clamp(40px, 7vw, 88px);
 }
 .hero h1 {
   font-size: clamp(2rem, 5.2vw, 3.4rem);
@@ -911,7 +985,16 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 
 /* ---- plans -------------------------------------------------------------- */
 
-.home-nav-links { display: flex; align-items: center; gap: var(--pad); }
+/* Wraps, because the link set grew and a 360px Android phone -- which is a
+   very ordinary phone in this market -- had it pushing the whole document
+   20px sideways. Two rows on a small screen; one row everywhere else. */
+.home-nav-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: calc(var(--pad) * 0.75) var(--pad);
+}
 .home-nav-links a:not(.btn) { color: var(--ink-soft); text-decoration: none; font-weight: 600; }
 .home-nav-links a:not(.btn):hover { color: var(--ink); }
 
@@ -1316,7 +1399,7 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
      numbered clause into a column of fragments. */
   max-width: 68ch;
   margin: 0 auto;
-  padding: clamp(32px, 6vw, 72px) var(--pad) clamp(48px, 8vw, 96px);
+  padding: clamp(32px, 6vw, 72px) var(--gutter) clamp(48px, 8vw, 96px);
 }
 .prose h1 { font-size: clamp(1.9rem, 4.5vw, 2.6rem); margin-bottom: 0.35em; }
 .prose h2 {
@@ -1374,7 +1457,7 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 .site-foot {
   background: var(--surface-2);
   border-top: 1px solid var(--line);
-  padding: clamp(32px, 5vw, 56px) var(--pad) clamp(20px, 3vw, 32px);
+  padding: clamp(32px, 5vw, 56px) var(--gutter) clamp(20px, 3vw, 32px);
 }
 .site-foot-cols {
   max-width: var(--measure);
