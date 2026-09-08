@@ -123,10 +123,22 @@ staging ACME endpoint in `infra/Caddyfile` while sorting DNS out.
 ## After deploying
 
 ```bash
-curl -sf https://kidspc.online/healthz                  # {"ok":true,"driver":"docker"}
-curl -s  -o /dev/null -w '%{http_code}\n' https://kidspc.online/internal/egress/policy   # 404
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://kidspc.online/v1/auth/refresh  # 401
+curl -s -o /dev/null -w '%{http_code}\n' https://kidspc.online/internal/egress/policy   # 404
 curl -sI https://kidspc.online | grep -i strict-transport
 docker compose -f infra/docker-compose.yml logs -f api
+```
+
+The first check is a 401 rather than a 200 on purpose. The API is mounted under
+`/v1` and nothing else of it is public, so a bare `/healthz` is answered by the
+client's own catch-all with an HTML page and a cheerful 200 -- which looks like
+a pass and proves nothing. A JSON 401 from a real endpoint is the smallest
+request that can only have come from the API. On the shared-edge deployment the
+health endpoint is reachable only from inside the network, which is where the
+container's own healthcheck reads it:
+
+```bash
+docker inspect kidspc-api-1 --format '{{.State.Health.Status}}'   # healthy
 ```
 
 The second check matters: `/internal/*` is control-plane only and is blocked at
