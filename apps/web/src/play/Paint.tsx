@@ -29,40 +29,95 @@ export function PaintCanvas({ activity }: { activity: ActivityApi }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const strokes = useRef(0);
+  const sized = useRef(false);
+  const savedFor = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [colour, setColour] = useState(COLOURS[0]!);
   const [size, setSize] = useState(SIZES[1]!);
   const [saved, setSaved] = useState(false);
 
   const context = () => canvasRef.current?.getContext('2d') ?? null;
 
-  useEffect(() => {
+  /**
+   * Fit the backing store to the box the canvas is currently drawn in.
+   *
+   * A canvas has two sizes, and only one of them is CSS. This element is laid
+   * out fluidly -- `width: 100%` inside a grid that reflows at 760px and a type
+   * scale that moves with the viewport -- so the box it occupies changes when a
+   * tablet is turned, a window is dragged wider, or the browser goes full
+   * screen. Sizing the backing store once on mount left every one of those
+   * cases drawing through a stale scale: strokes landed a growing distance from
+   * the finger, and the picture underneath was stretched to fit.
+   *
+   * Resizing a canvas also blanks it, which is why the old pixels are copied
+   * out first and drawn back scaled. A child who turns their tablet keeps their
+   * drawing; that is the whole reason this is worth doing properly.
+   */
+  const fit = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = context();
     if (!canvas || !ctx) return;
 
-    // Match the backing store to the displayed size so strokes are not blurry
-    // on a high-density screen, and are the right thickness on a TV.
     const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return; // laid out but not shown
     const ratio = window.devicePixelRatio || 1;
-    canvas.width = rect.width * ratio;
-    canvas.height = rect.height * ratio;
-    ctx.scale(ratio, ratio);
+    const width = Math.round(rect.width * ratio);
+    const height = Math.round(rect.height * ratio);
+    if (sized.current && canvas.width === width && canvas.height === height) return;
+
+    let previous: HTMLCanvasElement | null = null;
+    if (sized.current) {
+      previous = document.createElement('canvas');
+      previous.width = canvas.width;
+      previous.height = canvas.height;
+      previous.getContext('2d')?.drawImage(canvas, 0, 0);
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    // Resizing resets the context completely, so every setting is applied here
+    // rather than once at startup -- including the transform, which is set
+    // outright instead of scaled, because scale() compounds.
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, rect.width, rect.height);
+    if (previous) ctx.drawImage(previous, 0, 0, rect.width, rect.height);
+    sized.current = true;
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Fires once on observe, which is what does the initial sizing.
+    const observer = new ResizeObserver(fit);
+    observer.observe(canvas);
+    // A window dragged to a monitor of a different density changes the ratio
+    // without changing the CSS box, so ResizeObserver never hears about it.
+    window.addEventListener('resize', fit);
 
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const image = new Image();
-        image.onload = () => ctx.drawImage(image, 0, 0, rect.width, rect.height);
+        image.onload = () => {
+          const ctx = context();
+          const rect = canvas.getBoundingClientRect();
+          if (ctx && rect.width > 0) ctx.drawImage(image, 0, 0, rect.width, rect.height);
+        };
         image.src = stored;
       }
     } catch {
       // Private browsing, or storage turned off. An empty canvas is fine.
     }
-  }, []);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', fit);
+      if (savedFor.current) clearTimeout(savedFor.current);
+    };
+  }, [fit]);
 
   const positionOf = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -101,7 +156,8 @@ export function PaintCanvas({ activity }: { activity: ActivityApi }) {
     try {
       localStorage.setItem(STORAGE_KEY, canvasRef.current?.toDataURL('image/png') ?? '');
       setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      if (savedFor.current) clearTimeout(savedFor.current);
+      savedFor.current = setTimeout(() => setSaved(false), 2000);
     } catch {
       // Storage full or unavailable. Not worth interrupting a child over.
     }
@@ -114,6 +170,14 @@ export function PaintCanvas({ activity }: { activity: ActivityApi }) {
     const rect = canvas.getBoundingClientRect();
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, rect.width, rect.height);
+    // Forget the saved copy too. "Start again" that comes back on the next
+    // reload is not starting again, and a child cannot be expected to work out
+    // that they also had to press Save on an empty canvas.
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Nothing to forget if storage was never available.
+    }
   };
 
   return (
@@ -156,6 +220,9 @@ export function PaintCanvas({ activity }: { activity: ActivityApi }) {
         onPointerMove={move}
         onPointerUp={stop}
         onPointerLeave={stop}
+        // A touch taken over by a system gesture ends here and nowhere else;
+        // without it the stroke stays open and the next tap continues the line.
+        onPointerCancel={stop}
         aria-label="Drawing area"
       />
     </div>

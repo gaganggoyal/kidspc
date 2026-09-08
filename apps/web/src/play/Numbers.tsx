@@ -11,13 +11,35 @@ import { useAutoFocusFirst } from '../tv';
  */
 type Op = '+' | '-' | '×';
 
-interface Question {
+export interface Question {
   prompt: string;
   answer: number;
   choices: number[];
 }
 
-function build(level: number): Question {
+/**
+ * Fisher-Yates, because the one-liner it replaces was not a shuffle.
+ *
+ * `sort(() => Math.random() - 0.5)` is the best-known wrong way to do this: a
+ * comparator has to be consistent, this one is not, and what a sort does with
+ * an inconsistent comparator is engine-specific and never uniform. On four
+ * elements in V8 the effect is large and in one direction, so the right answer
+ * sat under the same button far more often than a quarter of the time.
+ *
+ * That matters more here than it would in most places. A child who works out --
+ * without being able to say so -- that the answer is usually second from the
+ * left has been taught to read the interface instead of doing the arithmetic,
+ * and the game has quietly stopped being the thing it claims to be.
+ */
+function shuffle<T>(items: T[]): T[] {
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [items[i], items[j]] = [items[j]!, items[i]!];
+  }
+  return items;
+}
+
+export function build(level: number): Question {
   const ops: Op[] = level < 3 ? ['+'] : level < 5 ? ['+', '-'] : ['+', '-', '×'];
   const op = ops[Math.floor(Math.random() * ops.length)]!;
   const ceiling = op === '×' ? Math.min(12, 3 + level) : 5 + level * 4;
@@ -35,11 +57,7 @@ function build(level: number): Question {
     const wrong = answer + (Math.random() < 0.5 ? -delta : delta);
     if (wrong >= 0 && wrong !== answer) choices.add(wrong);
   }
-  return {
-    prompt: `${a} ${op} ${b}`,
-    answer,
-    choices: [...choices].sort(() => Math.random() - 0.5),
-  };
+  return { prompt: `${a} ${op} ${b}`, answer, choices: shuffle([...choices]) };
 }
 
 export function NumbersGame({ activity }: { activity: ActivityApi }) {
@@ -69,9 +87,9 @@ export function NumbersGame({ activity }: { activity: ActivityApi }) {
       // Five in a row moves up. Levelling on a streak rather than a total means
       // a child who is finding it easy stops being bored quickly.
       if (streakNow > 0 && streakNow % 5 === 0) {
-        const next = Math.min(10, level + 1);
-        setLevel(next);
-        activity.report('level', next);
+        const raised = Math.min(10, level + 1);
+        setLevel(raised);
+        activity.report('level', raised);
       }
     } else {
       setStreak(0);

@@ -25,7 +25,11 @@ export function TypingGame({ activity }: { activity: ActivityApi }) {
   const [correct, setCorrect] = useState(0);
   const [mistakes, setMistakes] = useState(0);
   const startedAt = useRef<number | null>(null);
+  const advance = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // The shell can unmount this mid-word when a child's time runs out.
+  useEffect(() => () => { if (advance.current) clearTimeout(advance.current); }, []);
 
   const nextWord = useCallback((forLevel: keyof typeof WORDS) => {
     const list = WORDS[forLevel]!;
@@ -35,13 +39,31 @@ export function TypingGame({ activity }: { activity: ActivityApi }) {
 
   useEffect(() => nextWord(level), [level, nextWord]);
 
-  // The keyboard is the entire interface, so focus must never drift away from
-  // the input -- including after a stray click on a TV's touchpad.
+  /*
+   * The keyboard is the entire interface here, so focus has to find its way
+   * back to the input -- but only from nowhere.
+   *
+   * This used to reclaim focus every 1.5 seconds unconditionally, which on the
+   * device this is built for was close to a trap: a child pressing right on the
+   * remote to reach "Back" got there, and then had the focus pulled out from
+   * under them before they could press it. Reaching a button and being unable
+   * to use it is worse than not reaching it.
+   *
+   * So the rule is the one useAutoFocusFirst already uses: claim focus when
+   * nothing has it, never when something does.
+   */
   useEffect(() => {
-    const focus = () => inputRef.current?.focus();
-    focus();
-    const timer = setInterval(focus, 1500);
-    return () => clearInterval(timer);
+    const reclaim = () => {
+      const active = document.activeElement;
+      if (!active || active === document.body) inputRef.current?.focus();
+    };
+    reclaim();
+    const timer = setInterval(reclaim, 1500);
+    window.addEventListener('focus', reclaim);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', reclaim);
+    };
   }, []);
 
   const onChange = (value: string) => {
@@ -68,7 +90,7 @@ export function TypingGame({ activity }: { activity: ActivityApi }) {
         activity.report('words_per_minute', Math.min(200, Math.round(wpm)));
         activity.report('accuracy_pct', Math.round(accuracy));
       }
-      setTimeout(() => nextWord(level), 350);
+      advance.current = setTimeout(() => nextWord(level), 350);
     }
   };
 

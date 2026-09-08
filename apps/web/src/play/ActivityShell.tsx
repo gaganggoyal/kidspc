@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, type SessionDto, api } from '../api';
+import { useSessionClock } from '../session';
+import { useBackKey } from '../tv';
 
 export type ProgressMetric =
   | 'score'
@@ -42,7 +44,7 @@ export function ActivityShell({
 }) {
   const navigate = useNavigate();
   const [session, setSession] = useState<SessionDto | null>(null);
-  const [remaining, setRemaining] = useState<number | null>(null);
+  const { remaining, sync } = useSessionClock();
   const [error, setError] = useState<string | null>(null);
   const [ending, setEnding] = useState<string | null>(null);
   const bests = useRef<Map<string, number>>(new Map());
@@ -67,7 +69,7 @@ export function ActivityShell({
               });
         if (cancelled) return;
         setSession(live);
-        setRemaining(live.remainingMinutes);
+        sync(live.remainingMinutes);
       } catch (cause) {
         if (cancelled) return;
         setError(cause instanceof ApiError ? cause.userMessage : 'Could not start.');
@@ -76,7 +78,7 @@ export function ActivityShell({
     return () => {
       cancelled = true;
     };
-  }, [appId]);
+  }, [appId, sync]);
 
   useEffect(() => {
     void api<{ progress: Array<{ appId: string; metric: string; best: number }> }>('/progress', {
@@ -103,7 +105,7 @@ export function ActivityShell({
           method: 'POST',
           as: 'child',
         });
-        setRemaining(view.remainingMinutes);
+        sync(view.remainingMinutes);
         if (view.state === 'terminated') {
           stopped = true;
           setEnding("That's all your time for today.");
@@ -117,52 +119,36 @@ export function ActivityShell({
       stopped = true;
       clearInterval(timer);
     };
-  }, [session]);
+  }, [session, sync]);
 
-  /** Local tick so the number moves between heartbeats. */
-  useEffect(() => {
-    if (remaining === null) return;
-    const timer = setInterval(
-      () => setRemaining((m) => (m === null ? null : Math.max(0, m - 1))),
-      60_000,
-    );
-    return () => clearInterval(timer);
-  }, [remaining !== null]);
+  useBackKey(leave);
 
-  // ---- leaving -------------------------------------------------------------
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      // A TV remote's back button arrives as one of these. Escape is the
-      // desktop equivalent; Backspace outside a text field is the browser's.
-      const isBack =
-        event.key === 'Escape' ||
-        event.key === 'GoBack' ||
-        event.key === 'BrowserBack' ||
-        (event.key === 'Backspace' &&
-          !(event.target as HTMLElement | null)?.matches?.('input, textarea, [contenteditable]'));
-      if (isBack) {
-        event.preventDefault();
-        leave();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [leave]);
-
-  const activityApi: ActivityApi = {
-    report: (metric, value) => {
-      const previous = bests.current.get(metric);
-      if (previous === undefined || value > previous) bests.current.set(metric, value);
-      void api('/progress', {
-        method: 'POST',
-        as: 'child',
-        body: { appId, metric, value: Math.round(value * 100) / 100 },
-      }).catch(() => {
-        // Progress is a nice-to-have. Never interrupt play for it.
-      });
-    },
-    best: (metric) => bests.current.get(metric) ?? null,
-  };
+  /*
+   * One object for the life of the mount.
+   *
+   * The games hold this in dependency lists -- Block Puzzles runs its program
+   * from an effect that depends on it -- so a fresh object every render meant
+   * every heartbeat tore that effect down and rebuilt it, restarting the timer
+   * mid-run. Nothing inside it needs to change: the bests are a ref and the
+   * appId is fixed for the mount, so the identity may as well be fixed too.
+   */
+  const activityApi = useMemo<ActivityApi>(
+    () => ({
+      report: (metric, value) => {
+        const previous = bests.current.get(metric);
+        if (previous === undefined || value > previous) bests.current.set(metric, value);
+        void api('/progress', {
+          method: 'POST',
+          as: 'child',
+          body: { appId, metric, value: Math.round(value * 100) / 100 },
+        }).catch(() => {
+          // Progress is a nice-to-have. Never interrupt play for it.
+        });
+      },
+      best: (metric) => bests.current.get(metric) ?? null,
+    }),
+    [appId],
+  );
 
   if (error) {
     return (

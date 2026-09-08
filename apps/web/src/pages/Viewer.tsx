@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ApiError, type SessionDto, api } from '../api';
+import { useSessionClock } from '../session';
 
 type Status =
   | { kind: 'connecting' }
@@ -25,7 +26,7 @@ export function Viewer() {
   const socketRef = useRef<WebSocket | null>(null);
 
   const [status, setStatus] = useState<Status>({ kind: 'connecting' });
-  const [remaining, setRemaining] = useState<number | null>(null);
+  const { remaining, sync } = useSessionClock();
 
   const leave = useCallback(
     (message?: string) => {
@@ -53,7 +54,7 @@ export function Viewer() {
           method: 'POST',
           as: 'child',
         });
-        setRemaining(view.remainingMinutes);
+        sync(view.remainingMinutes);
         if (view.state === 'terminated') {
           stopped = true;
           setStatus({ kind: 'ended', message: "That's all your time for now." });
@@ -74,14 +75,7 @@ export function Viewer() {
       stopped = true;
       clearInterval(timer);
     };
-  }, [sessionId]);
-
-  /** Local countdown between heartbeats, so the number moves every minute. */
-  useEffect(() => {
-    if (remaining === null) return;
-    const timer = setInterval(() => setRemaining((m) => (m === null ? null : Math.max(0, m - 1))), 60_000);
-    return () => clearInterval(timer);
-  }, [remaining !== null]);
+  }, [sessionId, sync]);
 
   useEffect(() => {
     let cancelled = false;

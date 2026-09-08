@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { challengeForWeek } from '@kidpc/shared';
 import type { ActivityApi } from './ActivityShell';
 import { previewAchievements, previewBest, recordPreviewBest } from './previewProgress';
+import { useBackKey } from '../tv';
 import { ShowAGrownUp } from '../pages/ShowAGrownUp';
 
 /**
@@ -49,28 +50,20 @@ export function DemoShell({
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const isBack =
-        event.key === 'Escape' ||
-        event.key === 'GoBack' ||
-        event.key === 'BrowserBack' ||
-        (event.key === 'Backspace' &&
-          !(event.target as HTMLElement | null)?.matches?.('input, textarea, [contenteditable]'));
-      // Only when nothing is open on top, or Escape would close two things.
-      if (isBack && !showing) {
-        event.preventDefault();
-        leave();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [leave, showing]);
+  // Disabled while the card is open, or Escape would close it and leave the
+  // activity in one press.
+  useBackKey(leave, !showing);
 
-  const activityApi: ActivityApi = {
-    report: (metric, value) => recordPreviewBest(appId, metric, value),
-    best: (metric) => previewBest(appId, metric),
-  };
+  // Stable for the life of the mount, for the reason ActivityShell's is: the
+  // games treat this as a dependency, and a new object each render makes their
+  // dependency lists mean nothing.
+  const activityApi = useMemo<ActivityApi>(
+    () => ({
+      report: (metric, value) => recordPreviewBest(appId, metric, value),
+      best: (metric) => previewBest(appId, metric),
+    }),
+    [appId],
+  );
 
   return (
     <div className="tv activity">

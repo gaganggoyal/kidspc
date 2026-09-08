@@ -1,4 +1,5 @@
 import js from '@eslint/js';
+import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
 
 /**
@@ -25,5 +26,20 @@ export default tseslint.config(
   {
     files: ['**/*.test.ts'],
     rules: { '@typescript-eslint/no-non-null-assertion': 'off' },
+  },
+  /*
+   * Two rules, on the components only. Both catch the same class of bug: a
+   * value that a hook depends on but was never told about, or an identity that
+   * changes on every render so a dependency list means nothing. Reading for
+   * that by hand is exactly what a reviewer is worst at, and both of the timing
+   * defects fixed in this pass were of that kind.
+   */
+  {
+    files: ['apps/web/src/**/*.{ts,tsx}'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'error',
+    },
   },
 );

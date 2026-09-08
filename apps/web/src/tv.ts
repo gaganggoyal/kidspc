@@ -83,5 +83,46 @@ export function useAutoFocusFirst(deps: unknown[] = []): void {
     }
     // The dependency list is the caller's to choose: this hook runs when a
     // *screen* changes, which is not something a dep-array linter can infer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
+}
+
+/**
+ * Leaving an activity, however the device says "back".
+ *
+ * A television remote's back button does not arrive as one key. Android TV
+ * browsers send `GoBack`, some send `BrowserBack`, a keyboard sends Escape, and
+ * a plain browser sends Backspace -- which is also a character a child is
+ * typing, so it only counts outside a text field.
+ *
+ * That list lives here rather than in each shell because it is a fact about
+ * devices, not about any one screen, and the copy of it that had already drifted
+ * into the preview shell was one bug away from the two disagreeing about what
+ * "back" means.
+ *
+ * `enabled` is for screens that stack: when something is open on top, Escape
+ * belongs to whatever is on top, and closing two things with one press is how a
+ * child ends up back at the launcher without meaning to.
+ */
+export function useBackKey(onBack: () => void, enabled = true): void {
+  useEffect(() => {
+    if (!enabled) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      const inTextField = (event.target as HTMLElement | null)?.matches?.(
+        'input, textarea, [contenteditable]',
+      );
+      const isBack =
+        event.key === 'Escape' ||
+        event.key === 'GoBack' ||
+        event.key === 'BrowserBack' ||
+        (event.key === 'Backspace' && !inTextField);
+      if (!isBack) return;
+      event.preventDefault();
+      onBack();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onBack, enabled]);
 }

@@ -448,7 +448,11 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 .typing-word .letter {
   min-width: 0.7em;
   text-align: center;
-  border-bottom: 4px solid var(--line);
+  /* This underline is the state, not a divider: it is how a child sees which
+     letters are still to come. `right` and `wrong` always had their own colour;
+     the resting one was a 1.4:1 hairline, so the only letters you could tell
+     apart were the ones you had already typed. */
+  border-bottom: 4px solid var(--edge);
   transition: color 100ms ease, border-color 100ms ease;
 }
 .typing-word .letter.right {
@@ -529,9 +533,24 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 
 /* ---- blocks ------------------------------------------------------------ */
 
+/*
+ * A board and a control panel, not two equal halves.
+ *
+ * Two 1fr columns look balanced in a stylesheet and are not: the board is a
+ * square that grows with the screen, the controls are a short fixed stack. On a
+ * wide laptop that gave the board slack it could not use on either side, and
+ * left the right-hand column two thirds empty below the buttons.
+ *
+ * So the board column is sized by the board, and the panel gets the width a
+ * column of buttons actually wants, with the pair centred. The board's own
+ * `min(58vh, 100%)` still caps it; `min-content` at the bottom of the range is
+ * what lets the whole thing shrink rather than overflow before the
+ * single-column breakpoint takes over.
+ */
 .blocks-layout {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr);
+  grid-template-columns: minmax(min-content, 58vh) minmax(260px, 380px);
+  justify-content: center;
   gap: calc(var(--pad) * 1.5);
   align-items: start;
   width: 100%;
@@ -628,12 +647,30 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   flex-direction: column;
   gap: var(--pad);
 }
+/*
+ * Brush sizes, two by two.
+ *
+ * The dot inside each chip is the brush's actual width, so the four chips are
+ * four different widths and the widest is 36px plus padding. In a flex row down
+ * a sidebar that wraps as three and one, which reads as something having gone
+ * wrong rather than as a choice. Two even columns fit the column at every type
+ * size and look deliberate, which for a control a six-year-old is aiming at is
+ * the more useful property.
+ */
+.paint-tools .chips {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+}
+.paint-tools .chip {
+  min-width: 0;
+  justify-content: center;
+}
 .paint-canvas {
   width: 100%;
   height: 100%;
   min-height: 320px;
   background: #fff;
-  border: 1px solid var(--line);
+  border: 1px solid var(--edge);
   border-radius: var(--radius);
   touch-action: none;
   cursor: crosshair;
@@ -720,7 +757,7 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   height: 100%;
   min-height: 260px;
   background: #fff;
-  border: 1px solid var(--line);
+  border: 1px solid var(--edge);
   border-radius: var(--radius);
 }
 
