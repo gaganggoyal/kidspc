@@ -14,6 +14,18 @@
   --ink: #1d1b19;
   --ink-soft: #5f5850;
   --line: #e2d9cd;
+  /*
+   * The boundary of something you can operate, as opposed to the hairline that
+   * separates two areas.
+   *
+   * `--line` measures 1.4:1 against a card, which is right for a divider and
+   * wrong for a control: WCAG 1.4.11 asks for 3:1 on anything a person must
+   * see in order to identify a component or read its state, and a button, a
+   * text field, a screen-time bar and the grid of a puzzle board are all that.
+   * Two tokens rather than one strong one, because turning every card outline
+   * up to 3:1 would make the page shout.
+   */
+  --edge: #908269;
 
   --accent: #2f6f4f;
   --accent-ink: #ffffff;
@@ -45,6 +57,7 @@
     --ink: #f4f1ec;
     --ink-soft: #a9a29b;
     --line: #37343c;
+    --edge: #747083;
     --accent: #6fcf97;
     --accent-ink: #10281c;
     --warn: #e0a458;
@@ -171,7 +184,7 @@ button, .btn {
   font-weight: 600;
   color: var(--ink);
   background: var(--surface-2);
-  border: 1px solid var(--line);
+  border: 1px solid var(--edge);
   border-radius: var(--radius);
   /* Never below 44px tall: a thumb on a phone and a D-pad on a sofa both need
      targets that do not require precision. */
@@ -219,7 +232,7 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   padding: 10px 14px;
   color: var(--ink);
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid var(--edge);
   border-radius: var(--radius);
 }
 
@@ -260,10 +273,17 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 .app-tile .glyph { font-size: 2em; line-height: 1; }
 .tv .app-tile .glyph { font-size: 3em; }
 
+/*
+ * How much time is left is the single most consequential thing on a child's
+ * screen, and the track was 1.16:1 against the card it sits on -- so an almost
+ * empty bar was an almost invisible bar, and there was no way to see how far
+ * it had left to run. The outline is what makes the extent readable.
+ */
 .time-bar {
-  height: 12px;
+  height: 14px;
   border-radius: 999px;
   background: var(--surface-2);
+  border: 1px solid var(--edge);
   overflow: hidden;
 }
 .time-bar > i { display: block; height: 100%; background: var(--accent); transition: width 400ms ease; }
@@ -321,7 +341,7 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   gap: 8px;
   padding: 8px 14px;
   border-radius: 999px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--edge);
   background: var(--surface);
   min-height: 44px;
 }
@@ -523,11 +543,16 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   }
 }
 
+/*
+ * The gaps are the grid, so they have to be visible: a child counts squares to
+ * plan a route before pressing Run, and at 1.16:1 the board was a pale smudge
+ * rather than something you could count.
+ */
 .grid-board {
   display: grid;
   gap: 4px;
   padding: 8px;
-  background: var(--surface-2);
+  background: var(--edge);
   border-radius: var(--radius);
   /* Tall enough to be the thing you are looking at. The column is the other
      bound, so a short window shrinks it rather than pushing it off-screen. */
@@ -560,6 +585,8 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   min-height: 60px;
   padding: 10px;
   background: var(--surface-2);
+  /* Where the plan goes. An outline says so; 1.09:1 against the page did not. */
+  border: 1px solid var(--edge);
   border-radius: var(--radius);
 }
 .program .block {
@@ -627,7 +654,7 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   min-width: 0;
   padding: 0;
   border-radius: 50%;
-  border: 2px solid var(--line);
+  border: 2px solid var(--edge);
 }
 .swatch[aria-pressed='true'] {
   box-shadow: 0 0 0 3px var(--surface), 0 0 0 6px var(--accent);
@@ -676,7 +703,7 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   font: inherit;
   color: var(--ink);
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid var(--edge);
   border-radius: var(--radius);
   resize: none;
 }
@@ -1276,6 +1303,10 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
    the screen. It is a call to action, not a banner. */
 .challenge-tile button { align-self: start; }
 
+/* The same stretch caught the launcher's own buttons -- "Carry on where you
+   left off" ran the full width of the page. A button is sized by its label. */
+.tv > .page > button { align-self: start; }
+
 /* A catalogue tile that is a door rather than a description. */
 .try-tile {
   display: block;
@@ -1501,7 +1532,7 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   padding: 10px 14px;
   color: var(--ink);
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid var(--edge);
   border-radius: var(--radius);
   resize: vertical;
 }

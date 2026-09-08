@@ -81,6 +81,20 @@ const PAIRINGS: Pairing[] = [
   { what: 'body text on the wash', fg: 'ink', bg: 'wash', need: 4.5 },
   { what: 'muted text on the wash', fg: 'ink-soft', bg: 'wash', need: 4.5 },
   { what: 'accent text on the wash', fg: 'accent', bg: 'wash', need: 4.5 },
+  /*
+   * WCAG 1.4.11: 3:1 for the visual boundary of anything a person must see to
+   * identify a control or read its state. `--line` is deliberately below that
+   * and deliberately not checked -- it separates areas -- while `--edge` draws
+   * buttons, fields, the screen-time bar and the puzzle grid, all of which
+   * were sitting at about 1.1:1 until this pairing was added.
+   */
+  { what: 'control edge on a card', fg: 'edge', bg: 'surface', need: 3 },
+  { what: 'control edge on the page', fg: 'edge', bg: 'bg', need: 3 },
+  { what: 'control edge on the wash', fg: 'edge', bg: 'wash', need: 3 },
+  // surface-2 is the ground under a pressed chip and the bands on the home
+  // page, so a control can land on it too. It is the darkest of the four in
+  // the light theme and therefore the one that sets the value.
+  { what: 'control edge on surface-2', fg: 'edge', bg: 'surface-2', need: 3 },
   { what: 'danger text on a card', fg: 'danger', bg: 'surface', need: 4.5 },
   { what: 'warning text on a card', fg: 'warn', bg: 'surface', need: 4.5 },
   { what: 'television bezel', fg: 'bezel', bg: 'bg', need: 3, decorative: true },
