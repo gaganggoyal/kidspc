@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { challengeForWeek } from '@kidpc/shared';
 import type { ActivityApi } from './ActivityShell';
 import { previewAchievements, previewBest, recordPreviewBest } from './previewProgress';
-import { useBackKey } from '../tv';
+import { useBackKey, useSpatialNavigation } from '../tv';
 import { ShowAGrownUp } from '../pages/ShowAGrownUp';
 
 /**
@@ -53,6 +53,22 @@ export function DemoShell({
   // Disabled while the card is open, or Escape would close it and leave the
   // activity in one press.
   useBackKey(leave, !showing);
+
+  /*
+   * Arrow keys move between the controls inside an activity, not just between
+   * the screens that lead to one.
+   *
+   * This was mounted on the profile picker, the keypad and the launcher -- the
+   * path *to* an activity -- and then stopped at the door. A child on a TV
+   * could reach Number Ninja and could not reach its second answer: focus
+   * landed on one button and the D-pad did nothing, because a browser's own
+   * focus model only understands Tab order and a remote has no Tab key.
+   *
+   * It returns early inside a text field, so the typing and writing activities
+   * keep their arrow keys for the caret.
+   */
+  useSpatialNavigation();
+
 
   // Stable for the life of the mount, for the reason ActivityShell's is: the
   // games treat this as a dependency, and a new object each render makes their

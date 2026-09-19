@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, type SessionDto, api } from '../api';
 import { useSessionClock } from '../session';
-import { useBackKey } from '../tv';
+import { useBackKey, useSpatialNavigation } from '../tv';
 
 export type ProgressMetric =
   | 'score'
@@ -122,6 +122,22 @@ export function ActivityShell({
   }, [session, sync]);
 
   useBackKey(leave);
+
+  /*
+   * Arrow keys move between the controls inside an activity, not just between
+   * the screens that lead to one.
+   *
+   * This was mounted on the profile picker, the keypad and the launcher -- the
+   * path *to* an activity -- and then stopped at the door. A child on a TV
+   * could reach Number Ninja and could not reach its second answer: focus
+   * landed on one button and the D-pad did nothing, because a browser's own
+   * focus model only understands Tab order and a remote has no Tab key.
+   *
+   * It returns early inside a text field, so the typing and writing activities
+   * keep their arrow keys for the caret.
+   */
+  useSpatialNavigation();
+
 
   /*
    * One object for the life of the mount.

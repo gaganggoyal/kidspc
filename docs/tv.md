@@ -6,6 +6,21 @@ your own TV in about five minutes.
 
 ---
 
+## 0. First, decide which half you are testing
+
+Two different things live behind one URL, and only one of them can be tested
+against production.
+
+**The activities and the marketing site** are public. `https://kidspc.online/try`
+plays all eleven with no account at all, which makes it the two-minute test:
+open it on the TV and you are looking at the real thing on the real hardware.
+
+**The household** — profiles, the PIN pad, daily limits, curfews, the launcher
+— needs a child profile, and a child profile needs verified parental consent.
+Production has no consent verifier configured and `config.ts` refuses to run
+the mock one there, so **no child can be created on kidspc.online**. Testing
+that half means running the dev stack on your own machine, which is route 1.
+
 ## 1. Tonight, on your own TV, over your Wi-Fi
 
 The dev server binds to localhost by default. One script opens it to the
@@ -25,6 +40,17 @@ Vite prints the address to type into the TV:
 Open that on the TV (see the browser table below). Nothing else changes: the
 API stays on localhost and the client proxies to it, so the refresh cookie
 behaves exactly as it will in production behind one edge.
+
+Seed a household first, in a second terminal — `pnpm dev:tv` already runs both
+the API and the client — so there is something to sign in to. It prints the
+email, the password and each child's PIN:
+
+```bash
+pnpm demo
+```
+
+Development runs `CONSENT_VERIFIER=mock`, which is what lets you create a child
+and reach the launcher. The code it asks for is shown on screen.
 
 Two things to know:
 
@@ -129,10 +155,19 @@ bare remote:
 |---|---|---|
 | **Number Ninja** | ✅ | — |
 | **Block Puzzles** | ✅ | — |
+| **Memory Match** | ✅ | — |
+| **Spell It** | ✅ | — |
+| **Times Tables** | ✅ | — |
+| **Know India** | ✅ | — |
+| **Piano** | ✅ | — |
 | **Typing Garden** | ❌ | keyboard (it is a typing game) |
 | **Story Writer** | ❌ | keyboard |
 | **Code Playground** | ❌ | keyboard |
 | **Paint** | ❌ | a pointer — Bluetooth mouse, or LG's Magic Remote |
+
+Seven of eleven, and the four that are not are the three that are *about* a
+keyboard plus the one that is about drawing. That ratio is why the five
+activities added for the youngest band were all built as grids of buttons.
 
 A Bluetooth keyboard and mouse pair to all four platforms through the TV's own
 settings, which is the setup the product assumes.
