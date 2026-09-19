@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityShell, type ActivityApi } from './ActivityShell';
 import { useAutoFocusFirst } from '../tv';
+import { useChoiceKeys } from '../input';
 import { pick, shuffle } from './random';
 
 /**
@@ -119,20 +120,34 @@ export function IndiaGame({ activity }: { activity: ActivityApi }) {
     setVerdict(null);
   }, []);
 
-  const answer = (choice: string) => {
-    if (verdict) return;
-    const askedNow = asked + 1;
-    setAsked(askedNow);
-    if (choice === question.answer) {
-      const rightNow = right + 1;
-      setRight(rightNow);
-      setVerdict('right');
-      activity.report('puzzles_solved', rightNow);
-      activity.report('accuracy_pct', Math.round((rightNow / askedNow) * 100));
-    } else {
-      setVerdict('wrong');
-    }
-  };
+  const answer = useCallback(
+    (choice: string) => {
+      if (verdict) return;
+      const askedNow = asked + 1;
+      setAsked(askedNow);
+      if (choice === question.answer) {
+        const rightNow = right + 1;
+        setRight(rightNow);
+        setVerdict('right');
+        activity.report('puzzles_solved', rightNow);
+        activity.report('accuracy_pct', Math.round((rightNow / askedNow) * 100));
+      } else {
+        setVerdict('wrong');
+      }
+    },
+    [verdict, asked, right, question.answer, activity],
+  );
+
+  /*
+   * 1 to 4 answer the question, for a keyboard plugged into the television.
+   * The hint on each button appears only once a keyboard has been used; see
+   * input.ts.
+   */
+  const chooseByKey = useCallback(
+    (index: number) => answer(question.choices[index]!),
+    [answer, question.choices],
+  );
+  useChoiceKeys(chooseByKey, question.choices.length, verdict === null);
 
   useEffect(() => {
     if (!verdict) return;
@@ -149,7 +164,7 @@ export function IndiaGame({ activity }: { activity: ActivityApi }) {
         {best !== null && best > right ? ` · best ${best}` : ''}
       </p>
 
-      <div style={{ fontSize: '3.4em', lineHeight: 1 }} aria-hidden="true">
+      <div className="play-glyph small" aria-hidden="true">
         {question.glyph}
       </div>
 
@@ -158,7 +173,7 @@ export function IndiaGame({ activity }: { activity: ActivityApi }) {
       </h2>
 
       <div className="answer-grid wide">
-        {question.choices.map((choice) => (
+        {question.choices.map((choice, index) => (
           <button
             key={choice}
             className={
@@ -172,6 +187,7 @@ export function IndiaGame({ activity }: { activity: ActivityApi }) {
             disabled={verdict !== null}
           >
             {choice}
+            <kbd className="key-hint">{index + 1}</kbd>
           </button>
         ))}
       </div>

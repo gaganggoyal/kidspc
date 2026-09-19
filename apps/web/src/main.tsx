@@ -4,13 +4,14 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import './styles.css';
 import { getTokens, onTokenChange, tryRefresh } from './api';
 import { captureReferral } from './referral';
-import { applyScreenMode } from './display';
+import { startInputTracking } from './input';
 import { Home } from './pages/Home';
 import { TryIt } from './pages/TryIt';
 import { About } from './pages/About';
 import { Contact } from './pages/Contact';
 import { Delivery, Privacy, Refunds, Terms } from './pages/Policies';
 import { SignIn } from './pages/SignIn';
+import { Forgot, ResetPassword } from './pages/Recover';
 import { Household } from './pages/Household';
 import { Launcher } from './pages/Launcher';
 import { Viewer } from './pages/Viewer';
@@ -111,6 +112,14 @@ function App() {
         <Route path="/refunds" element={<Refunds />} />
         <Route path="/delivery" element={<Delivery />} />
         <Route path="/signin" element={<SignIn />} />
+        {/*
+          Recovery. Public, because somebody who cannot sign in is by
+          definition not signed in, and `/reset` is the address printed in the
+          email -- so it is the one route here whose path is a promise to a
+          message already sitting in somebody's inbox.
+        */}
+        <Route path="/forgot" element={<Forgot />} />
+        <Route path="/reset" element={<ResetPassword />} />
         <Route
           path="/household"
           element={
@@ -167,9 +176,13 @@ function App() {
  */
 captureReferral();
 
-// Before anything renders: the size preference has to be on the document for
-// the first paint, or a television flashes the laptop scale on every load.
-applyScreenMode();
+/*
+ * Start listening for what is driving the screen before the first paint, so a
+ * mouse or keyboard paired to a television is noticed on the very first press
+ * rather than after a navigation. See input.ts for why a media query cannot
+ * answer this.
+ */
+startInputTracking();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

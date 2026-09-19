@@ -94,21 +94,51 @@ export function SpellGame({ activity }: { activity: ActivityApi }) {
 
   useEffect(() => () => { if (advance.current) clearTimeout(advance.current); }, []);
 
-  const tap = (letter: string, index: number) => {
-    if (complete) return;
-    const wanted = target.word[typed.length];
-    if (letter !== wanted) {
-      // Refused, not marked. The letter simply does not go in.
-      setSlips((s) => s + 1);
-      setWobble(true);
-      setTimeout(() => setWobble(false), 300);
-      return;
-    }
-    const now = typed + letter;
-    setTyped(now);
-    setLetters((current) => current.filter((_, i) => i !== index));
-    if (now === target.word) finish();
-  };
+  const tap = useCallback(
+    (letter: string, index: number) => {
+      if (complete) return;
+      const wanted = target.word[typed.length];
+      if (letter !== wanted) {
+        // Refused, not marked. The letter simply does not go in.
+        setSlips((s) => s + 1);
+        setWobble(true);
+        setTimeout(() => setWobble(false), 300);
+        return;
+      }
+      const now = typed + letter;
+      setTyped(now);
+      setLetters((current) => current.filter((_, i) => i !== index));
+      if (now === target.word) finish();
+    },
+    [complete, target.word, typed, finish],
+  );
+
+  /*
+   * Spell it by typing it.
+   *
+   * The tiles exist because a remote has no letters on it. A keyboard does,
+   * and asking a child who can already reach the H key to arrow across to a
+   * tile marked H instead is the interface getting in the way of the lesson.
+   *
+   * It goes through the same `tap` as a click, so a wrong letter is refused in
+   * exactly the same way and the slip is counted once.
+   */
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key.length !== 1) return;
+      const letter = event.key.toLowerCase();
+      if (letter < 'a' || letter > 'z') return;
+      // The first tile bearing that letter; which of two identical tiles is
+      // removed makes no difference to anything.
+      const index = letters.indexOf(letter);
+      if (index === -1) return;
+      event.preventDefault();
+      tap(letter, index);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [letters, tap]);
 
   const best = activity.best('words_written');
 
@@ -122,7 +152,7 @@ export function SpellGame({ activity }: { activity: ActivityApi }) {
         ))}
       </div>
 
-      <div style={{ fontSize: '4.5em', lineHeight: 1 }} aria-hidden="true">
+      <div className="play-glyph" aria-hidden="true">
         {target.glyph}
       </div>
 

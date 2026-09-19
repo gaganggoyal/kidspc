@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityShell, type ActivityApi } from './ActivityShell';
 import { useAutoFocusFirst } from '../tv';
+import { useChoiceKeys } from '../input';
 
 /**
  * Number Ninja.
@@ -74,28 +75,46 @@ export function NumbersGame({ activity }: { activity: ActivityApi }) {
     setVerdict(null);
   }, []);
 
-  const answer = (choice: number) => {
-    if (verdict) return;
-    if (choice === question.answer) {
-      const solvedNow = solved + 1;
-      const streakNow = streak + 1;
-      setSolved(solvedNow);
-      setStreak(streakNow);
-      setVerdict('right');
-      activity.report('puzzles_solved', solvedNow);
+  const answer = useCallback(
+    (choice: number) => {
+      if (verdict) return;
+      if (choice === question.answer) {
+        const solvedNow = solved + 1;
+        const streakNow = streak + 1;
+        setSolved(solvedNow);
+        setStreak(streakNow);
+        setVerdict('right');
+        activity.report('puzzles_solved', solvedNow);
 
-      // Five in a row moves up. Levelling on a streak rather than a total means
-      // a child who is finding it easy stops being bored quickly.
-      if (streakNow > 0 && streakNow % 5 === 0) {
-        const raised = Math.min(10, level + 1);
-        setLevel(raised);
-        activity.report('level', raised);
+        // Five in a row moves up. Levelling on a streak rather than a total
+        // means a child who is finding it easy stops being bored quickly.
+        if (streakNow % 5 === 0) {
+          const raised = Math.min(10, level + 1);
+          setLevel(raised);
+          activity.report('level', raised);
+        }
+      } else {
+        setStreak(0);
+        setVerdict('wrong');
       }
-    } else {
-      setStreak(0);
-      setVerdict('wrong');
-    }
-  };
+    },
+    [verdict, question.answer, solved, streak, level, activity],
+  );
+
+  /*
+   * 1 to 4 answer the question, for a household that has plugged a keyboard
+   * into the television.
+   *
+   * With a D-pad the fourth option is three presses of an arrow and one of OK;
+   * with a keyboard it is one key. The hint printed on each button appears only
+   * once a keyboard has actually been used, because a number on a button is
+   * help when there is a number row to press and clutter when there is not.
+   */
+  const pick = useCallback(
+    (index: number) => answer(question.choices[index]!),
+    [answer, question.choices],
+  );
+  useChoiceKeys(pick, question.choices.length, verdict === null);
 
   useEffect(() => {
     if (!verdict) return;
@@ -117,7 +136,7 @@ export function NumbersGame({ activity }: { activity: ActivityApi }) {
       </div>
 
       <div className="answer-grid">
-        {question.choices.map((choice) => (
+        {question.choices.map((choice, index) => (
           <button
             key={choice}
             className={
@@ -131,6 +150,7 @@ export function NumbersGame({ activity }: { activity: ActivityApi }) {
             disabled={verdict !== null}
           >
             {choice}
+            <kbd className="key-hint">{index + 1}</kbd>
           </button>
         ))}
       </div>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityShell, type ActivityApi } from './ActivityShell';
 
 /**
@@ -71,6 +71,23 @@ const BLACK: Array<Key & { after: number }> = [
 ];
 
 const KEYS: Key[] = [...WHITE, ...BLACK];
+
+/**
+ * OK, on a remote, and Enter or Space on a keyboard.
+ *
+ * The keys respond to `pointerdown` rather than `click`, because an instrument
+ * that waits for the release is an instrument that feels broken. But a button
+ * whose only handler is `pointerdown` is a button no keyboard can press: a
+ * D-pad's OK arrives as a click, and a click never came. So a child could
+ * navigate to a key with the remote, press OK, and hear nothing at all -- on
+ * the one activity here whose entire point is that pressing a key makes a
+ * noise.
+ */
+function soundOnEnter(event: ReactKeyboardEvent, play: () => void): void {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  play();
+}
 
 /** Percentage widths, so the keyboard scales without a measurement. */
 const WHITE_W = 100 / WHITE.length;
@@ -253,10 +270,12 @@ export function PianoKeyboard({ activity }: { activity: ActivityApi }) {
               }`}
               style={{ width: `${WHITE_W}%` }}
               onPointerDown={() => play(key)}
+              onKeyDown={(event) => soundOnEnter(event, () => play(key))}
               aria-label={`${key.sargam}, ${key.note}`}
             >
               <span className="sargam">{key.sargam}</span>
               <span className="note">{key.note}</span>
+              <kbd className="key-hint">{key.press.toUpperCase()}</kbd>
             </button>
           ))}
 
@@ -271,6 +290,7 @@ export function PianoKeyboard({ activity }: { activity: ActivityApi }) {
                 left: `${(key.after + 1) * WHITE_W - BLACK_W / 2}%`,
               }}
               onPointerDown={() => play(key)}
+              onKeyDown={(event) => soundOnEnter(event, () => play(key))}
               aria-label={`${key.sargam}, ${key.note}`}
               title={`${key.sargam} — ${key.note}`}
             >

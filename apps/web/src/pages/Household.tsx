@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { PRODUCT_SHORT_NAME } from '@kidpc/shared';
 import { ApiError, type ChildDto, type HouseholdDto, api, setChildToken, setGuardianToken } from '../api';
 import { useAutoFocusFirst, useSpatialNavigation } from '../tv';
-import { ScreenSize } from './ScreenSize';
 
 export const AVATARS: Record<string, string> = {
   fox: '🦊',
@@ -83,11 +82,6 @@ export function Household() {
             </button>
           </div>
         </div>
-
-        {/* The other screen a television is set up from. Here rather than on
-            the launcher because this one is reached by whoever is holding the
-            remote, adult or child, and the launcher belongs to the child. */}
-        <ScreenSize />
 
         {active.length === 0 ? (
           <div className="card stack">

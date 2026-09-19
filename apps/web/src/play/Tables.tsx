@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityShell, type ActivityApi } from './ActivityShell';
 import { useAutoFocusFirst } from '../tv';
+import { useChoiceKeys } from '../input';
 import { shuffle } from './random';
 
 /**
@@ -87,22 +88,36 @@ export function TablesGame({ activity }: { activity: ActivityApi }) {
     next(table);
   }, [table, next]);
 
-  const answer = (choice: number) => {
-    if (verdict) return;
-    const askedNow = asked + 1;
-    setAsked(askedNow);
-    if (choice === question.answer) {
-      const rightNow = right + 1;
-      setRight(rightNow);
-      setVerdict('right');
-      setKnown((current) => new Set(current).add(cellKey(question.a, question.b)));
-      activity.report('puzzles_solved', rightNow);
-      activity.report('accuracy_pct', Math.round((rightNow / askedNow) * 100));
-      if (typeof table === 'number') activity.report('level', table);
-    } else {
-      setVerdict('wrong');
-    }
-  };
+  const answer = useCallback(
+    (choice: number) => {
+      if (verdict) return;
+      const askedNow = asked + 1;
+      setAsked(askedNow);
+      if (choice === question.answer) {
+        const rightNow = right + 1;
+        setRight(rightNow);
+        setVerdict('right');
+        setKnown((current) => new Set(current).add(cellKey(question.a, question.b)));
+        activity.report('puzzles_solved', rightNow);
+        activity.report('accuracy_pct', Math.round((rightNow / askedNow) * 100));
+        if (typeof table === 'number') activity.report('level', table);
+      } else {
+        setVerdict('wrong');
+      }
+    },
+    [verdict, asked, right, question.answer, question.a, question.b, table, activity],
+  );
+
+  /*
+   * 1 to 4 answer the question, for a keyboard plugged into the television.
+   * The hint on each button appears only once a keyboard has been used; see
+   * input.ts.
+   */
+  const choose = useCallback(
+    (index: number) => answer(question.choices[index]!),
+    [answer, question.choices],
+  );
+  useChoiceKeys(choose, question.choices.length, verdict === null);
 
   useEffect(() => {
     if (!verdict) return;
@@ -136,7 +151,7 @@ export function TablesGame({ activity }: { activity: ActivityApi }) {
       </div>
 
       <div className="answer-grid">
-        {question.choices.map((choice) => (
+        {question.choices.map((choice, index) => (
           <button
             key={choice}
             className={
@@ -150,6 +165,7 @@ export function TablesGame({ activity }: { activity: ActivityApi }) {
             disabled={verdict !== null}
           >
             {choice}
+            <kbd className="key-hint">{index + 1}</kbd>
           </button>
         ))}
       </div>

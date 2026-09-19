@@ -105,22 +105,6 @@ body {
  * in this scope is operated by a five-year-old, and their targets stay large
  * at every size.
  */
-/*
- * The across-the-room scale, as tokens, because two different things turn it
- * on: the media query below when it can recognise a television, and the
- * viewer's own choice when it cannot. One set of numbers, two switches.
- *
- * Sized in vw so it follows whatever viewport the set reports -- and they vary
- * wildly, the same 43-inch panel calling itself 1920, 1280 or 960 CSS pixels
- * wide. A fixed 24px is a different physical size on each of those; 2.1vw is
- * the same one.
- */
-:root {
-  --tv-font: clamp(26px, 2.1vw, 40px);
-  --tv-pad: clamp(24px, 2vw, 40px);
-  --tv-radius: clamp(18px, 1.4vw, 26px);
-}
-
 .tv {
   /* 16px at 390, ~19px on a laptop, ~22px on a 1080p panel. */
   --font: clamp(16px, 0.42vw + 14px, 24px);
@@ -156,9 +140,15 @@ body {
  */
 @media (pointer: none), (min-width: 1400px) and (pointer: coarse) and (hover: none) {
   .tv {
-    --font: var(--tv-font);
-    --pad: var(--tv-pad);
-    --radius: var(--tv-radius);
+    /*
+     * Sized in vw so it follows whatever viewport the set reports -- and they
+     * vary wildly, the same 43-inch panel calling itself 1920, 1280 or 960 CSS
+     * pixels wide. A fixed 24px is a different physical size on each of those;
+     * 2.1vw is the same one.
+     */
+    --font: clamp(26px, 2.1vw, 40px);
+    --pad: clamp(24px, 2vw, 40px);
+    --radius: clamp(18px, 1.4vw, 26px);
     /* Fill the safe area: on a panel the margin is the overscan inset, and a
        narrow column three metres away wastes the screen. */
     --page-max: 1400px;
@@ -291,6 +281,92 @@ button:active:not(:disabled) { transform: scale(0.98); }
   transform: none;
 }
 
+/* ===========================================================================
+   A mouse and a keyboard, paired to the television
+   ===========================================================================
+   Nothing here is about detecting a device: `data-input` and `data-keyboard`
+   are written by input.ts from the events that actually arrive, because a
+   media query is a claim made at page load and a Bluetooth mouse paired half
+   an hour later never changes it.
+*/
+
+/*
+ * With a cursor on screen, the loud ring is the wrong ring.
+ *
+ * It exists because a remote has no cursor and a person needs to know where
+ * they are from three metres away. Once there is a pointer, that job is being
+ * done by the pointer, and the ring is a rectangle stuck to whatever was last
+ * clicked -- a button left 4% larger than its neighbours long after the click.
+ *
+ * Quieter, not absent: a mouse user still reaches for Tab, and WCAG 2.4.7 is
+ * not satisfied by "they can see the cursor".
+ */
+:root[data-input='pointer'] .tv :focus {
+  transform: none;
+  box-shadow: 0 0 0 3px var(--surface), 0 0 0 6px var(--accent);
+}
+
+/*
+ * Hover, for the households that have a mouse.
+ *
+ * Behind `hover: hover` because a touchscreen resolves `:hover` on tap and
+ * then keeps it until something else is tapped, which on a phone reads as a
+ * tile that stayed pressed.
+ */
+@media (hover: hover) {
+  .app-tile:hover,
+  .profile:hover {
+    border-color: var(--edge);
+    background: var(--surface-2);
+  }
+}
+
+/*
+ * What to press, shown only once a keyboard has been used.
+ *
+ * Printing "1" on an answer button is help when there is a number row within
+ * reach and clutter when the only input in the room is a D-pad -- and the
+ * households in the second case are the majority. So it is hidden until a key
+ * arrives that a remote cannot send.
+ */
+.key-hint {
+  display: none;
+}
+:root[data-keyboard='yes'] .key-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.7em;
+  height: 1.7em;
+  margin-left: 0.5em;
+  padding: 0 0.35em;
+  font: inherit;
+  font-size: 0.62em;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink-soft);
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  border-radius: 0.45em;
+  /* Never the thing a child reads first. */
+  opacity: 0.85;
+}
+/* Inside a filled control the hint has to sit on the fill, not on the page. */
+:root[data-keyboard='yes'] .primary .key-hint,
+:root[data-keyboard='yes'] .chip[aria-pressed='true'] .key-hint {
+  color: var(--accent-ink);
+  background: transparent;
+  border-color: currentColor;
+}
+/* On the piano the letter belongs at the bottom of the key, under the names,
+   rather than trailing after them in a row. */
+:root[data-keyboard='yes'] .piano-key .key-hint {
+  margin: 0;
+  background: transparent;
+  border-color: transparent;
+  opacity: 0.55;
+}
+
 label { display: block; font-weight: 600; margin-bottom: 6px; }
 
 input[type='text'], input[type='email'], input[type='password'], input[type='number'], select {
@@ -302,6 +378,27 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   background: var(--surface);
   border: 1px solid var(--edge);
   border-radius: var(--radius);
+}
+
+/*
+ * The field plus its reveal button, as one control.
+ *
+ * A grid rather than a wrapper with a positioned button: the input has to be
+ * allowed to shrink to nothing on a 320px screen, and absolute positioning
+ * would have put the word "Show" on top of the last characters of a long
+ * password instead of beside them.
+ */
+.password-field {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: stretch;
+}
+.password-field input { min-width: 0; }
+.password-reveal {
+  padding-inline: 14px;
+  font-size: 0.9em;
+  white-space: nowrap;
 }
 
 .field { margin-bottom: var(--pad); }
@@ -450,31 +547,6 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
    query near the top of this file, because on every other device it is 4% of
    the viewport spent on nothing.
 */
-/*
- * Chosen rather than detected.
- *
- * Last, so it beats the fluid scale regardless of where that sits in this
- * file, and outside the media query so it works on exactly the sets the query
- * cannot identify -- which, on the evidence of one living room, is the ones
- * with a pointer-emulating remote.
- */
-:root[data-screen='big'] .tv {
-  --font: var(--tv-font);
-  --pad: var(--tv-pad);
-  --radius: var(--tv-radius);
-  --page-max: 1400px;
-  --safe-x: 4vw;
-  --safe-y: 4vh;
-}
-
-/* The control itself, which has to be legible before it has been used. */
-.screen-size {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
 /* Zero unless the media query above says this really is a television, where
    `max(var(--pad), 0)` simply falls through to the ordinary padding. */
 .tv {
@@ -576,6 +648,14 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   font-size: 1.4em;
   text-align: center;
   letter-spacing: 0.1em;
+  /*
+   * The shared input rule sets a 44px floor, and this one overrode it to 33px
+   * by way of its own font size and padding. On a phone that is the smallest
+   * thing on the screen and the one a child has to hit first, and on iOS a
+   * field this size is also what triggers the zoom-on-focus that then leaves
+   * the page scrolled sideways.
+   */
+  min-height: max(52px, 2.6em);
 }
 
 /*
@@ -614,7 +694,17 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 }
 .answer-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(140px, 1fr));
+  /*
+   * `minmax(0, 1fr)`, not `minmax(140px, 1fr)`.
+   *
+   * A 140px floor on two columns needs 296px of content box before the gap,
+   * and a 320px phone has 248px once the stage and the activity body have both
+   * taken their padding -- so the grid pushed its own container sideways and
+   * the fourth answer sat off the edge of the screen. The targets stay large
+   * through `min-height` below, which is the axis that was doing the work
+   * anyway.
+   */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--pad);
   /* Fills the stage rather than shrinking to the widest number on it, so the
      four targets do not change size when the question changes. */
@@ -914,6 +1004,23 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 .tables-cell.got {
   background: var(--accent);
   border-color: transparent;
+}
+
+/*
+ * The picture above the prompt in Spell It and Know India.
+ *
+ * Decorative -- both are `aria-hidden`, and the word or the question is the
+ * content. It is also the tallest single element in either activity, which is
+ * why it is sized here rather than inline: on a phone held sideways it was
+ * pushing the answer buttons off the bottom of the screen, and an inline style
+ * is the one thing a media query cannot reach.
+ */
+.play-glyph {
+  font-size: 4.5em;
+  line-height: 1;
+}
+.play-glyph.small {
+  font-size: 3.4em;
 }
 
 /* ---- know india -------------------------------------------------------- */
@@ -2023,4 +2130,254 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 }
 @media (max-width: 520px) {
   .site-foot-cols { grid-template-columns: 1fr; }
+}
+
+/* ===========================================================================
+   Phones
+   ===========================================================================
+   The other half of the audience. A parent reads the marketing pages, signs in
+   and checks the dashboard on a phone, and a child plays on one in the back of
+   a car -- so every activity has to work at 320px wide and, more awkwardly, at
+   390px *tall*, which is what a phone held sideways gives you.
+
+   Landscape is the case that was actually broken. Measured at 844x390, ten of
+   the eleven activities needed scrolling before the answer buttons were
+   reachable, because every vertical measurement in this file was chosen for a
+   television and merely tolerated on a laptop. Nothing here is a new design:
+   it is the same stage with the decoration taken out of the way of the game.
+*/
+
+/*
+ * The viewport a phone browser actually gives you.
+ *
+ * `100%` resolves against a viewport that includes the address bar, so an
+ * activity sized to it had its bottom edge -- which on most of these screens
+ * is where the answer buttons are -- underneath the browser's own chrome until
+ * the user scrolled, at which point the bar retracted and the layout moved.
+ * `dvh` is the height that is actually on screen right now.
+ */
+@supports (height: 100dvh) {
+  html, body, #root { height: 100dvh; }
+}
+
+/*
+ * Android's blue flash on every tap.
+ *
+ * It fires on the whole element including its margin box, lags the press by
+ * about 100ms, and appears on top of the `:active` state below -- so a child
+ * pressing a piano key saw the key move and then a blue rectangle arrive after
+ * it. The press feedback is ours; this is the browser's opinion about it.
+ */
+button, .btn, .chip, a, [role='button'], input, textarea, select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/*
+ * Notches, rounded corners and the home indicator.
+ *
+ * `viewport-fit=cover` has been in the document head since the beginning,
+ * which is what lets the page paint under the rounded corners -- and also what
+ * puts the Back button under the notch when a phone is turned sideways. The
+ * insets are zero on every device that has none, so these are `max()` against
+ * the padding we already wanted rather than an addition to it.
+ */
+@supports (padding: max(0px, env(safe-area-inset-left))) {
+  .page,
+  .tv .page,
+  .activity-bar,
+  .activity-body,
+  .viewer .overlay {
+    padding-left: max(var(--pad), var(--safe-x, 0px), env(safe-area-inset-left));
+    padding-right: max(var(--pad), var(--safe-x, 0px), env(safe-area-inset-right));
+  }
+  .activity-bar { padding-top: max(12px, env(safe-area-inset-top)); }
+  .activity-body,
+  .viewer .overlay {
+    padding-bottom: max(var(--pad), var(--safe-y, 0px), env(safe-area-inset-bottom));
+  }
+}
+
+/*
+ * A pull that reaches the document.
+ *
+ * Inside an activity the scrolling container is `.activity-body`, and when it
+ * is already at its top a further swipe is handed to the document -- which on
+ * Android Chrome is the pull-to-refresh gesture. Reloading the page mid-game
+ * ends the child's session and returns them to the launcher.
+ */
+.activity,
+.activity-body {
+  overscroll-behavior: contain;
+}
+
+/*
+ * The row that chooses a level, a table, a tune or a brush.
+ *
+ * Eleven times-table chips wrap into three rows on a 360px phone and cost 150
+ * vertical pixels before the question has been asked; five tune chips cost 114
+ * on a phone held sideways. One row that scrolls costs 50 on either.
+ *
+ * Both orientations, because the constraint is the same one seen from two
+ * directions: there is no room above the game for a block of controls. It
+ * stays reachable by remote as well as by thumb -- spatial navigation scrolls
+ * whatever it focuses into view.
+ */
+@media (max-width: 560px), (max-height: 520px) {
+  .play-stage > .chips,
+  .blocks-layout .chips {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .play-stage > .chips::-webkit-scrollbar,
+  .blocks-layout .chips::-webkit-scrollbar { display: none; }
+  .play-stage > .chips > .chip,
+  .blocks-layout .chips > .chip { flex: 0 0 auto; }
+}
+
+/* ---- narrow: a phone held upright -------------------------------------- */
+
+@media (max-width: 560px) {
+  .play-stage {
+    gap: var(--pad);
+    padding: var(--pad);
+  }
+  .big-sum { font-size: 2.6em; }
+  .play-glyph { font-size: 3.4em; }
+  .play-glyph.small { font-size: 2.6em; }
+
+  /* The board and the plan have to share one column, so the board cannot have
+     the whole screen. `vh` rather than a percentage of the width, because the
+     constraint is vertical: what is left after the board is what the palette
+     and the Run button have to fit into. */
+  .grid-board { width: min(28vh, 100%); }
+  .memory-board { width: min(52vh, 100%); }
+
+  /*
+   * Paint, the other way up.
+   *
+   * In one column the palette came first, because on a desktop it is the
+   * left-hand column -- which put five rows of controls above the canvas and
+   * the canvas itself below the fold. The thing being made goes first.
+   *
+   * The tools stay a column. Laying them out as a row instead looked right and
+   * measured catastrophically: `.swatches` is a grid whose columns collapse to
+   * their 38px minimum when it is a shrinkable flex item, so the eleven
+   * colours became one vertical strip 552px tall and Paint went from 259px of
+   * overflow to 531.
+   */
+  .paint-layout { grid-template-rows: minmax(160px, 1fr) auto; }
+  .paint-canvas { order: 1; min-height: 160px; }
+  .paint-tools { order: 2; }
+  /* Full width now, so the four brush sizes fit on one line. */
+  .paint-tools .chips { grid-template-columns: repeat(4, 1fr); }
+
+  /*
+   * Four state names in a single column is 288px of buttons before anything
+   * else on the screen has been drawn.
+   */
+  .answer-grid.wide .answer { min-height: 56px; font-size: 1.02em; }
+
+  /*
+   * The preview bar carries a "Free preview" badge as well as Back, the title
+   * and the button that opens the grown-up summary -- four things across
+   * 288px, which wraps to three rows and costs 138px before the activity
+   * starts. The badge is the one that says least: the invitation at the foot
+   * of the screen makes the same point in a sentence.
+   */
+  .activity-bar .pill { display: none; }
+}
+
+/* ---- short: a phone held sideways --------------------------------------- */
+
+@media (max-height: 520px) {
+  /* The bar is navigation, not content. It can be thin. */
+  .activity-bar { padding-block: 6px; }
+  .activity-bar h1 { font-size: 1em; }
+
+  .activity-body { padding-block: 8px; }
+  .play-stage {
+    gap: calc(var(--pad) * 0.55);
+    padding: calc(var(--pad) * 0.75) var(--pad);
+  }
+
+  /* Decoration yields to the question. Both glyphs are aria-hidden: the word
+     and the prompt carry the meaning, and neither is what a child is reading
+     when the screen is 390px tall. */
+  .play-glyph { font-size: 2.1em; }
+  .play-glyph.small { font-size: 1.7em; }
+
+  .big-sum { font-size: 2em; }
+  .answer-grid .answer { min-height: 56px; font-size: 1.4em; }
+  .answer-grid.wide .answer { min-height: 50px; font-size: 1em; }
+  .india-prompt { font-size: 1.05rem; }
+
+  .spell-slots .slot { font-size: clamp(1.1rem, 3vw, 1.7rem); min-height: 1.5em; }
+  .letter-key { min-width: max(48px, calc(var(--font) * 2.2)); font-size: 1.2em; }
+
+  .grid-board { width: min(62vh, 100%); }
+  .memory-board { width: min(62vh, 100%); }
+  .paint-canvas { min-height: 160px; }
+  .typing-word { font-size: 1.6em; }
+  /* Still a comfortable target; it was 33px before any of this. */
+  .typing-input { min-height: 46px; font-size: 1.2em; }
+
+  /*
+   * The grid of facts already answered.
+   *
+   * Supplementary by design -- it is a picture of this session, not part of
+   * the question -- and at 390px tall it is the difference between the answer
+   * buttons being on screen and being below it. Shorter rather than hidden:
+   * a child who scrolls still finds it, and nothing about the game depends on
+   * seeing it.
+   */
+  .tables-map { width: min(340px, 100%); }
+  .tables-row { gap: 2px; }
+
+  /*
+   * The keyboard's floor.
+   *
+   * `clamp(170px, 34vh, 300px)` means 34vh everywhere except the screens where
+   * 34vh is small -- and a phone held sideways is exactly that screen: 34vh is
+   * 133px there, so the floor took over and the keyboard stayed taller than
+   * the space it had. A shorter key is still a key; an unreachable one is not.
+   */
+  .piano-keys .piano-key.white { height: clamp(118px, 34vh, 300px); }
+
+  /*
+   * Paint's tool column, in the 324px it has when a phone is sideways.
+   *
+   * Measured at 498px before this: eleven swatches four to a row, the brush
+   * sizes two by two, and a sentence of help underneath. Six swatches to a row
+   * and four brushes to a row is 136px, and the hint is the one thing here a
+   * child does not need in front of them to draw.
+   */
+  .paint-tools .swatches { grid-template-columns: repeat(auto-fit, minmax(28px, 1fr)); }
+  .paint-tools .chips { grid-template-columns: repeat(4, 1fr); }
+  .paint-tools > p { display: none; }
+
+  /* A page to write on, rather than a page-shaped hole where the screen was. */
+  .writer-pad,
+  .code-editor,
+  .code-preview { min-height: 150px; }
+}
+
+/* ---- the 320px phone ---------------------------------------------------- */
+
+/*
+ * A 320px-wide screen is a 2016 iPhone SE, and enough of them are still in
+ * daily use in this market to be worth the last thirty pixels. Everything
+ * above already fits a 360px Android and a 390px iPhone with room to spare;
+ * this tier exists only for the one activity that still did not -- Know India,
+ * whose four answers are state names and cannot be two to a row.
+ */
+@media (max-width: 380px) {
+  .play-glyph { font-size: 2.6em; }
+  .play-glyph.small { font-size: 2em; }
+  .answer-grid.wide .answer { min-height: 50px; font-size: 0.98em; }
+  .india-prompt { font-size: 1.05rem; }
+  .play-stage { gap: calc(var(--pad) * 0.75); }
 }

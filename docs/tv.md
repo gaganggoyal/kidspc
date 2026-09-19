@@ -141,27 +141,25 @@ adb install app-release-signed.apk
 
 ---
 
-## If everything looks too small
+## Text size
 
-Press **Bigger** under "Text size" on the sign-in screen or the profile picker.
-It is remembered on that device and takes effect immediately.
+Detected, not chosen. The stylesheet asks for `pointer: none` -- a set driven
+by a D-pad reports no pointing device at all, which no laptop or phone does --
+and those sets get the across-the-room scale: base font from 16px up to 40px,
+sized in `vw` rather than pixels, because the same 43-inch panel may report
+itself as 1920, 1280 or 960 CSS pixels wide and a fixed size would be a
+different physical size on each.
 
-That control exists because detecting a television is not reliably possible.
-The stylesheet asks for `pointer: none` -- a set driven by a D-pad reports no
-pointing device, which no laptop or phone does -- but a remote that emulates a
-mouse *does* report one, and the browser is then indistinguishable from a
-laptop. Those sets used to get the laptop type scale, which is legible at
-arm's length and not from a sofa.
+A set whose remote *emulates* a mouse reports a pointer and is, to a media
+query, a laptop. It gets the laptop scale, which lands at about 22px on a
+1080p panel. There was briefly a manual "Bigger" switch for those; it has been
+removed. What it produced was legible and ugly -- 40px type and 140px buttons
+on a screen that was never designed around them -- and the better answer for
+a set that far away is the next section.
 
-Detection still runs and still wins where it works. This is the escape hatch
-for the sets it cannot see, and it is per device on purpose: the same
-household account is used from the television and from a phone, and they want
-different things.
-
-The across-the-room scale runs the base font from 16px up to 40px, in `vw`
-rather than pixels, because the same 43-inch panel may report itself as 1920,
-1280 or 960 CSS pixels wide and a fixed size would be a different physical
-size on each.
+If a particular set still reads small, every TV browser supports zoom from a
+connected keyboard (Ctrl and `+`), which scales the whole page proportionally
+rather than inflating one axis of the design.
 
 ## What the remote can actually do
 
@@ -191,8 +189,50 @@ Seven of eleven, and the four that are not are the three that are *about* a
 keyboard plus the one that is about drawing. That ratio is why the five
 activities added for the youngest band were all built as grids of buttons.
 
-A Bluetooth keyboard and mouse pair to all four platforms through the TV's own
-settings, which is the setup the product assumes.
+Piano was on the wrong side of that line until recently and nobody had noticed:
+its keys responded to `pointerdown` and nothing else, so a child could navigate
+to a key with the remote, press OK, and hear silence -- on the one activity
+whose entire point is that pressing a key makes a noise.
+
+## A Bluetooth keyboard and mouse
+
+This is the setup the product is now built around, and it is worth doing: it
+turns the television into a computer, which is what the child is here to learn
+to use.
+
+Pairing is the TV's job, not ours, and every platform has it in the same place:
+
+| Platform | Where |
+|---|---|
+| **Android TV / Google TV** | Settings → Remotes & Accessories → Pair accessory |
+| **Samsung Tizen** | Settings → General → External Device Manager → Input Device Manager → Bluetooth Device List |
+| **LG webOS** | Settings → General → External Devices → Bluetooth Controller |
+| **Fire TV** | Settings → Controllers & Bluetooth Devices → Other Bluetooth Devices |
+
+Put the keyboard or mouse in pairing mode first (usually a long press on a
+dedicated button until its light flashes). Most sets remember it afterwards and
+reconnect on their own.
+
+What the app then does with it:
+
+- **It notices.** `apps/web/src/input.ts` watches the events that arrive rather
+  than asking a media query, because `pointer: none` is a claim the browser
+  makes at page load and a mouse paired half an hour later never changes it.
+  Two facts land on the document element: `data-input` (`key` or `pointer`,
+  flipping both ways) and `data-keyboard` (`yes`, once, permanently).
+- **The focus ring gets out of the way.** With a cursor on screen the loud
+  ten-foot ring is a rectangle stuck to whatever was last clicked, so it drops
+  to an ordinary one. Press an arrow key and the loud one comes back.
+- **Shortcuts appear.** Number keys `1`–`4` answer Number Ninja, Times Tables
+  and Know India. Letters type words directly in Spell It. `G`, `L`, `R` add
+  blocks in Block Puzzles, `Enter` runs the programme, `U` undoes, `C` clears.
+  `A`–`K` and `W`–`U` play the piano's white and black keys. Each control
+  prints the key on itself -- but only after a keyboard has been used, because
+  a number on a button is clutter to a household holding only a remote.
+- **The sign-in and reset forms stop fighting the device**: no autocapitalise
+  on an address, a Show button on every password field, and `Enter` submits.
+
+A mouse also makes **Paint** work, which a bare D-pad cannot do at all.
 
 **The one genuinely painful step is the parent's first sign-in**: an email
 address and a ten-character password, typed on an on-screen keyboard. It happens

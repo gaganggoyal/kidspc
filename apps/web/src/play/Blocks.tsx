@@ -13,6 +13,8 @@ type Command = 'forward' | 'left' | 'right';
 
 const GLYPH: Record<Command, string> = { forward: '⬆︎', left: '↰', right: '↱' };
 const LABEL: Record<Command, string> = { forward: 'Go', left: 'Turn left', right: 'Turn right' };
+/** The letter on the keyboard that adds each block; shown once one is in use. */
+const KEY_FOR: Record<Command, string> = { forward: 'G', left: 'L', right: 'R' };
 
 interface Level {
   size: number;
@@ -105,6 +107,56 @@ export function BlocksGame({ activity }: { activity: ActivityApi }) {
     return () => clearTimeout(timer);
   }, [running, step, program, level, levelIndex, solved, activity]);
 
+  /*
+   * The same three blocks, on three keys.
+   *
+   * This is the activity a keyboard changes most. A twelve-block programme is
+   * twelve journeys across the palette with a D-pad, and the plan is long
+   * enough by then that a child has forgotten what they were planning. The
+   * letters match the words on the buttons -- G for Go, L and R for the turns
+   * -- with Enter to run it and Backspace reserved, because the shell already
+   * reads that as "leave".
+   */
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.matches?.('input, textarea, [contenteditable]')) return;
+
+      const key = event.key.toLowerCase();
+      if (key === 'enter') {
+        // Enter on a focused button is that button's own click; only claim it
+        // when focus is nowhere in particular.
+        if (target && target !== document.body && target.matches('button, [href]')) return;
+        if (running || program.length === 0) return;
+        event.preventDefault();
+        reset();
+        setRunning(true);
+        return;
+      }
+      if (running) return;
+
+      const command = ({ g: 'forward', l: 'left', r: 'right' } as const)[key];
+      if (command) {
+        if (program.length >= 20) return;
+        event.preventDefault();
+        setProgram((p) => [...p, command]);
+        return;
+      }
+      if (key === 'u') {
+        event.preventDefault();
+        setProgram((p) => p.slice(0, -1));
+      }
+      if (key === 'c') {
+        event.preventDefault();
+        setProgram([]);
+        reset();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [running, program.length, reset]);
+
   const cells = [];
   for (let y = 0; y < level.size; y++) {
     for (let x = 0; x < level.size; x++) {
@@ -165,6 +217,7 @@ export function BlocksGame({ activity }: { activity: ActivityApi }) {
               onClick={() => setProgram((p) => [...p, command])}
             >
               {GLYPH[command]} {LABEL[command]}
+              <kbd className="key-hint">{KEY_FOR[command]}</kbd>
             </button>
           ))}
         </div>
@@ -179,12 +232,15 @@ export function BlocksGame({ activity }: { activity: ActivityApi }) {
             }}
           >
             ▶ Run
+            <kbd className="key-hint">↵</kbd>
           </button>
           <button disabled={running} onClick={() => setProgram((p) => p.slice(0, -1))}>
             Undo
+            <kbd className="key-hint">U</kbd>
           </button>
           <button disabled={running} onClick={() => { setProgram([]); reset(); }}>
             Clear
+            <kbd className="key-hint">C</kbd>
           </button>
           {outcome === 'won' && levelIndex < LEVELS.length - 1 && (
             <button className="primary" onClick={() => setLevelIndex((i) => i + 1)}>
