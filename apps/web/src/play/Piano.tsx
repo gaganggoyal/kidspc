@@ -22,14 +22,21 @@ import { ActivityShell, type ActivityApi } from './ActivityShell';
 interface Key {
   /** Western note name. */
   note: string;
-  /** Sargam syllable. */
+  /** Sargam syllable. Lowercase is the conventional way to write a komal swara. */
   sargam: string;
   hz: number;
   /** The keyboard key that plays it, for a child with a real keyboard. */
   press: string;
 }
 
-const KEYS: Key[] = [
+/**
+ * The seven naturals and the octave above, in order across the keyboard.
+ *
+ * `press` follows the layout every piano app has used since the beginning --
+ * the home row for the white keys, the row above for the black -- so a child
+ * who learns it here is not learning something only we do.
+ */
+const WHITE: Key[] = [
   { note: 'C', sargam: 'Sa', hz: 261.63, press: 'a' },
   { note: 'D', sargam: 'Re', hz: 293.66, press: 's' },
   { note: 'E', sargam: 'Ga', hz: 329.63, press: 'd' },
@@ -40,7 +47,36 @@ const KEYS: Key[] = [
   { note: "C'", sargam: "Sa'", hz: 523.25, press: 'k' },
 ];
 
-/** Traditional tunes only, so nothing here is anybody's copyright. */
+/**
+ * The five black keys, and where each one sits.
+ *
+ * `after` is the index of the white key it straddles the right-hand edge of,
+ * which is what produces the two-then-three grouping everybody recognises as a
+ * piano without being able to say why. Leaving them out, as the first version
+ * did, is what made this read as a row of buttons: the pattern *is* the
+ * instrument.
+ *
+ * They are also the reason this is worth more than a toy. The sargam names
+ * here are the komal swaras and teevra Ma -- the notes that separate one raga
+ * from another -- and a child who finds out that the black keys have names
+ * their grandparent knows has learnt something a Western keyboard diagram does
+ * not teach.
+ */
+const BLACK: Array<Key & { after: number }> = [
+  { note: 'C#', sargam: 're', hz: 277.18, press: 'w', after: 0 },
+  { note: 'D#', sargam: 'ga', hz: 311.13, press: 'e', after: 1 },
+  { note: 'F#', sargam: "Ma'", hz: 369.99, press: 't', after: 3 },
+  { note: 'G#', sargam: 'dha', hz: 415.3, press: 'y', after: 4 },
+  { note: 'A#', sargam: 'ni', hz: 466.16, press: 'u', after: 5 },
+];
+
+const KEYS: Key[] = [...WHITE, ...BLACK];
+
+/** Percentage widths, so the keyboard scales without a measurement. */
+const WHITE_W = 100 / WHITE.length;
+const BLACK_W = WHITE_W * 0.62;
+
+/** Traditional tunes only, so nothing here is anybody’s copyright. */
 const TUNES: Array<{ id: string; name: string; notes: string[] }> = [
   { id: 'sargam', name: 'Sa Re Ga Ma', notes: ['C', 'D', 'E', 'F', 'G', 'A', 'B', "C'"] },
   {
@@ -62,6 +98,7 @@ const TUNES: Array<{ id: string; name: string; notes: string[] }> = [
 
 export function PianoKeyboard({ activity }: { activity: ActivityApi }) {
   const audio = useRef<AudioContext | null>(null);
+  const keys = useRef<HTMLDivElement>(null);
   const startedAt = useRef<number | null>(null);
   const reported = useRef(0);
   const [lit, setLit] = useState<string | null>(null);
@@ -158,6 +195,26 @@ export function PianoKeyboard({ activity }: { activity: ActivityApi }) {
 
   const nextNote = tune?.notes[step] ?? null;
 
+  /*
+   * Bring the next key into view on a narrow screen.
+   *
+   * Thirteen keys will not fit a phone at a size a small finger can hit, so the
+   * keyboard scrolls inside its case. That is fine until a tune asks for Dha,
+   * which is off the right-hand edge -- a child following the lights would be
+   * waiting for a key they cannot see and has no reason to go looking for.
+   */
+  useEffect(() => {
+    if (!nextNote) return;
+    const key = keys.current?.querySelector('.piano-key.next');
+    key?.scrollIntoView({
+      inline: 'center',
+      block: 'nearest',
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? 'auto'
+        : 'smooth',
+    });
+  }, [nextNote]);
+
   return (
     <div className="play-stage">
       <div className="chips" role="group" aria-label="Play along">
@@ -182,24 +239,45 @@ export function PianoKeyboard({ activity }: { activity: ActivityApi }) {
       <p className="muted" style={{ margin: 0 }} aria-live="polite">
         {tune
           ? `Follow the glowing key — note ${step + 1} of ${tune.notes.length}`
-          : 'Press any key. Use A to K on a keyboard.'}
+          : 'Press any key. On a keyboard, A to K are the white notes and W to U the black.'}
         {played > 0 ? ` · ${played} played through` : ''}
       </p>
 
-      <div className="piano" role="group" aria-label="Piano keys">
-        {KEYS.map((key) => (
-          <button
-            key={key.note}
-            className={`piano-key ${lit === key.note ? 'lit' : ''} ${
-              nextNote === key.note ? 'next' : ''
-            }`}
-            onPointerDown={() => play(key)}
-            aria-label={`${key.sargam}, ${key.note}`}
-          >
-            <span className="sargam">{key.sargam}</span>
-            <span className="note">{key.note}</span>
-          </button>
-        ))}
+      <div className="piano-case">
+        <div className="piano-keys" ref={keys} role="group" aria-label="Piano keys">
+          {WHITE.map((key) => (
+            <button
+              key={key.note}
+              className={`piano-key white ${lit === key.note ? 'lit' : ''} ${
+                nextNote === key.note ? 'next' : ''
+              }`}
+              style={{ width: `${WHITE_W}%` }}
+              onPointerDown={() => play(key)}
+              aria-label={`${key.sargam}, ${key.note}`}
+            >
+              <span className="sargam">{key.sargam}</span>
+              <span className="note">{key.note}</span>
+            </button>
+          ))}
+
+          {BLACK.map((key) => (
+            <button
+              key={key.note}
+              className={`piano-key black ${lit === key.note ? 'lit' : ''} ${
+                nextNote === key.note ? 'next' : ''
+              }`}
+              style={{
+                width: `${BLACK_W}%`,
+                left: `${(key.after + 1) * WHITE_W - BLACK_W / 2}%`,
+              }}
+              onPointerDown={() => play(key)}
+              aria-label={`${key.sargam}, ${key.note}`}
+              title={`${key.sargam} — ${key.note}`}
+            >
+              <span className="sargam">{key.sargam}</span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -26,6 +26,12 @@
    * up to 3:1 would make the page shout.
    */
   --edge: #908269;
+  /* The instrument's own colours. Fixed rather than derived: a piano is the
+     one thing on these screens that looks like itself in any theme, and a
+     case that changed with the page would stop reading as an object. */
+  --piano-case: #2c2723;
+  --piano-felt: #8c3b32;
+  --piano-edge: #b9b0a3;
 
   --accent: #2f6f4f;
   --accent-ink: #ffffff;
@@ -640,58 +646,143 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 
 /* ---- piano ------------------------------------------------------------- */
 
-.piano {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: clamp(4px, 0.8vw, 8px);
+/*
+ * An instrument, not a row of buttons.
+ *
+ * The first version of this had eight white rectangles side by side and read
+ * as a toolbar, because what makes a keyboard recognisable is not the white
+ * keys -- it is the two-then-three grouping of the black ones sitting on top
+ * of them. A child knows the shape long before they know a note name, and
+ * putting the naturals in a row without it threw away the one piece of visual
+ * information the whole thing rests on.
+ *
+ * So: a case around the keys, a felt strip along the top where a real piano
+ * has one, white keys that are only rounded at the bottom because that is the
+ * end you can see, and black keys raised over them with a shadow. None of it
+ * is decoration -- each part is how you tell at a glance which end is which.
+ */
+.piano-case {
   width: min(760px, 100%);
   margin-inline: auto;
+  padding: clamp(8px, 1.4vw, 14px);
+  padding-top: 0;
+  border-radius: calc(var(--radius) * 0.8);
+  background: var(--piano-case);
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.22);
+  /* A phone cannot give thirteen keys a fair target, so the keyboard keeps its
+     minimum and scrolls inside the case rather than shrinking the black keys
+     to something a five-year-old cannot hit. */
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
 }
-/*
- * `.tv button` is class-plus-element and beats a lone class, so a bare
- * `.piano-key` had its height quietly replaced by the 48px control minimum and
- * the keyboard rendered as a row of stubs. Scoping to the parent wins the
- * cascade honestly rather than reaching for !important.
- */
-.piano .piano-key {
+.piano-keys {
+  position: relative;
+  display: flex;
+  min-width: 480px;
+  /* The felt strip. Real, in that it is the thing your eye uses to find the
+     top of the keys. */
+  border-top: clamp(5px, 0.9vw, 9px) solid var(--piano-felt);
+  border-radius: 3px 3px 0 0;
+}
+
+/* `.tv button` is class-plus-element and outranks a lone class, so these are
+   scoped to the parent -- otherwise every key silently takes the 48px control
+   minimum and the keyboard renders as a row of stubs. */
+.piano-keys .piano-key {
+  padding: 0;
+  min-height: 0;
+  min-width: 0;
+  transition:
+    background 80ms ease,
+    box-shadow 80ms ease,
+    transform 80ms ease;
+}
+
+.piano-keys .piano-key.white {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   align-items: center;
   gap: 2px;
-  /* Tall rather than square: a piano key is a shape a child recognises before
-     they can read either of the labels on it. */
-  min-height: clamp(150px, 32vh, 280px);
-  /* Grid items default to min-width:auto, which is their content -- "Dha" plus
-     padding -- so eight of them pushed the last key past the card edge. */
-  min-width: 0;
-  padding: 0 0 clamp(8px, 1.4vh, 16px);
-  border: 1px solid var(--edge);
-  border-radius: 0 0 var(--radius) var(--radius);
-  background: var(--card);
-  transition: background 90ms ease, transform 90ms ease;
+  height: clamp(170px, 34vh, 300px);
+  padding-bottom: clamp(8px, 1.4vh, 16px);
+  background: linear-gradient(180deg, #f7f5f1 0%, #fffefc 22%, #f2efe8 100%);
+  color: #2b2722;
+  border: 1px solid var(--piano-edge);
+  /* Seams between keys, not doubled lines: each key draws its right edge and
+     the first draws its left. Anchored on `:first-of-type` rather than
+     `:last-of-type` because the black keys are rendered after the white ones,
+     so the last button in here is never a white key and that selector matches
+     nothing at all. */
+  border-left-width: 0;
+  border-radius: 0 0 6px 6px;
 }
-.piano .piano-key .sargam {
+.piano-keys .piano-key.white:first-of-type {
+  border-left-width: 1px;
+}
+.piano-keys .piano-key.white .sargam {
   font-weight: 700;
-  font-size: clamp(0.85rem, 1.6vw, 1.15rem);
+  font-size: clamp(0.85rem, 1.5vw, 1.1rem);
 }
-.piano .piano-key .note {
-  font-size: 0.78em;
-  color: var(--ink-soft);
+.piano-keys .piano-key.white .note {
+  font-size: 0.72em;
+  color: #6f675c;
 }
-.piano .piano-key.lit {
-  background: var(--accent);
+
+.piano-keys .piano-key.black {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 62%;
+  padding-bottom: clamp(5px, 0.9vh, 10px);
+  background: linear-gradient(180deg, #4a453e 0%, #1c1916 62%, #2e2a25 100%);
+  color: #efe9df;
+  border: 1px solid #14110f;
+  border-radius: 0 0 5px 5px;
+  box-shadow: 0 4px 7px rgb(0 0 0 / 0.42);
+}
+.piano-keys .piano-key.black .sargam {
+  font-size: clamp(0.5rem, 1.05vw, 0.78rem);
+  font-weight: 600;
+  opacity: 0.82;
+  letter-spacing: 0.02em;
+}
+/* Below this the black keys are too narrow to letter legibly, and a smudge
+   reads worse than nothing on a key a real piano leaves blank. */
+@media (max-width: 560px) {
+  .piano-keys .piano-key.black .sargam {
+    display: none;
+  }
+}
+
+/* Sounding. The key travels, the way one does. */
+.piano-keys .piano-key.white.lit {
+  background: linear-gradient(180deg, var(--accent) 0%, var(--accent) 100%);
   color: var(--accent-ink);
   transform: translateY(2px);
 }
-.piano .piano-key.lit .note {
+.piano-keys .piano-key.white.lit .note {
   color: var(--accent-ink);
 }
+.piano-keys .piano-key.black.lit {
+  background: linear-gradient(180deg, var(--accent) 0%, var(--accent) 100%);
+  color: var(--accent-ink);
+  transform: translateY(2px);
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.42);
+}
+
 /* Where to go next when following a tune. Outlined rather than filled, so it
-   cannot be mistaken for the key that just sounded. */
-.piano .piano-key.next {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 2px var(--accent);
+   is never mistaken for the key that just sounded. */
+.piano-keys .piano-key.next {
+  box-shadow: inset 0 0 0 3px var(--accent);
+}
+.piano-keys .piano-key.black.next {
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    0 4px 7px rgb(0 0 0 / 0.42);
 }
 
 /* ---- times tables ------------------------------------------------------ */
