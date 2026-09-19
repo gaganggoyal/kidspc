@@ -24,7 +24,8 @@
     "demo": "tsx tools/demo.ts",
     "preflight": "tsx tools/preflight.ts",
     "format": "prettier --write .",
-    "layout": "tsx tools/layout.ts"
+    "layout": "tsx tools/layout.ts",
+    "mail": "pnpm --filter @kidpc/api mail"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

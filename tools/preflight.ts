@@ -12,7 +12,7 @@
  * are not the examples from the README.
  */
 import { readFile } from 'node:fs/promises';
-import { lookup } from 'node:dns/promises';
+import { lookup, resolveMx, resolveTxt } from 'node:dns/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { loadConfig } from '../services/api/src/config.js';
@@ -179,6 +179,181 @@ if (resolved.size === 2 && new Set(resolved.values()).size === 2) {
     `${[...resolved.entries()].map(([d, a]) => `${d} -> ${a}`).join(', ')}. ` +
       'Intentional only if the app bundles are served separately.',
   );
+}
+
+// ---------------------------------------------------------------------------
+console.log('\nMail -- nothing is delivered without this');
+
+/*
+ * Mail was the one part of the system this tool could not see, and it is the
+ * part that fails silently by design: with no credentials the service holds
+ * the queue rather than dropping it, so everything looks healthy and no
+ * message ever arrives. A household that cannot receive a password-reset link
+ * cannot get back into their account.
+ */
+const MAIL_KEYS = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'] as const;
+const missingMail = MAIL_KEYS.filter((k) => !fileEnv[k]);
+
+if (missingMail.length > 0) {
+  record(
+    'fail',
+    'SMTP credentials are present',
+    `Empty or absent: ${missingMail.join(', ')}.\n        ` +
+      'Until all four are set the service queues mail and delivers none --\n        ' +
+      'which means no welcome email and no password reset.',
+  );
+} else {
+  record('pass', 'SMTP credentials are present', `${fileEnv.SMTP_HOST}:${fileEnv.SMTP_PORT ?? 465}`);
+
+  /*
+   * The from-address has to be at a domain we publish records for, or the
+   * next three checks are about a domain nobody is sending as.
+   */
+  const fromAddress = /<([^>]+)>/.exec(fileEnv.SMTP_FROM!)?.[1] ?? fileEnv.SMTP_FROM!;
+  const fromDomain = fromAddress.split('@')[1]?.trim().toLowerCase();
+  const site = fileEnv.KIDPC_DOMAIN?.toLowerCase();
+
+  if (!fromDomain) {
+    record('fail', 'SMTP_FROM is an address', `Got "${fileEnv.SMTP_FROM}". Use name@domain or "Name <name@domain>".`);
+  } else if (site && fromDomain !== site && !site.endsWith(`.${fromDomain}`)) {
+    record(
+      'warn',
+      'SMTP_FROM is at the site domain',
+      `Sending as ${fromDomain} from ${site}. Deliverable only if ${fromDomain} authorises this sender.`,
+    );
+  } else {
+    record('pass', 'SMTP_FROM is at the site domain', fromAddress);
+  }
+
+  if (!fileEnv.ORDERS_EMAIL) {
+    record(
+      'warn',
+      'ORDERS_EMAIL is set',
+      'Plan requests and contact-form messages fall back to SMTP_USER. Fine, if somebody reads that mailbox.',
+    );
+  } else {
+    record('pass', 'ORDERS_EMAIL is set', fileEnv.ORDERS_EMAIL);
+  }
+
+  if (fromDomain) await checkSenderDns(fromDomain);
+}
+
+/**
+ * The three records that decide whether a transactional message is read or
+ * binned.
+ *
+ * None of them is optional in practice. A domain with no SPF and no DKIM
+ * sending a password-reset link to a Gmail address is the exact profile of a
+ * phishing mail, and Google has required one or the other from bulk senders
+ * since 2024. This is the check that is easiest to skip and hardest to notice
+ * having skipped: mail is accepted by the relay, and lands in spam.
+ */
+async function checkSenderDns(domain: string) {
+  /*
+   * "No such record" and "the lookup did not complete" are different answers,
+   * and collapsing them is how this tool tells somebody to add an SPF record
+   * they already have. Caught while testing against a domain that certainly
+   * publishes one: a resolver timeout came back as an empty array and was
+   * reported as a FAIL.
+   *
+   * NXDOMAIN and ENODATA are real absences. Anything else -- a timeout, a
+   * refused query, a resolver that is not answering -- is an unknown, and an
+   * unknown is a warning that says so.
+   */
+  const ABSENT = new Set(['ENOTFOUND', 'ENODATA', 'NOTFOUND']);
+  type Lookup = { ok: true; records: string[] } | { ok: false; why: string };
+
+  async function txtAt(name: string): Promise<Lookup> {
+    try {
+      const rows = await resolveTxt(name);
+      return { ok: true, records: rows.map((parts) => parts.join('')) };
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code ?? 'UNKNOWN';
+      if (ABSENT.has(code)) return { ok: true, records: [] };
+      return { ok: false, why: code };
+    }
+  }
+
+  const root = await txtAt(domain);
+  if (!root.ok) {
+    record(
+      'warn',
+      `${domain} mail records could not be checked`,
+      `TXT lookup failed: ${root.why}. This says nothing about the records themselves --\n        ` +
+        'check from a machine with a working resolver before acting on it.',
+    );
+    return;
+  }
+  const flat = root.records;
+
+  const spf = flat.find((r) => r.toLowerCase().startsWith('v=spf1'));
+  if (!spf) {
+    record(
+      'fail',
+      `${domain} publishes an SPF record`,
+      'Without it, receiving servers have nothing saying this relay may send as you.\n        ' +
+        'Zoho: v=spf1 include:zoho.com ~all',
+    );
+  } else if (/[?+]all\s*$/.test(spf)) {
+    record('warn', `${domain} SPF is restrictive`, `Ends in "${/[?+~-]all/.exec(spf)?.[0]}" -- neutral or pass-all authorises anybody.`);
+  } else {
+    record('pass', `${domain} publishes an SPF record`, spf);
+  }
+
+  const dmarcLookup = await txtAt(`_dmarc.${domain}`);
+  const dmarc = dmarcLookup.ok
+    ? dmarcLookup.records.find((r) => r.toLowerCase().startsWith('v=dmarc1'))
+    : undefined;
+  if (!dmarc) {
+    record(
+      'warn',
+      `${domain} publishes a DMARC record`,
+      'Start at none and tighten once the reports are clean:\n        ' +
+        `v=DMARC1; p=none; rua=mailto:postmaster@${domain}`,
+    );
+  } else {
+    record('pass', `${domain} publishes a DMARC record`, dmarc);
+  }
+
+  /*
+   * DKIM cannot be found without knowing the selector, and the selector is
+   * chosen by the provider. Checking the handful anybody actually uses is
+   * worth more than not checking: a miss here is a warning, never a failure.
+   */
+  const selectors = ['zoho', 'zmail', 'default', 'google', 's1', 'k1', 'mail'];
+  const found: string[] = [];
+  for (const selector of selectors) {
+    const rows = await txtAt(`${selector}._domainkey.${domain}`);
+    if (rows.ok && rows.records.length > 0) found.push(selector);
+  }
+  if (found.length === 0) {
+    record(
+      'warn',
+      `${domain} publishes a DKIM key`,
+      `No key at any of the usual selectors (${selectors.join(', ')}).\n        ` +
+        'Either DKIM is not set up, or the selector is one this check does not know.',
+    );
+  } else {
+    record('pass', `${domain} publishes a DKIM key`, `selector: ${found.join(', ')}`);
+  }
+
+  // A domain that sends but cannot receive is a domain whose bounces and
+  // replies go nowhere -- including the reply to a support message.
+  const mx = await resolveMx(domain).catch((error) => {
+    const code = (error as NodeJS.ErrnoException).code ?? 'UNKNOWN';
+    return ABSENT.has(code) ? [] : null;
+  });
+  if (mx === null) {
+    record('warn', `${domain} can receive mail`, 'MX lookup did not complete.');
+  } else if (mx.length === 0) {
+    record(
+      'warn',
+      `${domain} can receive mail`,
+      'No MX record. Replies and bounces are undeliverable, and ORDERS_EMAIL at this domain would never arrive.',
+    );
+  } else {
+    record('pass', `${domain} can receive mail`, mx.map((m) => m.exchange).join(', '));
+  }
 }
 
 // ---------------------------------------------------------------------------

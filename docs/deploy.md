@@ -64,6 +64,119 @@ dig +short kidspc.online A @1.1.1.1        # must be your server, not 127.0.0.1
 dig +short apps.kidspc.online A @1.1.1.1
 ```
 
+## Mail
+
+Nothing is delivered until this is done, and the failure is silent by design:
+with no credentials the API queues messages rather than dropping them, so
+`/healthz` says `ok`, the queue grows, and no parent ever hears from us. That
+costs a welcome email today and a locked-out household tomorrow — the
+password-reset link is an email and nothing else.
+
+Check where you stand:
+
+```bash
+curl -s https://kidspc.online/healthz | grep -o '"mail":"[a-z]*"'
+# "mail":"log"   -> queued, nothing delivered
+# "mail":"smtp"  -> going out
+```
+
+### 1. A mailbox at the domain
+
+`SMTP_HOST` is already `smtp.zoho.com`, so these instructions assume Zoho; any
+provider works, and only the four settings at the end change.
+
+Zoho Mail, not ZeptoMail, because this domain needs to **receive** as well as
+send: `ORDERS_EMAIL` is where plan requests and contact-form messages land, and
+a reply to a support message has to go somewhere. ZeptoMail is send-only.
+
+1. Sign up at `zoho.com/mail` with **kidspc.online** as the domain.
+2. Verify ownership — Zoho gives you a TXT record to add at BigRock.
+3. Create the mailbox. `hello@kidspc.online` is the obvious one; it is both
+   the sender and the address a parent replies to.
+
+**Check the plan allows SMTP before paying for anything.** Zoho's free tier has
+at times excluded IMAP/POP/SMTP access, leaving webmail only — which would let
+you read mail and not send any from here. If the free plan does not include
+SMTP, Mail Lite is the cheapest that does.
+
+### 2. DNS, which is most of the work
+
+Four records at BigRock. Skipping them does not make mail fail; it makes mail
+arrive in spam, which is worse because it looks like it worked.
+
+| Type | Host | Value | Why |
+|---|---|---|---|
+| MX | `@` | `mx.zoho.com` (priority 10) | Receiving. Add `mx2` / `mx3` as Zoho lists them. |
+| TXT | `@` | `v=spf1 include:zoho.com ~all` | Says this relay may send as you. |
+| TXT | `zoho._domainkey` | *the key Zoho generates* | Signs each message. Zoho gives you the exact value. |
+| TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:postmaster@kidspc.online` | Tells receivers what to do when the first two disagree, and sends you reports. |
+
+Start DMARC at `p=none` and read the reports for a fortnight before tightening
+to `quarantine`. Going straight to `p=reject` with a misconfigured SPF means
+your own password-reset mail is rejected and nobody can tell you.
+
+Since 2024 Google and Yahoo require SPF or DKIM from anyone sending them any
+volume at all. A domain with neither, sending a link that says "click here to
+reset your password", is the exact shape of a phishing message.
+
+### 3. Four settings
+
+In `/root/kidspc/.env.production`:
+
+```bash
+SMTP_HOST=smtp.zoho.com
+SMTP_PORT=465          # implicit TLS. 587 is STARTTLS and needs SMTP_SECURE=0
+SMTP_SECURE=1
+SMTP_USER=hello@kidspc.online
+SMTP_PASS=             # an app-specific password, not the account password
+SMTP_FROM=Online Kids PC <hello@kidspc.online>
+ORDERS_EMAIL=hello@kidspc.online
+```
+
+`SMTP_PASS` must be an **app-specific password** if the account has two-factor
+authentication on it, which it should. Zoho: Settings → Security → App
+Passwords. The account password is rejected over SMTP and the error says
+`Invalid login`, which sounds like a typo and is not.
+
+Then restart, and the held queue drains within a minute:
+
+```bash
+cd /root/kidspc/infra
+docker compose --env-file /root/kidspc/.env.production \
+  -f docker-compose.shared-edge.yml up -d --force-recreate api
+```
+
+### 4. Prove it
+
+Each step separately, because "mail does not work" has four different causes
+that look identical in the logs:
+
+```bash
+pnpm preflight /root/kidspc/.env.production   # settings and DNS
+docker compose exec api pnpm mail check       # can we authenticate?
+docker compose exec api pnpm mail send you@gmail.com
+docker compose exec api pnpm orders queue     # anything stuck, and why
+```
+
+Use a Gmail address for the send test, not one at your own domain: mail from a
+domain to itself often skips the checks you are trying to verify. **Open the
+message and look at the headers** — `SPF: PASS` and `DKIM: PASS` are the point
+of step 2. Landing in spam means delivery worked and DNS did not.
+
+Last, the real thing: ask for a reset at `/forgot` and follow the link that
+arrives.
+
+### Until it works
+
+The reset link exists in the outbox and nowhere else, so it can be read out:
+
+```bash
+docker compose exec api pnpm mail link
+```
+
+That is a support workaround, not a plan. It requires shell access on the
+production host for every locked-out parent.
+
 ## Start in lite mode
 
 `DEPLOYMENT_MODE=lite` serves the six local activities — Paint, Typing Garden,
@@ -176,3 +289,7 @@ refused to start at all.
 6. **App bundles are not in this repo.** `apps.kidspc.online` will 404 until
    Scratch, Blockly and the research shell are built into the `app-bundles`
    volume. Every `web` catalogue entry depends on it.
+7. **No email verification at registration.** An address is taken on trust, so
+   a typo produces an account whose owner can never reset its password. The
+   reset flow makes this worse rather than better: recovery now exists and
+   still depends on an address nobody checked.
