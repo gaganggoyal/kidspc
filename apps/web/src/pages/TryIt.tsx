@@ -11,6 +11,7 @@ import {
 import { DemoShell } from '../play/DemoShell';
 import { GAMES } from '../play/games';
 import { glyphFor } from './Launcher';
+import { ScreenSize } from './ScreenSize';
 import { SiteFooter, SiteHeader } from './SiteChrome';
 
 /**
@@ -62,6 +63,11 @@ export function TryIt() {
           All {activities.length} activities, free, with no account and nothing to install. Nothing
           your child draws, writes or types here is uploaded — it stays in this browser.
         </p>
+        {/* The preview is how most people meet this on a television, and it is
+            the one route with no sign-in and no profile picker -- so without
+            this, a visitor on a TV had no way to reach the size control at
+            all and was stuck with whatever detection guessed. */}
+        <ScreenSize />
       </section>
 
       {challengeApp && (
