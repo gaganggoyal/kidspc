@@ -71,6 +71,16 @@ export interface CatalogApp {
   category: AppCategory;
   /** Lowest band this app is offered to; higher bands inherit it. */
   minBand: AgeBand;
+  /**
+   * The icon a child picks this out by.
+   *
+   * Per app rather than per category, because five activities are now filed
+   * under `learn` and a launcher showing the same brain five times is one a
+   * child has to read rather than recognise -- which defeats the point of an
+   * icon on a screen three metres away. The category glyph remains the
+   * fallback, so a new entry is never iconless.
+   */
+  glyph?: string;
   launch: LaunchSpec;
   /** Extra origins this app needs, beyond its own URL. */
   extraOrigins?: string[];
@@ -95,6 +105,7 @@ export const CATALOG: readonly CatalogApp[] = [
     tagline: 'Draw, stamp and colour',
     category: 'create',
     minBand: 'explorer',
+    glyph: '🎨',
     launch: { kind: 'local', route: '/play/paint' },
     memoryHintMib: 0,
   },
@@ -104,6 +115,7 @@ export const CATALOG: readonly CatalogApp[] = [
     tagline: 'Grow a plant by finding the right keys',
     category: 'type',
     minBand: 'explorer',
+    glyph: '🌱',
     launch: { kind: 'local', route: '/play/typing' },
     memoryHintMib: 0,
   },
@@ -113,6 +125,7 @@ export const CATALOG: readonly CatalogApp[] = [
     tagline: 'Stack blocks to guide the robot home',
     category: 'code',
     minBand: 'explorer',
+    glyph: '🤖',
     launch: { kind: 'local', route: '/play/blocks' },
     memoryHintMib: 0,
   },
@@ -122,7 +135,38 @@ export const CATALOG: readonly CatalogApp[] = [
     tagline: 'Sharpen your maths, one problem at a time',
     category: 'learn',
     minBand: 'explorer',
+    glyph: '⚡️',
     launch: { kind: 'local', route: '/play/numbers' },
+    memoryHintMib: 0,
+  },
+  {
+    id: 'memory',
+    name: 'Memory Match',
+    tagline: 'Turn the cards over and find the pairs',
+    category: 'learn',
+    minBand: 'explorer',
+    glyph: '🃏',
+    launch: { kind: 'local', route: '/play/memory' },
+    memoryHintMib: 0,
+  },
+  {
+    id: 'spell',
+    name: 'Spell It',
+    tagline: 'Put the letters back in the right order',
+    category: 'learn',
+    minBand: 'explorer',
+    glyph: '🔤',
+    launch: { kind: 'local', route: '/play/spell' },
+    memoryHintMib: 0,
+  },
+  {
+    id: 'piano',
+    name: 'Piano',
+    tagline: 'Sa Re Ga Ma, and tunes to play along to',
+    category: 'create',
+    minBand: 'explorer',
+    glyph: '🎹',
+    launch: { kind: 'local', route: '/play/piano' },
     memoryHintMib: 0,
   },
   {
@@ -131,6 +175,7 @@ export const CATALOG: readonly CatalogApp[] = [
     tagline: 'A hundred small activities',
     category: 'learn',
     minBand: 'explorer',
+    glyph: '🧩',
     launch: { kind: 'native', exec: 'gcompris-qt' },
     memoryHintMib: 320,
   },
@@ -142,7 +187,28 @@ export const CATALOG: readonly CatalogApp[] = [
     tagline: 'Write stories and homework',
     category: 'office',
     minBand: 'builder',
+    glyph: '📖',
     launch: { kind: 'local', route: '/play/writer' },
+    memoryHintMib: 0,
+  },
+  {
+    id: 'tables',
+    name: 'Times Tables',
+    tagline: 'One table at a time, until you know it',
+    category: 'learn',
+    minBand: 'builder',
+    glyph: '🧮',
+    launch: { kind: 'local', route: '/play/tables' },
+    memoryHintMib: 0,
+  },
+  {
+    id: 'india',
+    name: 'Know India',
+    tagline: 'States, capitals and places worth seeing',
+    category: 'learn',
+    minBand: 'builder',
+    glyph: '🇮🇳',
+    launch: { kind: 'local', route: '/play/india' },
     memoryHintMib: 0,
   },
   {
@@ -151,6 +217,7 @@ export const CATALOG: readonly CatalogApp[] = [
     tagline: 'Build your own games and stories',
     category: 'code',
     minBand: 'builder',
+    glyph: '🐱',
     launch: { kind: 'web', path: '/scratch/', selfHosted: true },
     memoryHintMib: 520,
   },
@@ -160,6 +227,7 @@ export const CATALOG: readonly CatalogApp[] = [
     tagline: 'Keep your projects tidy',
     category: 'office',
     minBand: 'builder',
+    glyph: '📁',
     launch: { kind: 'native', exec: 'pcmanfm' },
     memoryHintMib: 120,
   },
@@ -169,6 +237,7 @@ export const CATALOG: readonly CatalogApp[] = [
     tagline: 'Search a small, safe corner of the web',
     category: 'research',
     minBand: 'builder',
+    glyph: '🔎',
     launch: { kind: 'web', path: '/research/', selfHosted: true },
     extraOrigins: [
       'https://kids.britannica.com',
@@ -186,6 +255,7 @@ export const CATALOG: readonly CatalogApp[] = [
     tagline: 'HTML, CSS and JavaScript with live preview',
     category: 'code',
     minBand: 'coder',
+    glyph: '💻',
     launch: { kind: 'local', route: '/play/code' },
     memoryHintMib: 0,
   },
@@ -195,6 +265,7 @@ export const CATALOG: readonly CatalogApp[] = [
     tagline: 'Write and run real Python',
     category: 'code',
     minBand: 'coder',
+    glyph: '🐍',
     launch: { kind: 'native', exec: 'thonny' },
     memoryHintMib: 420,
   },
@@ -204,6 +275,7 @@ export const CATALOG: readonly CatalogApp[] = [
     tagline: 'Documents, slides and spreadsheets',
     category: 'office',
     minBand: 'coder',
+    glyph: '📄',
     launch: { kind: 'native', exec: 'libreoffice', args: ['--writer'] },
     memoryHintMib: 640,
   },

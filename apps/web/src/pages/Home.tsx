@@ -24,7 +24,7 @@ import { currentReferral } from '../referral';
 import { SiteFooter, SiteHeader } from './SiteChrome';
 import { HowItWorks } from './HowItWorks';
 import { PlanRequest } from './PlanRequest';
-import { CATEGORY_GLYPH } from './Launcher';
+import { glyphFor } from './Launcher';
 
 /**
  * The public home page.
@@ -122,7 +122,7 @@ export function Home() {
               <div className="tv-grid">
                 {activities.slice(0, 6).map((app) => (
                   <div className="tv-tile" key={app.id}>
-                    <span className="glyph">{CATEGORY_GLYPH[app.category] ?? '✨'}</span>
+                    <span className="glyph">{glyphFor(app)}</span>
                     <span>{app.name}</span>
                   </div>
                 ))}
@@ -198,7 +198,7 @@ export function Home() {
           {activities.map((app) => (
             <Link className="promo-tile try-tile" key={app.id} to={`/try/${app.id}`}>
               <span className="glyph" aria-hidden="true">
-                {CATEGORY_GLYPH[app.category] ?? '✨'}
+                {glyphFor(app)}
               </span>
               <h3>{app.name}</h3>
               <p className="muted">{app.tagline}</p>

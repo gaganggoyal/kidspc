@@ -1,10 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { challengeForWeek } from '@kidpc/shared';
+import { challengeForWeek, findApp } from '@kidpc/shared';
 import { ApiError, type HomeDto, type SessionDto, api, setChildToken } from '../api';
 import { useAutoFocusFirst, useSpatialNavigation } from '../tv';
 import { AVATARS } from './Household';
 import { Welcome } from './Welcome';
+
+/**
+ * The icon for an app, preferring its own over its category's.
+ *
+ * Read from the catalogue on the client rather than added to the API response:
+ * the catalogue already ships in the bundle, and a glyph is presentation, not
+ * something the server should have an opinion about.
+ */
+export function glyphFor(app: { id: string; category: string }): string {
+  return findApp(app.id)?.glyph ?? CATEGORY_GLYPH[app.category] ?? '✨';
+}
 
 export const CATEGORY_GLYPH: Record<string, string> = {
   create: '🎨',
@@ -226,7 +237,7 @@ export function Launcher() {
               disabled={!home.canStart || starting !== null}
             >
               <span className="glyph" aria-hidden="true">
-                {CATEGORY_GLYPH[app.category] ?? '✨'}
+                {glyphFor(app)}
               </span>
               <span className="name">{app.name}</span>
               <span className="tagline">{app.tagline}</span>

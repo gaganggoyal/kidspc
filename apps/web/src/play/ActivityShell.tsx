@@ -30,7 +30,7 @@ const HEARTBEAT_MS = 30_000;
  *
  * It owns the session -- starting it, keeping it alive, showing the countdown,
  * and ending it when time runs out -- so an activity is only ever a game. That
- * separation is what stops six activities each inventing their own slightly
+ * separation is what stops every activity inventing its own slightly
  * wrong idea of when a child's time is up.
  */
 export function ActivityShell({

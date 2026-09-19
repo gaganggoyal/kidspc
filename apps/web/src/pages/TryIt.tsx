@@ -10,7 +10,7 @@ import {
 } from '@kidpc/shared';
 import { DemoShell } from '../play/DemoShell';
 import { GAMES } from '../play/games';
-import { CATEGORY_GLYPH } from './Launcher';
+import { glyphFor } from './Launcher';
 import { SiteFooter, SiteHeader } from './SiteChrome';
 
 /**
@@ -59,8 +59,8 @@ export function TryIt() {
       <section className="home-section try-head">
         <h1>Try it now</h1>
         <p className="lede">
-          All six activities, free, with no account and nothing to install. Nothing your child
-          draws, writes or types here is uploaded — it stays in this browser.
+          All {activities.length} activities, free, with no account and nothing to install. Nothing
+          your child draws, writes or types here is uploaded — it stays in this browser.
         </p>
       </section>
 
@@ -84,7 +84,7 @@ export function TryIt() {
           {activities.map((app) => (
             <Link className="promo-tile try-tile" key={app.id} to={`/try/${app.id}`}>
               <span className="glyph" aria-hidden="true">
-                {CATEGORY_GLYPH[app.category] ?? '✨'}
+                {glyphFor(app)}
               </span>
               <h3>{app.name}</h3>
               <p className="muted">{app.tagline}</p>

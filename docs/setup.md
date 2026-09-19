@@ -12,7 +12,7 @@ Current state of https://kidspc.online:
 | | |
 |---|---|
 | Site | live, TLS valid, renews itself |
-| Free preview | working — anyone can play all six activities at /try, no account |
+| Free preview | working — anyone can play all eleven activities at /try, no account |
 | Weekly challenge | working — a new prompt every Monday, no server involved |
 | Parent accounts | working — anyone can register today |
 | Child profiles | **blocked** — no way to verify a parent (step 5) |

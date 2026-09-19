@@ -84,7 +84,7 @@ export const PLANS: readonly Plan[] = [
   {
     id: 'lite',
     name: 'Lite',
-    tagline: 'The household: a profile each, and limits that hold.',
+    tagline: 'Everything that runs in the browser, for every child in the house.',
     listPriceInr: 999,
     offerPriceInr: 299,
     includedChildren: 2,
@@ -93,9 +93,11 @@ export const PLANS: readonly Plan[] = [
     extras: [
       'A profile for each child, with their own PIN and their own progress',
       'Every parent control: daily and weekly limits, curfews, per-app permissions',
+      'Reading, spelling, times tables, music and the map of India — not only games',
+      'A new challenge every week, and a certificate to show for it',
       'Runs in the browser your TV, laptop or tablet already has',
       'Works with the remote alone — no keyboard needed to get started',
-      'Progress and personal bests for each child',
+      'No adverts, no chat, and nobody who can reach your child',
     ],
   },
   {

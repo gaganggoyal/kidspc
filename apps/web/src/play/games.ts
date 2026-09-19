@@ -1,5 +1,10 @@
 import type { ActivityApi } from './ActivityShell';
 import { BlocksGame } from './Blocks';
+import { IndiaGame } from './India';
+import { MemoryGame } from './Memory';
+import { PianoKeyboard } from './Piano';
+import { SpellGame } from './Spell';
+import { TablesGame } from './Tables';
 import { Playground } from './Code';
 import { NumbersGame } from './Numbers';
 import { PaintCanvas } from './Paint';
@@ -28,4 +33,9 @@ export const GAMES: Record<string, Game> = {
   numbers: NumbersGame,
   writer: WriterPad,
   code: Playground,
+  memory: MemoryGame,
+  spell: SpellGame,
+  piano: PianoKeyboard,
+  tables: TablesGame,
+  india: IndiaGame,
 };

@@ -22,6 +22,11 @@ const PITCH: Record<string, { glyph: string; line: string }> = {
   numbers: { glyph: '⚡️', line: 'Beat your best at maths' },
   writer: { glyph: '📖', line: 'Write a story of your own' },
   code: { glyph: '💻', line: 'Make a real web page' },
+  memory: { glyph: '🃏', line: 'Find the matching pairs' },
+  spell: { glyph: '🔤', line: 'Put the letters in order' },
+  piano: { glyph: '🎹', line: 'Play Sa Re Ga Ma' },
+  tables: { glyph: '✖️', line: 'Learn your times tables' },
+  india: { glyph: '🗺️', line: 'Travel around India' },
   scratch: { glyph: '🐱', line: 'Build a game in Scratch' },
   gcompris: { glyph: '🧩', line: 'A hundred little games' },
 };

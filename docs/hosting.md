@@ -67,7 +67,7 @@ Density is everything, and density needs large hosts.
 
 ## Lite mode changes the answer
 
-Six of the twelve activities need no desktop at all. They run in the client, so
+Eleven of the seventeen activities need no desktop at all. They run in the client, so
 the server's cost per concurrent child is a database row and one request every
 thirty seconds.
 

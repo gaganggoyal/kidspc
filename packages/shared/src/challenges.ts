@@ -44,7 +44,7 @@ export interface Challenge {
 }
 
 /**
- * Twenty prompts, so nothing repeats within about five months.
+ * Twenty-six prompts, so nothing repeats within six months.
  *
  * Weighted towards the activities every age band can open -- paint, typing,
  * blocks and numbers -- because a challenge a seven-year-old cannot attempt is
@@ -196,6 +196,51 @@ export const CHALLENGES: readonly Challenge[] = [
     prompt: 'Type one full sentence — capital letter, full stop — as fast as you can.',
     appId: 'typing',
     grownUp: 'Punctuation keys, which are the ones every typing game quietly skips.',
+  },
+
+  // Added with the five activities that widened the youngest band. The list is
+  // still weighted towards what a five-year-old can open on their own.
+  {
+    id: 'biggest-board',
+    title: 'The biggest board',
+    prompt: 'Clear the largest memory board you can, and count how many tries it took.',
+    appId: 'memory',
+    grownUp: 'Holding several things in mind at once — the skill under mental arithmetic.',
+  },
+  {
+    id: 'ten-words',
+    title: 'Ten words, no help',
+    prompt: 'Spell ten words in a row without asking anybody.',
+    appId: 'spell',
+    grownUp: 'Letter order and sounding out, which is most of early reading.',
+  },
+  {
+    id: 'sa-re-ga-ma',
+    title: 'Sa Re Ga Ma',
+    prompt: 'Learn to play the scale from memory, then play it for somebody.',
+    appId: 'piano',
+    grownUp: 'The scale every Indian music lesson starts from, learnt by ear.',
+  },
+  {
+    id: 'twinkle',
+    title: 'A tune all the way through',
+    prompt: 'Play Twinkle Twinkle from start to finish without stopping.',
+    appId: 'piano',
+    grownUp: 'Keeping a sequence going under pressure — harder than it looks.',
+  },
+  {
+    id: 'one-table',
+    title: 'One table, cold',
+    prompt: 'Fill in every square of one times table, from memory.',
+    appId: 'tables',
+    grownUp: 'A whole table recalled rather than worked out. The difference shows in exams.',
+  },
+  {
+    id: 'ten-capitals',
+    title: 'Ten capitals',
+    prompt: 'Get ten capitals right in a row, then ask a grown-up to try.',
+    appId: 'india',
+    grownUp: 'Class 4 and 5 social studies, and usually a draw against the adult.',
   },
 ];
 

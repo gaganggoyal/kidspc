@@ -531,6 +531,211 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   opacity: 0.45;
 }
 
+/*
+ * Answers that are words rather than numbers.
+ *
+ * Four state names do not fit the numeric grid: "Arunachal Pradesh" in a cell
+ * sized for "48" either wraps to three lines or overflows. One column per row
+ * below the fold-out width, two above it, and the text is allowed to wrap
+ * rather than being clipped.
+ */
+.answer-grid.wide {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+}
+.answer-grid.wide .answer {
+  font-size: 1.15em;
+  min-height: 72px;
+  line-height: 1.25;
+  white-space: normal;
+  hyphens: auto;
+}
+
+/* ---- memory ------------------------------------------------------------ */
+
+.memory-board {
+  display: grid;
+  gap: clamp(6px, 1vw, 12px);
+  width: min(60vh, 100%);
+  margin-inline: auto;
+}
+.memory-board .memory-card {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  /* The glyph is the whole card, so it scales with the card and not with the
+     page: on a five-column board the same 2em would leave four fifths of each
+     card empty. */
+  /* Sized from the viewport rather than the card: a container query here would
+     have to resolve against the card the cards are inside, and the simple form
+     is both correct and legible on a television. */
+  font-size: clamp(2rem, 4.5vw, 3.4rem);
+  padding: 0;
+  min-height: 0;
+  min-width: 0;
+  border: 1px solid var(--edge);
+  background: var(--surface-2);
+  color: var(--ink-soft);
+  transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+}
+.memory-card.up {
+  background: var(--card);
+  color: var(--ink);
+}
+.memory-card.matched {
+  background: var(--wash);
+  border-color: var(--accent);
+  opacity: 1;
+}
+.memory-card:disabled {
+  cursor: default;
+}
+
+/* ---- spell ------------------------------------------------------------- */
+
+.spell-slots {
+  display: flex;
+  gap: clamp(6px, 1.2vw, 12px);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.spell-slots .slot {
+  min-width: 1.5em;
+  min-height: 1.9em;
+  display: grid;
+  place-items: center;
+  font-size: clamp(1.6rem, 4vw, 2.6rem);
+  font-weight: 700;
+  text-transform: uppercase;
+  /* The empty slots are the instruction -- they are how a child knows how many
+     letters are coming -- so the underline is a control edge, not a divider. */
+  border-bottom: 4px solid var(--edge);
+}
+.spell-slots .slot.filled {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+@keyframes spell-wobble {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+.spell-slots.wobble {
+  animation: spell-wobble 280ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spell-slots.wobble { animation: none; }
+}
+.spell-letters {
+  display: flex;
+  gap: clamp(8px, 1.4vw, 14px);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.letter-key {
+  min-width: max(56px, calc(var(--font) * 2.8));
+  font-size: 1.5em;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* ---- piano ------------------------------------------------------------- */
+
+.piano {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: clamp(4px, 0.8vw, 8px);
+  width: min(760px, 100%);
+  margin-inline: auto;
+}
+/*
+ * `.tv button` is class-plus-element and beats a lone class, so a bare
+ * `.piano-key` had its height quietly replaced by the 48px control minimum and
+ * the keyboard rendered as a row of stubs. Scoping to the parent wins the
+ * cascade honestly rather than reaching for !important.
+ */
+.piano .piano-key {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px;
+  /* Tall rather than square: a piano key is a shape a child recognises before
+     they can read either of the labels on it. */
+  min-height: clamp(150px, 32vh, 280px);
+  /* Grid items default to min-width:auto, which is their content -- "Dha" plus
+     padding -- so eight of them pushed the last key past the card edge. */
+  min-width: 0;
+  padding: 0 0 clamp(8px, 1.4vh, 16px);
+  border: 1px solid var(--edge);
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: var(--card);
+  transition: background 90ms ease, transform 90ms ease;
+}
+.piano .piano-key .sargam {
+  font-weight: 700;
+  font-size: clamp(0.85rem, 1.6vw, 1.15rem);
+}
+.piano .piano-key .note {
+  font-size: 0.78em;
+  color: var(--ink-soft);
+}
+.piano .piano-key.lit {
+  background: var(--accent);
+  color: var(--accent-ink);
+  transform: translateY(2px);
+}
+.piano .piano-key.lit .note {
+  color: var(--accent-ink);
+}
+/* Where to go next when following a tune. Outlined rather than filled, so it
+   cannot be mistaken for the key that just sounded. */
+.piano .piano-key.next {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* ---- times tables ------------------------------------------------------ */
+
+.tables-map {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: min(520px, 100%);
+  margin-inline: auto;
+}
+.tables-row {
+  display: grid;
+  grid-template-columns: 2.2em repeat(12, 1fr);
+  gap: 3px;
+  align-items: center;
+}
+.tables-label {
+  font-size: 0.72em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+  text-align: right;
+  padding-right: 4px;
+}
+.tables-cell {
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.tables-cell.got {
+  background: var(--accent);
+  border-color: transparent;
+}
+
+/* ---- know india -------------------------------------------------------- */
+
+.india-prompt {
+  margin: 0;
+  font-size: clamp(1.1rem, 2.4vw, 1.6rem);
+  text-wrap: balance;
+  max-width: 24ch;
+}
+
 /* ---- blocks ------------------------------------------------------------ */
 
 /*

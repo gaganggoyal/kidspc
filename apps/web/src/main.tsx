@@ -20,6 +20,11 @@ import { Blocks } from './play/Blocks';
 import { Numbers } from './play/Numbers';
 import { Writer } from './play/Writer';
 import { Code } from './play/Code';
+import { Memory } from './play/Memory';
+import { Spell } from './play/Spell';
+import { Piano } from './play/Piano';
+import { Tables } from './play/Tables';
+import { India } from './play/India';
 
 /**
  * Local activities, keyed by the route the catalogue declares. Adding an entry
@@ -33,6 +38,11 @@ const ACTIVITIES: Array<[string, React.ComponentType]> = [
   ['/play/numbers', Numbers],
   ['/play/writer', Writer],
   ['/play/code', Code],
+  ['/play/memory', Memory],
+  ['/play/spell', Spell],
+  ['/play/piano', Piano],
+  ['/play/tables', Tables],
+  ['/play/india', India],
 ];
 
 function useTokens() {
