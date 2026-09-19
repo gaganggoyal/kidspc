@@ -221,13 +221,59 @@ button:active:not(:disabled) { transform: scale(0.98); }
 /*
  * Focus is the primary interface on a TV -- there is no cursor to tell you
  * where you are -- so it is loud on purpose and never removed.
+ *
+ * The child's screens deliberately key off `:focus`, not `:focus-visible`,
+ * and that is not laziness. `:focus-visible` fails here twice over:
+ *
+ * 1. **It does not exist on the browsers this runs on.** The selector shipped
+ *    in Chromium 86. Samsung Tizen and LG webOS sets run much older forks, and
+ *    a selector a browser does not understand matches nothing -- so on a large
+ *    share of actual televisions there was no focus ring anywhere, on any
+ *    screen, and the remote became guesswork.
+ * 2. **It is a heuristic about human intent, and ours is not a human hand.**
+ *    Spatial navigation moves focus by calling `.focus()` from script, and an
+ *    engine that sees a programmatic focus with no recent key event in the
+ *    right shape may decline to call it "visible".
+ *
+ * There is no mouse on a television, so there is nothing to protect from a
+ * ring that is always on. The marketing pages keep the heuristic, because a
+ * laptop visitor with a mouse is exactly who it was designed for.
  */
 :focus-visible {
   outline: none;
   box-shadow: var(--focus);
   border-radius: var(--radius);
 }
-.tv :focus-visible { transform: scale(1.04); }
+/*
+ * A heavier ring than the laptop gets, plus a shadow to lift it off the page.
+ * Eight pixels of outline is plenty at arm's length and nearly nothing across
+ * a living room, which is the distance this surface is actually read at.
+ */
+.tv {
+  /* `--surface` is the card these controls sit on. Referring to a token that
+     does not exist -- there is no `--card` -- makes the whole declaration
+     invalid at computed-value time and silently removes the ring altogether,
+     which is how this was caught: by looking, after the computed style said it
+     was fine. */
+  --focus: 0 0 0 4px var(--surface), 0 0 0 10px var(--accent), 0 10px 24px rgb(0 0 0 / 0.28);
+}
+.tv :focus {
+  outline: none;
+  box-shadow: var(--focus);
+  border-radius: var(--radius);
+  /* A ring alone is a thin thing at three metres; the lift is what your eye
+     actually catches when it moves across the screen. */
+  transform: scale(1.04);
+  /* Lifted clear of its neighbours, so the ring is never drawn underneath the
+     button sitting next to it. */
+  position: relative;
+  z-index: 3;
+}
+/* The keyboard scrolls inside its case, which clips: a key scaled up at either
+   end would have its ring sliced off by the case edge. */
+.piano-keys :focus {
+  transform: none;
+}
 
 label { display: block; font-weight: 600; margin-bottom: 6px; }
 
@@ -363,7 +409,7 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-  .tv :focus-visible { transform: none; }
+  .tv :focus { transform: none; }
   /* The welcome cards fade in after a beat; with motion reduced they must be
      present immediately rather than stuck at zero opacity. */
   .welcome-cards { opacity: 1 !important; transform: none !important; }

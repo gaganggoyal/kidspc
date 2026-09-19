@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { challengeForWeek } from '@kidpc/shared';
 import type { ActivityApi } from './ActivityShell';
 import { previewAchievements, previewBest, recordPreviewBest } from './previewProgress';
-import { useBackKey, useSpatialNavigation } from '../tv';
+import { useAutoFocusFirst, useBackKey, useSpatialNavigation } from '../tv';
 import { ShowAGrownUp } from '../pages/ShowAGrownUp';
 
 /**
@@ -69,6 +69,16 @@ export function DemoShell({
    */
   useSpatialNavigation();
 
+  /*
+   * Land somewhere on entry.
+   *
+   * Only claims focus when nothing has it, and child effects run before parent
+   * ones, so an activity that focuses its own control still wins. This is for
+   * the ones that do not -- Paint, Piano, Block Puzzles -- where a remote
+   * otherwise arrived at a screen with no focus at all and nothing to move from.
+   */
+  useAutoFocusFirst([appId]);
+
 
   // Stable for the life of the mount, for the reason ActivityShell's is: the
   // games treat this as a dependency, and a new object each render makes their
@@ -94,7 +104,7 @@ export function DemoShell({
         </div>
       </header>
 
-      <main className="activity-body">{children(activityApi)}</main>
+      <main className="activity-body" data-focus-root>{children(activityApi)}</main>
 
       {inviting && !dismissed && (
         <aside className="invite-bar no-print">

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, type SessionDto, api } from '../api';
 import { useSessionClock } from '../session';
-import { useBackKey, useSpatialNavigation } from '../tv';
+import { useAutoFocusFirst, useBackKey, useSpatialNavigation } from '../tv';
 
 export type ProgressMetric =
   | 'score'
@@ -138,6 +138,16 @@ export function ActivityShell({
    */
   useSpatialNavigation();
 
+  /*
+   * Land somewhere on entry.
+   *
+   * Only claims focus when nothing has it, and child effects run before parent
+   * ones, so an activity that focuses its own control still wins. This is for
+   * the ones that do not -- Paint, Piano, Block Puzzles -- where a remote
+   * otherwise arrived at a screen with no focus at all and nothing to move from.
+   */
+  useAutoFocusFirst([appId]);
+
 
   /*
    * One object for the life of the mount.
@@ -193,7 +203,7 @@ export function ActivityShell({
         </span>
       </header>
 
-      <main className="activity-body">
+      <main className="activity-body" data-focus-root>
         {ending ? (
           <div className="stack" style={{ textAlign: 'center', maxWidth: '30ch', margin: 'auto' }}>
             <h2>{ending}</h2>

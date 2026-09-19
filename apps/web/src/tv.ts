@@ -72,10 +72,21 @@ export function useSpatialNavigation(enabled = true): void {
   }, [enabled]);
 }
 
-/** Move focus to the first focusable element once a screen has rendered. */
+/**
+ * Move focus to the first focusable element once a screen has rendered.
+ *
+ * "First" means first inside `[data-focus-root]` when a screen declares one,
+ * and first in the document otherwise. That distinction is the whole reason
+ * this comment exists: every activity puts a "← Back" button in its bar before
+ * the game in the markup, so searching the document landed a child on Back
+ * every single time they opened an activity. With no cursor on a television
+ * and -- on the older browsers -- no visible focus ring either, the first press
+ * of OK took them straight back out of the thing they had just opened.
+ */
 export function useAutoFocusFirst(deps: unknown[] = []): void {
   useEffect(() => {
-    const first = document.querySelector<HTMLElement>(FOCUSABLE);
+    const root: ParentNode = document.querySelector('[data-focus-root]') ?? document;
+    const first = root.querySelector<HTMLElement>(FOCUSABLE);
     // Only claim focus if nothing already has it, so we never yank the cursor
     // out from under someone mid-interaction.
     if (first && (!document.activeElement || document.activeElement === document.body)) {
