@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import './styles.css';
 import { getTokens, onTokenChange, tryRefresh } from './api';
 import { captureReferral } from './referral';
+import { applyScreenMode } from './display';
 import { Home } from './pages/Home';
 import { TryIt } from './pages/TryIt';
 import { About } from './pages/About';
@@ -165,6 +166,10 @@ function App() {
  * kept on their own device until, and unless, they place an order.
  */
 captureReferral();
+
+// Before anything renders: the size preference has to be on the document for
+// the first paint, or a television flashes the laptop scale on every load.
+applyScreenMode();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

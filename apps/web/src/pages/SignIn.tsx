@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ScreenSize } from './ScreenSize';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { PRODUCT_NAME, PRODUCT_TAGLINE } from '@kidpc/shared';
 import { ApiError, api, setGuardianToken } from '../api';
@@ -51,7 +52,14 @@ export function SignIn() {
   };
 
   return (
-    <div className="page" style={{ maxWidth: 460 }}>
+    /*
+     * `.tv` because this is very often the first thing a television shows, and
+     * it was the one screen in the signed-in flow without it -- so the hardest
+     * text in the product to read and the hardest field to type into were
+     * being rendered at the laptop scale on a set across the room.
+     */
+    <div className="tv">
+    <div className="page stack narrow">
       <Link to="/" className="small muted back-home">
         ← {PRODUCT_NAME}
       </Link>
@@ -130,10 +138,13 @@ export function SignIn() {
         </button>
       </form>
 
-      <p className="small muted" style={{ marginTop: 24 }}>
+      <ScreenSize />
+
+      <p className="small muted">
         {PRODUCT_NAME} does not track children or show them advertising. You can export or
         delete everything we hold at any time from the parent dashboard.
       </p>
+    </div>
     </div>
   );
 }

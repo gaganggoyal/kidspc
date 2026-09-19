@@ -25,6 +25,11 @@ import { extname, join, resolve } from 'node:path';
  *
  * Signed-in screens are not covered: reaching them needs a session, and a
  * layout check that requires a seeded database is one nobody runs.
+ *
+ * Every route is checked twice, at both type scales. The across-the-room scale
+ * runs the base font from 16px up to 40px, and a layout that survives the
+ * first does not automatically survive the second -- which is the whole reason
+ * a television is worth its own pass rather than a note in a comment.
  */
 const ROUTES = [
   '/',
@@ -111,12 +116,13 @@ const WIDTHS = ${JSON.stringify(WIDTHS)};
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const f = document.getElementById('f');
 
-async function check(route, width) {
+async function check(route, width, scale) {
+  try { localStorage.setItem('kidpc.screen', scale === 'big' ? 'big' : 'auto'); } catch {}
   f.style.width = width + 'px';
   f.style.height = Math.round(width * 0.66) + 'px';
   await new Promise((done) => {
     f.addEventListener('load', done, { once: true });
-    f.src = route + '?_=' + width;
+    f.src = route + '?_=' + width + '&s=' + scale;
   });
   await wait(120);
   const win = f.contentWindow, doc = f.contentDocument;
@@ -143,12 +149,14 @@ async function check(route, width) {
       }
     }
   }
-  return { route, width, over: Math.round(over), culprit };
+  return { route, width, scale, applied: doc.documentElement.dataset.screen, over: Math.round(over), culprit };
 }
 
 (async () => {
   const results = [];
-  for (const route of ROUTES) for (const width of WIDTHS) results.push(await check(route, width));
+  for (const scale of ['auto', 'big'])
+    for (const route of ROUTES)
+      for (const width of WIDTHS) results.push(await check(route, width, scale));
   const out = document.createElement('pre');
   out.id = 'results';
   out.textContent = JSON.stringify(results);
@@ -191,6 +199,10 @@ close();
 interface Result {
   route: string;
   width: number;
+  /** Which type scale was in force: the fluid one, or the television one. */
+  scale: 'auto' | 'big';
+  /** What the frame actually put on <html>; proves the pass was in force. */
+  applied?: string;
   over: number;
   culprit: { right: number; width: number; id: string } | null;
 }
@@ -204,15 +216,21 @@ const results: Result[] = JSON.parse(
   match[1]!.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>'),
 );
 
+const applied = new Set(results.map((r) => `${r.scale}->${r.applied}`));
+console.log('scales actually applied:', [...applied].join(', '));
 const failures = results.filter((r) => r.over > TOLERANCE);
-console.log(`${results.length} checks — ${ROUTES.length} routes × ${WIDTHS.length} widths\n`);
+console.log(
+  `${results.length} checks — ${ROUTES.length} routes × ${WIDTHS.length} widths × 2 type scales\n`,
+);
 if (failures.length === 0) {
-  console.log('Nothing overflows. Every public route fits every width from 320 to 2560.');
+  console.log(
+    'Nothing overflows. Every public route fits every width from 320 to 2560, at both scales.',
+  );
   process.exit(0);
 }
 for (const f of failures) {
   console.log(
-    `  ${f.route.padEnd(14)} ${String(f.width).padStart(5)}px  +${f.over}px  ${f.culprit?.id ?? '(unknown)'} ` +
+    `  ${f.route.padEnd(14)} ${String(f.width).padStart(5)}px ${f.scale.padEnd(5)} +${f.over}px  ${f.culprit?.id ?? '(unknown)'} ` +
       `(${f.culprit?.width}px wide, right edge at ${f.culprit?.right})`,
   );
 }

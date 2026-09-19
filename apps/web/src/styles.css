@@ -105,6 +105,22 @@ body {
  * in this scope is operated by a five-year-old, and their targets stay large
  * at every size.
  */
+/*
+ * The across-the-room scale, as tokens, because two different things turn it
+ * on: the media query below when it can recognise a television, and the
+ * viewer's own choice when it cannot. One set of numbers, two switches.
+ *
+ * Sized in vw so it follows whatever viewport the set reports -- and they vary
+ * wildly, the same 43-inch panel calling itself 1920, 1280 or 960 CSS pixels
+ * wide. A fixed 24px is a different physical size on each of those; 2.1vw is
+ * the same one.
+ */
+:root {
+  --tv-font: clamp(26px, 2.1vw, 40px);
+  --tv-pad: clamp(24px, 2vw, 40px);
+  --tv-radius: clamp(18px, 1.4vw, 26px);
+}
+
 .tv {
   /* 16px at 390, ~19px on a laptop, ~22px on a 1080p panel. */
   --font: clamp(16px, 0.42vw + 14px, 24px);
@@ -140,9 +156,9 @@ body {
  */
 @media (pointer: none), (min-width: 1400px) and (pointer: coarse) and (hover: none) {
   .tv {
-    --font: 24px;
-    --pad: 28px;
-    --radius: 20px;
+    --font: var(--tv-font);
+    --pad: var(--tv-pad);
+    --radius: var(--tv-radius);
     /* Fill the safe area: on a panel the margin is the overscan inset, and a
        narrow column three metres away wastes the screen. */
     --page-max: 1400px;
@@ -358,8 +374,19 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 .profile .avatar { font-size: 3.4em; line-height: 1; }
 .tv .profile .avatar { font-size: 5em; }
 
-.pinpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 300px; }
-.tv .pinpad { max-width: 420px; }
+/*
+ * Widths in `em`, not pixels.
+ *
+ * A column capped at 460px holds about sixty characters at the laptop scale
+ * and about eleven at the across-the-room one, so the very screens that needed
+ * to get bigger instead got the same narrow strip with enormous text wrapping
+ * inside it. Measured in `em` the column grows with the type, which is the
+ * only reading of "460px wide" that means the same thing on both.
+ */
+.narrow { max-width: 29em; }
+
+.pinpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 19em; }
+.tv .pinpad { max-width: 26em; }
 .pinpad button { font-size: 1.4em; }
 .pin-dots { display: flex; gap: 14px; justify-content: center; font-size: 2em; letter-spacing: 0.2em; }
 
@@ -423,6 +450,31 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
    query near the top of this file, because on every other device it is 4% of
    the viewport spent on nothing.
 */
+/*
+ * Chosen rather than detected.
+ *
+ * Last, so it beats the fluid scale regardless of where that sits in this
+ * file, and outside the media query so it works on exactly the sets the query
+ * cannot identify -- which, on the evidence of one living room, is the ones
+ * with a pointer-emulating remote.
+ */
+:root[data-screen='big'] .tv {
+  --font: var(--tv-font);
+  --pad: var(--tv-pad);
+  --radius: var(--tv-radius);
+  --page-max: 1400px;
+  --safe-x: 4vw;
+  --safe-y: 4vh;
+}
+
+/* The control itself, which has to be legible before it has been used. */
+.screen-size {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 /* Zero unless the media query above says this really is a television, where
    `max(var(--pad), 0)` simply falls through to the ordinary padding. */
 .tv {
@@ -520,7 +572,7 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
    device whose keyboard only appears for a focused field. */
 .typing-input {
   width: 100%;
-  max-width: 420px;
+  max-width: 26em;
   font-size: 1.4em;
   text-align: center;
   letter-spacing: 0.1em;

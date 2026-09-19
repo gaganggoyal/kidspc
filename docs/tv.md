@@ -141,6 +141,28 @@ adb install app-release-signed.apk
 
 ---
 
+## If everything looks too small
+
+Press **Bigger** under "Text size" on the sign-in screen or the profile picker.
+It is remembered on that device and takes effect immediately.
+
+That control exists because detecting a television is not reliably possible.
+The stylesheet asks for `pointer: none` -- a set driven by a D-pad reports no
+pointing device, which no laptop or phone does -- but a remote that emulates a
+mouse *does* report one, and the browser is then indistinguishable from a
+laptop. Those sets used to get the laptop type scale, which is legible at
+arm's length and not from a sofa.
+
+Detection still runs and still wins where it works. This is the escape hatch
+for the sets it cannot see, and it is per device on purpose: the same
+household account is used from the television and from a phone, and they want
+different things.
+
+The across-the-room scale runs the base font from 16px up to 40px, in `vw`
+rather than pixels, because the same 43-inch panel may report itself as 1920,
+1280 or 960 CSS pixels wide and a fixed size would be a different physical
+size on each.
+
 ## What the remote can actually do
 
 The child's daily path — pick a profile, enter the PIN, choose an activity — is
