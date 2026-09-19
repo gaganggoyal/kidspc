@@ -34,12 +34,19 @@ export class AppError extends Error {
 }
 
 export const errors = {
-  unauthorized: (message = 'Missing or invalid credentials') =>
+  /*
+   * `userMessage` is optional because 401 usually means exactly one thing to
+   * the person reading it -- sign in again -- and a caller should not have to
+   * retype that. A spent password-reset link is the exception: "please sign in
+   * again" is the one instruction that cannot help somebody who is here
+   * precisely because they cannot.
+   */
+  unauthorized: (message = 'Missing or invalid credentials', userMessage = 'Please sign in again.') =>
     new AppError({
       status: 401,
       code: 'unauthorized',
       message,
-      userMessage: 'Please sign in again.',
+      userMessage,
     }),
   forbidden: (message: string) =>
     new AppError({

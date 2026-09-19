@@ -100,6 +100,70 @@ export function welcomeEmail(input: {
   );
 }
 
+/**
+ * The link that gets a household back into their account.
+ *
+ * Deliberately short. A parent reading this has already decided what they want
+ * to do, and everything above the link is an obstacle to doing it -- so the
+ * first paragraph is the link, and the caution goes underneath where it
+ * belongs.
+ *
+ * The URL is built by the caller from PUBLIC_URL rather than from anything in
+ * the request. A reset link assembled from a Host header is the classic way
+ * this feature becomes an account-takeover: an attacker asks for a reset on
+ * somebody else's address, poisons the host, and the mail that arrives points
+ * at their server carrying a working token.
+ */
+export function passwordResetEmail(input: {
+  to: string;
+  displayName: string;
+  url: string;
+  ttlMinutes: number;
+  publicUrl: string;
+}): Composed {
+  return compose(
+    'password_reset',
+    input.to,
+    `Reset your ${PRODUCT_NAME} password`,
+    [
+      `Hello ${input.displayName},`,
+      `Open this link to choose a new password: ${input.url}`,
+      `The link works once, and stops working in ${input.ttlMinutes} minutes. If it has expired, ask for another from the sign-in page.`,
+      'If you did not ask for this, you can ignore this message. Your password has not changed, and nobody can use this link without opening it from your inbox.',
+      "Your children's profiles, limits and progress are unaffected either way.",
+    ],
+    input.publicUrl,
+  );
+}
+
+/**
+ * Sent after a password actually changes.
+ *
+ * This is the message that matters. A reset link arriving unexpectedly is a
+ * nuisance; a password that changed without the owner asking is an account
+ * they have lost, and the only way they find out in time is if we tell them.
+ * It goes to the address on the account, which is still the old owner's until
+ * they change it.
+ */
+export function passwordChangedEmail(input: {
+  to: string;
+  displayName: string;
+  publicUrl: string;
+}): Composed {
+  return compose(
+    'password_changed',
+    input.to,
+    `Your ${PRODUCT_NAME} password was changed`,
+    [
+      `Hello ${input.displayName},`,
+      `The password on your ${PRODUCT_NAME} account has just been changed, and every device that was signed in has been signed out.`,
+      'If that was you, there is nothing to do.',
+      `If it was not, reset it again straight away at ${input.publicUrl}/forgot and then write to us — that reset will sign out whoever did this.`,
+    ],
+    input.publicUrl,
+  );
+}
+
 /** Sent to the household that asked for a plan. */
 export function orderReceivedEmail(input: {
   to: string;

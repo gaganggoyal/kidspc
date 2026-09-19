@@ -47,6 +47,27 @@ export type RegisterGuardianInput = z.infer<typeof registerGuardianInput>;
 export const loginInput = z.object({ email, password: z.string().min(1).max(200) });
 export type LoginInput = z.infer<typeof loginInput>;
 
+/**
+ * How long a password-reset link works for.
+ *
+ * An hour is the shortest window that survives the journey this link actually
+ * makes: a parent asks for it on a television, walks to find their phone,
+ * finds the mail in a promotions tab, and opens it. Fifteen minutes is the
+ * number security checklists suggest and the number that generates a second
+ * request from almost everybody.
+ */
+export const PASSWORD_RESET_TTL_MINUTES = 60;
+
+export const forgotPasswordInput = z.object({ email });
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordInput>;
+
+export const resetPasswordInput = z.object({
+  /** Opaque; the server compares a digest of it and never parses it. */
+  token: z.string().min(16).max(400),
+  password,
+});
+export type ResetPasswordInput = z.infer<typeof resetPasswordInput>;
+
 // ---------------------------------------------------------------------------
 // Consent (DPDP Act 2023 s.9 -- verifiable parental consent)
 // ---------------------------------------------------------------------------
@@ -263,6 +284,10 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
  */
 export const EMAIL_TEMPLATES = [
   'welcome',
+  'password_reset',
+  /* Sent after the fact, to the old address. This is the message that tells
+     somebody their account has been taken, so it is not optional. */
+  'password_changed',
   'order_received',
   'order_internal',
   'payment_link',

@@ -206,6 +206,30 @@ export const refreshTokens = pgTable(
   (t) => [index('refresh_guardian_idx').on(t.guardianId)],
 );
 
+/**
+ * Outstanding "I forgot my password" requests. See migration 0004 for why this
+ * is a table rather than two columns on `guardians`.
+ */
+export const passwordResets = pgTable(
+  'password_resets',
+  {
+    id: text('id').primaryKey(),
+    guardianId: text('guardian_id')
+      .notNull()
+      .references(() => guardians.id, { onDelete: 'cascade' }),
+    /** Digest of the token that was emailed. The token itself is never stored. */
+    tokenHash: text('token_hash').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    expiresAt: ts('expires_at').notNull(),
+    /** Set the moment the link is spent, so it works exactly once. */
+    usedAt: ts('used_at'),
+  },
+  (t) => [
+    uniqueIndex('password_resets_token_key').on(t.tokenHash),
+    index('password_resets_guardian_idx').on(t.guardianId),
+  ],
+);
+
 export const auditEvents = pgTable(
   'audit_events',
   {

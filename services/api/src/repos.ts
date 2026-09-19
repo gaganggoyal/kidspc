@@ -25,6 +25,7 @@ import {
   consentChallenges,
   consents,
   guardians,
+  passwordResets,
   policies,
   refreshTokens,
   sessions,
@@ -67,6 +68,10 @@ export class GuardianRepo {
 
   async markLogin(id: string) {
     await this.db.update(guardians).set({ lastLoginAt: new Date() }).where(eq(guardians.id, id));
+  }
+
+  async setPassword(id: string, passwordHash: string) {
+    await this.db.update(guardians).set({ passwordHash }).where(eq(guardians.id, id));
   }
 
   async requestDeletion(id: string) {
@@ -695,10 +700,79 @@ export class AuditRepo {
   }
 }
 
+/**
+ * Outstanding password resets.
+ *
+ * Deliberately shaped like RefreshTokenRepo: issue a digest, look one up only
+ * if it is unspent and unexpired, spend it once. The two are the only
+ * credentials in this system that travel out of it, and they should be handled
+ * the same way for the same reason.
+ */
+export class PasswordResetRepo {
+  constructor(private readonly db: Database) {}
+
+  /**
+   * Record a new request, cancelling any earlier one for the same household.
+   *
+   * One live link at a time is the behaviour a person expects -- they asked
+   * twice because the first mail had not arrived, and they will click whichever
+   * turns up -- and it bounds how many working links exist if a mailbox is
+   * later compromised.
+   */
+  async issue(guardianId: string, tokenHash: string, ttlMinutes: number, now: Date) {
+    await this.revokeAllFor(guardianId, now);
+    const id = newId(ID_PREFIX.token);
+    await this.db.insert(passwordResets).values({
+      id,
+      guardianId,
+      tokenHash,
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + ttlMinutes * 60_000),
+    });
+    return id;
+  }
+
+  async findValid(tokenHash: string, now: Date) {
+    const [row] = await this.db
+      .select()
+      .from(passwordResets)
+      .where(
+        and(
+          eq(passwordResets.tokenHash, tokenHash),
+          isNull(passwordResets.usedAt),
+          gte(passwordResets.expiresAt, now),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  /** Spend it. Single use, so a forwarded link is already dead. */
+  async consume(id: string, now: Date) {
+    await this.db
+      .update(passwordResets)
+      .set({ usedAt: now })
+      .where(eq(passwordResets.id, id));
+  }
+
+  /**
+   * Marked used rather than deleted: an unspent row is evidence that somebody
+   * asked, which is what a support conversation about "I never got the email"
+   * actually needs.
+   */
+  async revokeAllFor(guardianId: string, now: Date) {
+    await this.db
+      .update(passwordResets)
+      .set({ usedAt: now })
+      .where(and(eq(passwordResets.guardianId, guardianId), isNull(passwordResets.usedAt)));
+  }
+}
+
 export interface Repos {
   progress: ProgressRepo;
   guardians: GuardianRepo;
   refreshTokens: RefreshTokenRepo;
+  passwordResets: PasswordResetRepo;
   children: ChildRepo;
   policies: PolicyRepo;
   consents: ConsentRepo;
@@ -712,6 +786,7 @@ export function createRepos(db: Database): Repos {
     progress: new ProgressRepo(db),
     guardians: new GuardianRepo(db),
     refreshTokens: new RefreshTokenRepo(db),
+    passwordResets: new PasswordResetRepo(db),
     children: new ChildRepo(db),
     policies: new PolicyRepo(db),
     consents: new ConsentRepo(db),

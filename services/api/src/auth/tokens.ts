@@ -65,6 +65,23 @@ export function newRefreshToken(): { token: string; hash: string } {
   return { token, hash: hashRefreshToken(token) };
 }
 
+/**
+ * A password-reset token.
+ *
+ * Same shape and same digest as a refresh token, and that is the point rather
+ * than laziness: both are opaque high-entropy strings that leave this service
+ * and come back, both are stored as a digest so a database dump is not a set
+ * of working credentials, and having two different ways to do that is how one
+ * of them ends up weaker than the other.
+ *
+ * It gets its own name so the call sites read correctly and so the two can
+ * diverge later -- a reset token could want to be longer, or rate-limited
+ * differently -- without a rename touching every caller.
+ */
+export function newPasswordResetToken(): { token: string; hash: string } {
+  return newRefreshToken();
+}
+
 export function refreshTokenMatches(presented: string, storedHash: string): boolean {
   const a = Buffer.from(hashRefreshToken(presented));
   const b = Buffer.from(storedHash);

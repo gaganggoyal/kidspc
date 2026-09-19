@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
+import { desc, eq } from 'drizzle-orm';
 import { buildApp } from './app.js';
 import { createRuntime, type Runtime } from './boot.js';
+import { emailOutbox } from './db/schema.js';
 
 /**
  * End-to-end through the real HTTP surface: the same app object `index.ts`
@@ -177,6 +179,209 @@ describe('guardian onboarding', () => {
 
   it('refuses anonymous access to the household', async () => {
     expect((await app.inject({ method: 'GET', url: '/v1/me' })).statusCode).toBe(401);
+  });
+});
+
+/**
+ * The queued message itself, not just a count.
+ *
+ * A reset link exists only inside an email, so a test that cannot read the
+ * outbox cannot test the feature at all -- it can only test that a row was
+ * written, which is the part that was never going to be wrong.
+ */
+async function lastEmail(to: string, template?: string) {
+  const rows = await runtime.ctx.database.db
+    .select()
+    .from(emailOutbox)
+    .where(eq(emailOutbox.toAddress, to))
+    // `id` and not `created_at`: the tests drive a frozen clock, so the
+    // welcome mail and the reset mail sent seconds apart in the same test
+    // carry the same timestamp and the sort has nothing to work with. Ids are
+    // ULID-shaped off the wall clock, so they still order.
+    .orderBy(desc(emailOutbox.id));
+  const match = template ? rows.find((r) => r.template === template) : rows[0];
+  return match ?? null;
+}
+
+const tokenFromResetEmail = (body: string) => {
+  const match = /\/reset\?token=([^\s]+)/.exec(body);
+  expect(match, 'the reset mail should carry a link').not.toBeNull();
+  return decodeURIComponent(match![1]!);
+};
+
+describe('a forgotten password', () => {
+  it('emails a link, signs the household back in, and signs every other device out', async () => {
+    const email = 'forgetful@example.com';
+    const { token: originalToken, cookie } = await registerGuardian(email);
+
+    // A second device, so there is something for the reset to sign out.
+    const secondCookie = (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: { email, password: 'a-long-enough-password' },
+      })
+    ).cookies.find((c) => c.name === 'kidpc_rt')!;
+
+    const asked = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/password/forgot',
+      payload: { email },
+    });
+    expect(asked.statusCode).toBe(202);
+
+    const mail = await lastEmail(email, 'password_reset');
+    expect(mail?.template).toBe('password_reset');
+    const resetToken = tokenFromResetEmail(mail!.bodyText);
+
+    const reset = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/password/reset',
+      payload: { token: resetToken, password: 'a-brand-new-long-password' },
+    });
+    expect(reset.statusCode).toBe(200);
+    expect(reset.json().guardian.email).toBe(email);
+
+    // The old password is gone and the new one works.
+    const oldWay = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/login',
+      payload: { email, password: 'a-long-enough-password' },
+    });
+    expect(oldWay.statusCode).toBe(401);
+    const newWay = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/login',
+      payload: { email, password: 'a-brand-new-long-password' },
+    });
+    expect(newWay.statusCode).toBe(200);
+
+    // Both devices that were signed in before the reset are signed out. This
+    // is the half that makes a reset a recovery rather than a password change:
+    // whoever else was holding a session no longer is.
+    for (const stale of [cookie, secondCookie]) {
+      const refreshed = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/refresh',
+        cookies: { kidpc_rt: stale.value },
+      });
+      expect(refreshed.statusCode).toBe(401);
+    }
+
+    // And the access token minted before the reset is still a bearer token
+    // until it expires -- which is why the refresh above is the thing that
+    // matters. Asserted so the limit is recorded rather than assumed.
+    expect(originalToken).toBeTruthy();
+
+    // The address on the account is told, because an unexpected one of these
+    // is the only warning the owner gets.
+    expect((await lastEmail(email, 'password_changed'))?.template).toBe('password_changed');
+  });
+
+  it('refuses a link that has already been spent', async () => {
+    const email = 'twice@example.com';
+    await registerGuardian(email);
+    await app.inject({ method: 'POST', url: '/v1/auth/password/forgot', payload: { email } });
+    const resetToken = tokenFromResetEmail((await lastEmail(email, 'password_reset'))!.bodyText);
+
+    const first = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/password/reset',
+      payload: { token: resetToken, password: 'first-new-password-here' },
+    });
+    expect(first.statusCode).toBe(200);
+
+    const second = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/password/reset',
+      payload: { token: resetToken, password: 'second-new-password-here' },
+    });
+    expect(second.statusCode).toBe(401);
+    expect(second.json().error.message).toMatch(/expired or has already been used/);
+  });
+
+  it('cancels an earlier link when a second one is asked for', async () => {
+    const email = 'impatient@example.com';
+    await registerGuardian(email);
+
+    await app.inject({ method: 'POST', url: '/v1/auth/password/forgot', payload: { email } });
+    const firstToken = tokenFromResetEmail((await lastEmail(email, 'password_reset'))!.bodyText);
+
+    await app.inject({ method: 'POST', url: '/v1/auth/password/forgot', payload: { email } });
+    const secondToken = tokenFromResetEmail((await lastEmail(email, 'password_reset'))!.bodyText);
+    expect(secondToken).not.toBe(firstToken);
+
+    // The one in the older mail is dead, so a household that asked twice and
+    // then clicked the first message cannot be surprised later.
+    const stale = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/password/reset',
+      payload: { token: firstToken, password: 'a-perfectly-good-password' },
+    });
+    expect(stale.statusCode).toBe(401);
+  });
+
+  it('expires a link that is left for an hour', async () => {
+    const email = 'slow@example.com';
+    await registerGuardian(email);
+    await app.inject({ method: 'POST', url: '/v1/auth/password/forgot', payload: { email } });
+    const resetToken = tokenFromResetEmail((await lastEmail(email, 'password_reset'))!.bodyText);
+
+    advanceMinutes(61);
+    const late = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/password/reset',
+      payload: { token: resetToken, password: 'a-perfectly-good-password' },
+    });
+    expect(late.statusCode).toBe(401);
+    advanceMinutes(-61);
+  });
+
+  it('says the same thing about an address that is not registered', async () => {
+    const known = 'known@example.com';
+    await registerGuardian(known);
+
+    const real = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/password/forgot',
+      payload: { email: known },
+    });
+    const invented = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/password/forgot',
+      payload: { email: 'nobody-at-all@example.com' },
+    });
+
+    // Byte for byte. This endpoint is open to anyone, and a different status
+    // or a different body turns it into a way of finding out which parents at
+    // a school have an account.
+    expect(invented.statusCode).toBe(real.statusCode);
+    expect(invented.body).toBe(real.body);
+    expect(await lastEmail('nobody-at-all@example.com')).toBeNull();
+  });
+
+  it('will not accept a new password that is too short to be one', async () => {
+    const email = 'short@example.com';
+    await registerGuardian(email);
+    await app.inject({ method: 'POST', url: '/v1/auth/password/forgot', payload: { email } });
+    const resetToken = tokenFromResetEmail((await lastEmail(email, 'password_reset'))!.bodyText);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/password/reset',
+      payload: { token: resetToken, password: 'short' },
+    });
+    expect(res.statusCode).toBe(400);
+
+    // And the link survives, because the person did nothing wrong except pick
+    // a weak password, and making them ask for a second mail to fix that is a
+    // punishment for reading the rules late.
+    const retry = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/password/reset',
+      payload: { token: resetToken, password: 'a-long-enough-second-try' },
+    });
+    expect(retry.statusCode).toBe(200);
   });
 });
 

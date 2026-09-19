@@ -151,6 +151,11 @@ export type AuditAction =
   | 'guardian.register'
   | 'guardian.login'
   | 'guardian.login_failed'
+  /* Both halves of a reset are recorded, and the pair is the point: a request
+     with no matching reset is somebody who never got the mail, and a reset
+     with no matching request cannot happen. */
+  | 'guardian.password_reset_requested'
+  | 'guardian.password_reset'
   | 'child.create'
   | 'child.update'
   | 'child.archive'

@@ -7,22 +7,26 @@ import {
   createChildInput,
   defaultAllowedAppIds,
   errors,
+  forgotPasswordInput,
   loginInput,
+  PASSWORD_RESET_TTL_MINUTES,
   PRODUCT_NAME,
   policyInput,
   registerGuardianInput,
+  resetPasswordInput,
   resetChildInput,
   startConsentInput,
   updateChildInput,
 } from '@kidpc/shared';
 import { requireGuardian } from '../app.js';
-import { welcomeEmail } from '../email/templates.js';
+import { passwordChangedEmail, passwordResetEmail, welcomeEmail } from '../email/templates.js';
 import { limit } from '../limits.js';
 import { type AppContext, buildChildView, loadChildForGuardian } from '../context.js';
 import { defaultPolicyFor } from '../repos.js';
 import { burnPasswordTime, hashSecret, verifySecret } from '../auth/password.js';
 import {
   hashRefreshToken,
+  newPasswordResetToken,
   newRefreshToken,
   signAccessToken,
 } from '../auth/tokens.js';
@@ -167,6 +171,141 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
     }
     reply.clearCookie(REFRESH_COOKIE, { path: '/v1/auth' });
     return { ok: true };
+  });
+
+  // -------------------------------------------------------------------------
+  // Forgotten passwords
+  // -------------------------------------------------------------------------
+
+  /**
+   * Ask for a reset link.
+   *
+   * Answers the same way whether or not the address is registered, which is
+   * the opposite of what `/auth/register` does two hundred lines above -- and
+   * the difference is deliberate rather than an inconsistency.
+   *
+   * Registration is a thing the person in front of us is doing on purpose, and
+   * telling them "you already have an account" is the answer to the question
+   * they asked. This is a form anybody on the internet can post any address
+   * to, and answering it honestly turns it into a tool for finding out which
+   * parents at a school use this product. So: same body, same status, and the
+   * same time spent, whichever it is.
+   */
+  app.post('/auth/password/forgot', limit(config, 5, '1 hour'), async (req, reply) => {
+    const input = forgotPasswordInput.parse(req.body);
+    const row = await repos.guardians.byEmail(input.email);
+
+    if (!row) {
+      // The cost of a hash, so the two branches take comparable time. Without
+      // this the response latency answers the question the body refuses to.
+      await burnPasswordTime();
+    } else {
+      const { token, hash } = newPasswordResetToken();
+      await repos.passwordResets.issue(row.id, hash, PASSWORD_RESET_TTL_MINUTES, ctx.now());
+      await repos.audit.record({
+        actorType: 'guardian',
+        actorId: row.id,
+        action: 'guardian.password_reset_requested',
+        subjectType: 'guardian',
+        subjectId: row.id,
+      });
+      await ctx.outbox.enqueue(
+        passwordResetEmail({
+          to: row.email,
+          displayName: row.displayName,
+          // Built from configuration, never from the request. A reset link
+          // assembled out of a Host header is how this feature turns into
+          // account takeover.
+          url: `${config.PUBLIC_URL}/reset?token=${encodeURIComponent(token)}`,
+          ttlMinutes: PASSWORD_RESET_TTL_MINUTES,
+          publicUrl: config.PUBLIC_URL,
+        }),
+      );
+    }
+
+    // 202: we have accepted the request, and whether a message follows is
+    // deliberately not stated.
+    return reply.status(202).send({ ok: true, ttlMinutes: PASSWORD_RESET_TTL_MINUTES });
+  });
+
+  /**
+   * Spend a reset link and choose a new password.
+   *
+   * Three things happen together, and all three matter:
+   *
+   *   1. the token is consumed, so the link in the mailbox is dead whether or
+   *      not it is forwarded, scanned or opened twice;
+   *   2. every refresh token for the household is revoked, so a device that
+   *      somebody else had signed in is signed out by the reset rather than in
+   *      spite of it -- this is the step that makes a reset a recovery;
+   *   3. a message goes to the address on the account saying it happened.
+   *
+   * Then we sign them in, because the alternative is a screen that says
+   * "password changed, now sign in" to somebody who has just proved they own
+   * the account.
+   */
+  app.post('/auth/password/reset', limit(config, 10, '1 hour'), async (req, reply) => {
+    const input = resetPasswordInput.parse(req.body);
+    const now = ctx.now();
+
+    const reset = await repos.passwordResets.findValid(hashRefreshToken(input.token), now);
+    if (!reset) {
+      throw errors.unauthorized(
+        'Reset token not recognised',
+        'That link has expired or has already been used. Ask for a new one.',
+      );
+    }
+
+    const guardian = await repos.guardians.byId(reset.guardianId);
+    // The household was erased between asking and clicking. Nothing to reset.
+    if (!guardian) throw errors.unauthorized('No such guardian');
+
+    await repos.guardians.setPassword(guardian.id, await hashSecret(input.password));
+    /*
+     * Spend this one link, and only this one.
+     *
+     * A `revokeAllFor` here as well reads like belt and braces and is not: at
+     * most one unspent row can exist, because issuing a request revokes the
+     * household's earlier ones. What the second call actually did was make the
+     * first untestable -- deleting `consume` left every test passing, because
+     * the sweep was doing its job for it. Redundancy that hides a missing step
+     * is worse than no redundancy.
+     */
+    await repos.passwordResets.consume(reset.id, now);
+    await repos.refreshTokens.revokeAllFor(guardian.id);
+    await repos.audit.record({
+      actorType: 'guardian',
+      actorId: guardian.id,
+      action: 'guardian.password_reset',
+      subjectType: 'guardian',
+      subjectId: guardian.id,
+    });
+
+    await ctx.outbox.enqueue(
+      passwordChangedEmail({
+        to: guardian.email,
+        displayName: guardian.displayName,
+        publicUrl: config.PUBLIC_URL,
+      }),
+    );
+
+    // Issued after the revoke above, so the device doing the reset is the one
+    // session that survives it.
+    const { token, hash } = newRefreshToken();
+    await repos.refreshTokens.issue(guardian.id, hash, config.REFRESH_TOKEN_TTL_DAYS);
+    setRefreshCookie(reply, token);
+    await repos.guardians.markLogin(guardian.id);
+
+    return {
+      guardian: {
+        id: guardian.id,
+        email: guardian.email,
+        displayName: guardian.displayName,
+        timezone: guardian.timezone,
+        createdAt: guardian.createdAt,
+      },
+      accessToken: await signAccessToken(config, { kind: 'guardian', guardianId: guardian.id }),
+    };
   });
 
   /**

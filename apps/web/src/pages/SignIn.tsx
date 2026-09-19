@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ScreenSize } from './ScreenSize';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { PRODUCT_NAME, PRODUCT_TAGLINE } from '@kidpc/shared';
 import { ApiError, api, setGuardianToken } from '../api';
+import { EMAIL_INPUT } from './Recover';
+import { PasswordField } from './PasswordField';
 
 /**
  * Guardian sign-in. This is the only place credentials are entered: a child
@@ -53,10 +54,12 @@ export function SignIn() {
 
   return (
     /*
-     * `.tv` because this is very often the first thing a television shows, and
-     * it was the one screen in the signed-in flow without it -- so the hardest
-     * text in the product to read and the hardest field to type into were
-     * being rendered at the laptop scale on a set across the room.
+     * `.tv` because this is very often the first thing a television shows: a
+     * set navigated by a D-pad gets the across-the-room scale here as it does
+     * everywhere else, and a phone or a laptop gets its own. It was the one
+     * screen in the signed-in flow without the class, so the hardest text in
+     * the product to read and the hardest field to type into were rendered at
+     * the laptop scale on a set across the room.
      */
     <div className="tv">
     <div className="page stack narrow">
@@ -90,31 +93,27 @@ export function SignIn() {
           <input
             id="email"
             type="email"
-            autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            {...EMAIL_INPUT}
           />
           {fieldErrors.email && <div className="error">{fieldErrors.email}</div>}
         </div>
 
-        <div className="field">
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            type="password"
-            autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          {mode === 'register' && (
-            <div className="small muted" style={{ marginTop: 6 }}>
-              At least 10 characters. Length beats punctuation — you may be typing this on a TV remote.
-            </div>
-          )}
-          {fieldErrors.password && <div className="error">{fieldErrors.password}</div>}
-        </div>
+        <PasswordField
+          id="password"
+          label="Password"
+          value={password}
+          onChange={setPassword}
+          autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+          hint={
+            mode === 'register'
+              ? 'At least 10 characters. Length beats punctuation — you may be typing this on a TV remote.'
+              : undefined
+          }
+          error={fieldErrors.password}
+        />
 
         {error && (
           <div className="notice bad" role="alert">
@@ -136,9 +135,17 @@ export function SignIn() {
         >
           {mode === 'signin' ? 'I need an account' : 'I already have an account'}
         </button>
-      </form>
 
-      <ScreenSize />
+        {/*
+          * Only on the sign-in half. Offering to reset a password on the form
+          * that creates one reads as though something has already gone wrong.
+          */}
+        {mode === 'signin' && (
+          <Link className="small muted" to="/forgot">
+            I have forgotten my password
+          </Link>
+        )}
+      </form>
 
       <p className="small muted">
         {PRODUCT_NAME} does not track children or show them advertising. You can export or

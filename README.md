@@ -24,11 +24,11 @@ Open http://localhost:5173 and sign in as `demo@kidpc.test` /
 `demo-password-1234`. Child PINs are printed by the seed.
 
 ```bash
-pnpm test          # 201 tests
+pnpm test          # 211 tests
 pnpm typecheck
 pnpm lint
 pnpm contrast      # every enforced colour pairing, light and dark
-pnpm layout        # 195 checks: every public route at every width from 320 to 2560
+pnpm layout        # 286 checks: every public route at every width from 320 to 2560
 ```
 
 `pnpm contrast` and `pnpm layout` are there because the two things most easily
