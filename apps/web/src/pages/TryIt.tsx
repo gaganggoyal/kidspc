@@ -10,7 +10,7 @@ import {
   planById,
 } from '@kidpc/shared';
 import { DemoShell } from '../play/DemoShell';
-import { GAMES } from '../play/games';
+import { GAMES, GameSlot } from '../play/games';
 import { useSpatialNavigation } from '../tv';
 import { glyphFor, shelve, TileFace, tileStyle } from './AppTile';
 import { SiteFooter, SiteHeader } from './SiteChrome';
@@ -64,7 +64,7 @@ export function TryIt() {
     if (!app || !Game) return <Navigate to="/try" replace />;
     return (
       <DemoShell appId={app.id} title={app.name}>
-        {(activity) => <Game activity={activity} />}
+        {(activity) => <GameSlot Game={Game} activity={activity} />}
       </DemoShell>
     );
   }

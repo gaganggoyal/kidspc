@@ -118,6 +118,9 @@ export function useSound(): [on: boolean, toggle: () => void] {
       return () => listeners.delete(notify);
     },
     () => muted,
+    // Rendered ahead of time by the build: sound starts on, as it does for a
+    // first-time visitor.
+    () => false,
   );
   const toggle = useCallback(() => setMuted(!muted), []);
   return [on, toggle];

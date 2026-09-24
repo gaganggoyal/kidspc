@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { challengeForWeek, findApp } from '@kidpc/shared';
+import { AGE_BAND_SPECS, challengeForWeek, findApp } from '@kidpc/shared';
 import type { ActivityApi } from './ActivityShell';
 import { previewAchievements, previewBest, recordPreviewBest } from './previewProgress';
 import { useAutoFocusFirst, useBackKey, useSpatialNavigation } from '../tv';
 import { SoundToggle } from './kit';
 import { ShowAGrownUp } from '../pages/ShowAGrownUp';
+import { BUILDS } from './about';
 
 /**
  * The frame the public preview runs inside.
@@ -113,6 +114,8 @@ export function DemoShell({
 
       <main className="activity-body" data-focus-root>{children(activityApi)}</main>
 
+      <AboutActivity appId={appId} />
+
       {inviting && !dismissed && (
         <aside className="invite-bar no-print">
           <p>
@@ -136,5 +139,45 @@ export function DemoShell({
         askForName
       />
     </div>
+  );
+}
+
+/**
+ * Under the game, for the grown-up: what it is good for, who it suits, and how
+ * it plays on a television. This page is also the game's page in search
+ * results, and a page that is only a game says nothing to the parent who found
+ * it there.
+ */
+function AboutActivity({ appId }: { appId: string }) {
+  const app = findApp(appId);
+  if (!app) return null;
+  const band = AGE_BAND_SPECS[app.minBand];
+  return (
+    <section className="activity-about no-print" aria-labelledby="about-activity">
+      <h2 id="about-activity">About {app.name}</h2>
+      <p className="lede">{app.tagline}</p>
+      <ul>
+        {BUILDS[app.id] && (
+          <li>
+            <strong>What it builds:</strong> {BUILDS[app.id]}
+          </li>
+        )}
+        <li>
+          <strong>Ages:</strong> {band.minAge} and up — part of the {band.label} set.
+        </li>
+        <li>
+          <strong>On a TV:</strong> the arrows move and OK chooses, so the remote is all it needs.
+          A keyboard, mouse or touch screen works too.
+        </li>
+        <li>
+          <strong>Free:</strong> no sign-up and no adverts. Nothing your child does here is
+          uploaded.
+        </li>
+      </ul>
+      <p className="row">
+        <Link to="/try">More free games</Link>
+        <Link to="/">How Online Kids PC works</Link>
+      </p>
+    </section>
   );
 }

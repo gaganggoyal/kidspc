@@ -1,10 +1,11 @@
 import { buildApp } from './app.js';
-import { createRuntime, startMailSender, startReaper } from './boot.js';
+import { createRuntime, startForgetting, startMailSender, startReaper } from './boot.js';
 
 const runtime = await createRuntime();
 const app = await buildApp(runtime.ctx);
 const stopReaper = startReaper(runtime.ctx);
 const stopMail = startMailSender(runtime.ctx);
+const stopForgetting = startForgetting(runtime.ctx);
 
 await app.listen({ port: runtime.ctx.config.PORT, host: runtime.ctx.config.HOST });
 app.log.info(
@@ -30,6 +31,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     app.log.info(`${signal} received, draining`);
     stopReaper();
     stopMail();
+    stopForgetting();
     void app
       .close()
       .then(() => runtime.shutdown())

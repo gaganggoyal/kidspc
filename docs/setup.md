@@ -205,51 +205,32 @@ not recoverable.
 
 ---
 
-## Step 3 — Record the five videos
+## Step 3 — The explainer video — done
 
-The site already has a **How it works** section with the written steps. It is
-complete and usable as it stands; the videos slot in above each step.
+An 80-second video, **How Online Kids PC works on your TV**, sits near the top of
+the home page: opening kidspc.online in the TV's browser, signing in with a
+code from your phone, setting limits, and a child playing with the remote. The
+screens in it are the real app, recorded automatically; the voice is an Indian
+English voice from macOS.
 
-Record them on a phone, screen-record the TV or a laptop. Nobody needs to be on
-camera and nobody should be — no children in the footage, including your own.
+Files: `apps/web/public/media/how-it-works.mp4` (with `.jpg` poster and `.en.vtt`
+captions). It is served from our own domain — no YouTube, no tracking.
 
-| # | Video | Length | What to show |
-|---|---|---|---|
-| 1 | Create your parent account | ~60s | The home page, the free-trial button, filling the form, landing on the household screen |
-| 2 | Add your child | ~75s | "Add a child", name and avatar, birth month and year, setting the four-digit code |
-| 3 | Set the limits | ~90s | Parent dashboard, minutes per day, a weekday window, ticking activities |
-| 4 | Open it on the TV | ~90s | The TV browser, typing the address, signing in, adding to home screen, a child picking their face and typing the code |
-| 5 | Put things right | ~60s | The reset panel — new code, limits back to sensible, stopping a session |
+**To redo it** after the app's screens change, with the dev servers running:
 
-Then:
-
-1. Export each as **MP4 (H.264 + AAC)**, 1280×720 is plenty.
-2. Write **captions** for each as a `.vtt` file. Not optional — a parent
-   watching on a phone with the sound off is the common case, and it is the
-   only version that works for a deaf parent.
-3. Put the files in `apps/web/public/guide/`, named `register.mp4`,
-   `register.vtt`, `child.mp4`, and so on.
-4. In `packages/shared/src/guides.ts`, add the filenames to each step:
-
-```ts
-{
-  id: 'register',
-  …
-  video: 'register.mp4',
-  captions: 'register.vtt',
-  poster: 'register.jpg',
-}
+```bash
+node tools/video/capture.mjs   # records the real screens
+node tools/video/build.mjs     # narration, frames, MP4 -- about ten minutes
 ```
 
-Deploy, and the section shows a play button above each step.
+**To use your own voice instead of the synthetic one:** record each scene's
+line (the script is in `tools/video/script.mjs`), save them as
+`tools/video/voice/intro.m4a`, `promise.m4a`, … and run `build.mjs` again. The
+video re-times itself to your recordings.
 
-They are served from our own domain rather than embedded from YouTube. That is
-deliberate: the site's security policy allows no third-party frames, an embed
-would carry tracking onto a page that promises none, and a service for children
-should not put a recommendation feed one click away from a parent's setup
-screen. Keep each file under about 20 MB.
-
----
+The five per-step slots in **How it works** (`packages/shared/src/guides.ts`)
+still exist for shorter clips if you ever want them; the written steps are
+complete without them.
 
 ## Step 4 — Payments
 
@@ -281,7 +262,8 @@ it is also the thing a reviewer will reject you for.
 
 If there is no registered company yet, a sole proprietorship in your own name is
 enough for Razorpay and is what `LEGAL_ENTITY = null` currently describes ("
-operated by Gagandeep Goyal and Vansh Sharma").
+operated by Gagan (Founder) and Vansh (Co-founder)"). Razorpay will want
+the full legal name in `LEGAL_ENTITY` itself.
 
 ### 4b. Then the account
 
@@ -349,6 +331,32 @@ own machine.
 Nothing about Lite depends on this. Sell Lite, and open Pro when there is demand
 that justifies a second server.
 
+## Step 7 — Tell Google the site exists
+
+The site is built for search now: every public page is real HTML with its own
+title and description, each free game has its own page, and there is a sitemap
+(with the video in it) at https://kidspc.online/sitemap.xml. Google finds all of
+that faster once you tell it the site is yours:
+
+1. Open https://search.google.com/search-console and sign in with your Google
+   account.
+2. **Add property → Domain** → `kidspc.online`.
+3. Google shows a TXT record starting `google-site-verification=`. Add it at
+   BigRock: **TXT**, host `@` (leave blank), value exactly as shown. It sits
+   beside the mail records without touching them.
+4. Back in Search Console, press **Verify** (DNS can take a few minutes).
+5. **Sitemaps** (left menu) → enter `sitemap.xml` → **Submit**.
+6. **URL inspection** → paste `https://kidspc.online/` → **Request indexing**.
+   Do the same for `https://kidspc.online/try`.
+
+Then do the same once at **Bing Webmaster Tools**
+(https://www.bing.com/webmasters) — it can import the site straight from Search
+Console in one click, and Bing also feeds DuckDuckGo and many smart TVs' search.
+
+Search Console shows, within a few days, which searches the site appears for.
+The first weeks are slow for every new domain; the sitemap makes sure nothing is
+missed while it builds up.
+
 ---
 
 ## What I would do, in order
@@ -358,5 +366,6 @@ that justifies a second server.
    blocks both payment and step 5.
 3. **Step 5 as soon as the Razorpay account exists.** Until then you have a
    working product that cannot legally serve its users.
-4. **Step 3 whenever you have an hour.** The written steps already work.
+4. **Step 7 the day the new version is deployed** — ten minutes, and it
+   decides how soon Google lists the site.
 5. **Step 6 when someone asks for it.**

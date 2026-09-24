@@ -109,9 +109,13 @@ export async function sendPending(
         html: row.bodyHtml,
         idempotencyKey: row.id,
       });
+      // Delivered, so the letter lives in the recipient's inbox now. Keeping
+      // our own copy would make this table a second mailbox nobody reads --
+      // holding sign-in codes, links, and whatever a parent wrote on the
+      // contact form. The row stays a while as a receipt; the words do not.
       await db
         .update(emailOutbox)
-        .set({ sentAt: now(), attempts: row.attempts + 1, lastError: null })
+        .set({ sentAt: now(), attempts: row.attempts + 1, lastError: null, bodyText: '', bodyHtml: null })
         .where(eq(emailOutbox.id, row.id));
       sent++;
     } catch (cause) {

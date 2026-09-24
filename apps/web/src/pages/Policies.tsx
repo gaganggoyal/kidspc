@@ -8,6 +8,8 @@ import {
   MAX_CHILDREN,
   PLANS,
   POLICIES_UPDATED,
+  RETENTION,
+  EMAIL_CODE_TTL_MINUTES,
   PRODUCT_NAME,
   REFUND_WINDOW_DAYS,
   TRIAL_PLAN_ID,
@@ -329,11 +331,44 @@ export function Privacy() {
 
       <h2>How long we keep it</h2>
       <p>
-        Account and child data for as long as the account exists. When you delete your account it is
-        removed, including every child profile, all usage history and all progress. Records we are
-        required to keep for tax or accounting — an invoice, for instance — are kept for as long as
-        the law requires and no longer.
+        Only while it still does something for you. A job on our server deletes everything below on
+        schedule, without anyone having to remember to.
       </p>
+      <ul>
+        <li>
+          <strong>Your account, and each child&apos;s profile, scores and limits</strong> — while the
+          account exists. Deleting it removes all of it at once.
+        </li>
+        <li>
+          <strong>A sign-up nobody confirmed</strong> — deleted after{' '}
+          {RETENTION.unconfirmedSignUpHours} hours. Somebody may have typed an address that is not
+          theirs, so we do not keep it waiting.
+        </li>
+        <li>
+          <strong>The emails we send you</strong> — we keep no copy of what a letter said once it has
+          been delivered. A note that we sent it (to whom, and when) is kept for{' '}
+          {RETENTION.sentLetterDays} days in case it bounces, then deleted.
+        </li>
+        <li>
+          <strong>Sign-in codes and links</strong> — they stop working after{' '}
+          {EMAIL_CODE_TTL_MINUTES} minutes, and are deleted within {RETENTION.spentChallengeHours}{' '}
+          hours of being used or expiring.
+        </li>
+        <li>
+          <strong>Individual sessions</strong> (when one started and ended) —{' '}
+          {RETENTION.sessionDays} days. <strong>Minutes used per day</strong> —{' '}
+          {RETENTION.usageDays} days, so a year of history is there when you look.
+        </li>
+        <li>
+          <strong>A log of changes to your household&apos;s settings</strong> — {RETENTION.auditDays}{' '}
+          days, which the Digital Personal Data Protection Rules 2025 ask for.
+        </li>
+        <li>
+          <strong>Plan requests</strong> — deleted with your account, unless you actually paid:
+          an invoice is a record the tax law requires us to keep, for as long as it requires and no
+          longer.
+        </li>
+      </ul>
 
       <h2>Your rights, and how to use them without asking us</h2>
       <ul>

@@ -47,6 +47,8 @@ export class GuardianRepo {
     timezone: string;
     /** Only the seed passes this; a real sign-up is confirmed by email. */
     emailVerifiedAt?: Date | null;
+    /** The service's clock, which is what the day-old unconfirmed sweep reads. */
+    createdAt?: Date;
   }): Promise<Guardian> {
     const [row] = await this.db
       .insert(guardians)
@@ -84,7 +86,9 @@ export class GuardianRepo {
    */
   async replaceUnverified(
     id: string,
-    input: { passwordHash: string; displayName: string; timezone: string },
+    // `createdAt` restarts the day an unconfirmed sign-up is kept for: asking
+    // again at hour 23 must not be deleted at hour 24, mid-way through.
+    input: { passwordHash: string; displayName: string; timezone: string; createdAt: Date },
   ) {
     await this.db
       .update(guardians)

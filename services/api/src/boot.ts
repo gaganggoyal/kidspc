@@ -11,6 +11,7 @@ import { createRepos } from './repos.js';
 import { createConsentVerifier } from './consent/verifier.js';
 import { createMailer, type Transport } from './email/mailer.js';
 import { Outbox, sendPending } from './email/outbox.js';
+import { forget } from './retention.js';
 import type { AppContext } from './context.js';
 
 export async function createDriver(
@@ -136,6 +137,38 @@ export function startReaper(ctx: AppContext): () => void {
   };
 
   timer = setTimeout(tick, ctx.config.REAP_INTERVAL_MS);
+  return () => {
+    stopped = true;
+    clearTimeout(timer);
+  };
+}
+
+/**
+ * Deletes what has outlived its purpose (see retention.ts for the rules).
+ *
+ * Every few hours rather than nightly: an unconfirmed sign-up is somebody's
+ * email address, possibly typed by somebody else, and the promise is that it
+ * is gone within a day -- not within a day plus however long until midnight.
+ */
+export function startForgetting(ctx: AppContext, everyMs = 6 * 3_600_000): () => void {
+  let stopped = false;
+  let timer: NodeJS.Timeout;
+
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      const result = await forget(ctx.database.db, ctx.now());
+      if (Object.values(result).some((n) => n > 0)) {
+        console.log('[forget]', JSON.stringify(result));
+      }
+    } catch (error) {
+      console.error('[forget] sweep failed', error);
+    } finally {
+      if (!stopped) timer = setTimeout(tick, everyMs);
+    }
+  };
+
+  timer = setTimeout(tick, 60_000);
   return () => {
     stopped = true;
     clearTimeout(timer);

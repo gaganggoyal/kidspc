@@ -1,15 +1,11 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-IN">
   <head>
     <meta charset="UTF-8" />
     <!-- `viewport-fit=cover` and no user-scaling: this runs full-screen on a TV
          as often as in a browser, and pinch-zoom on a 10-foot UI is noise. -->
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <meta
-      name="description"
-      content="A safe, time-limited computer for children, on the screen you already own."
-    />
 
     <!-- Installed-app identity. This is what a TV's "add to home screen" reads,
          and what bubblewrap reads when packaging the Android TV APK, so the
@@ -24,7 +20,16 @@
     <link rel="icon" href="/favicon-48.png" sizes="48x48" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-    <title>Online Kids PC</title>
+    <!-- Replaced per page by the build (scripts/prerender.mjs) with the title,
+         description, canonical address, social preview and structured data
+         from src/seo.ts. What is here is what the dev server shows. -->
+    <!--seo:start-->
+    <title>Online Kids PC — A Safe Computer for Kids on Your Smart TV</title>
+    <meta
+      name="description"
+      content="Turn your smart TV into a safe first computer for children. Learning games played with the TV remote, screen-time limits, no ads, no chat."
+    />
+    <!--seo:end-->
   </head>
   <body>
     <div id="root"></div>

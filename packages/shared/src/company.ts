@@ -19,8 +19,8 @@ export interface Person {
 }
 
 export const FOUNDERS: readonly Person[] = [
-  { name: 'Gagandeep Goyal', role: 'Founder' },
-  { name: 'Vansh Sharma', role: 'Co-founder' },
+  { name: 'Gagan', role: 'Founder' },
+  { name: 'Vansh', role: 'Co-founder' },
 ];
 
 /** Where a parent writes. Created as part of the launch checklist. */
@@ -56,7 +56,7 @@ export const GOVERNING_LAW = 'the laws of India';
  * a parent needs to know whether the terms moved since they agreed to them.
  * Update it when the wording changes, not when the file is touched.
  */
-export const POLICIES_UPDATED = '7 September 2026';
+export const POLICIES_UPDATED = '24 September 2026';
 
 /** Everyone who should be reachable, for the About and Contact pages. */
 export function whoWeAre(): string {

@@ -29,3 +29,39 @@ export const METRIC_UNIT: Partial<Record<ProgressMetric, string>> = {
 export function formatMetric(metric: ProgressMetric, value: number): string {
   return `${Math.round(value)}${METRIC_UNIT[metric] ?? ''}`;
 }
+
+/**
+ * The one number a tile shows, when an activity keeps several.
+ *
+ * Earlier in this list wins: a score is what a child would name if asked
+ * "what's your best?", and a minutes-practised total is the least of it.
+ */
+const HEADLINE: readonly ProgressMetric[] = [
+  'score',
+  'level',
+  'puzzles_solved',
+  'words_per_minute',
+  'words_written',
+  'accuracy_pct',
+  'minutes_practised',
+];
+
+export interface Headline {
+  metric: ProgressMetric;
+  best: number;
+}
+
+export function headlineBests(
+  rows: ReadonlyArray<{ appId: string; metric: string; best: number }>,
+): Record<string, Headline> {
+  const out: Record<string, Headline> = {};
+  for (const row of rows) {
+    const rank = HEADLINE.indexOf(row.metric as ProgressMetric);
+    if (rank < 0 || row.best <= 0) continue;
+    const current = out[row.appId];
+    if (!current || rank < HEADLINE.indexOf(current.metric)) {
+      out[row.appId] = { metric: row.metric as ProgressMetric, best: row.best };
+    }
+  }
+  return out;
+}

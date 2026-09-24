@@ -27,6 +27,7 @@ export function SiteHeader({ home = false }: { home?: boolean }) {
       <nav className="home-nav-links">
         <Link to="/try">Try it free</Link>
         <a href={at('how')}>How it works</a>
+        <a href={at('safety')}>Safety</a>
         <a href={at('plans')}>Plans</a>
         {signedIn ? (
           <Link to="/household" className="btn primary">

@@ -37,7 +37,7 @@ export const GUIDE_STEPS: readonly GuideStep[] = [
   {
     id: 'register',
     title: 'Create your parent account',
-    summary: 'One email address and a password. Two minutes, on any device.',
+    summary: 'Your name and email address. A 6-digit code proves the address is yours.',
     seconds: 60,
     steps: [
       // Not quoted with its number in it: the button reads "Start 14 days
@@ -45,9 +45,9 @@ export const GUIDE_STEPS: readonly GuideStep[] = [
       // instruction naming a button that is not on the screen is worse than a
       // vague one.
       'Open kidspc.online and choose the free trial button in the top block.',
-      'Enter your name, your email address and a password.',
-      'Pick a password you can type on a TV remote — length beats punctuation.',
-      'You land on your household screen, and a welcome email arrives.',
+      'Enter your name and your email address. That is all we ask.',
+      'Type the 6-digit code from the email we send — or press the button in it.',
+      'Choose a password if you like. Or skip it, and sign in with an emailed code each time.',
     ],
   },
   {
@@ -77,13 +77,13 @@ export const GUIDE_STEPS: readonly GuideStep[] = [
   {
     id: 'tv',
     title: 'Open it on the TV',
-    summary: 'Sign in once on the television. After that they only type four digits.',
+    summary: 'Sign in once on the television, with a code from your phone. After that they only type four digits.',
     seconds: 90,
     steps: [
-      'Open the browser on your TV — Silk on Fire TV, Internet on Samsung, Web Browser on LG.',
-      'Go to kidspc.online and sign in with your parent account.',
-      'Add it to the home screen so it opens like an app.',
-      'Hand over the remote. Your child picks their face, types their code, and chooses an activity.',
+      'Open the browser on your TV — Silk on Fire TV, Internet on Samsung, Web Browser on LG — or plug a laptop into the TV.',
+      'Go to kidspc.online and choose Parent sign in, then "Email me a code instead". Type the 6 digits from your phone — no long password on a remote.',
+      'Add it to the TV\'s home screen so it opens like an app.',
+      'Hand over the remote. Your child picks their face, types their code, and moves with the arrows and OK.',
     ],
   },
   {

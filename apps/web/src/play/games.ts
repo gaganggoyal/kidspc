@@ -1,23 +1,5 @@
+import { createElement, lazy, Suspense } from 'react';
 import type { ActivityApi } from './ActivityShell';
-import { BlocksGame } from './Blocks';
-import { BricksGame } from './Bricks';
-import { EchoGame } from './Echo';
-import { FourRowGame } from './FourRow';
-import { IndiaGame } from './India';
-import { MazeGame } from './Maze';
-import { MemoryGame } from './Memory';
-import { MergeGame } from './Merge';
-import { PianoKeyboard } from './Piano';
-import { SlideGame } from './Slide';
-import { SnakeGame } from './Snake';
-import { SpellGame } from './Spell';
-import { TablesGame } from './Tables';
-import { TicTacToeGame } from './TicTacToe';
-import { Playground } from './Code';
-import { NumbersGame } from './Numbers';
-import { PaintCanvas } from './Paint';
-import { TypingGame } from './Typing';
-import { WriterPad } from './Writer';
 
 /**
  * The games themselves, without the frame around them.
@@ -35,24 +17,59 @@ import { WriterPad } from './Writer';
  */
 export type Game = React.ComponentType<{ activity: ActivityApi }>;
 
-export const GAMES: Record<string, Game> = {
-  paint: PaintCanvas,
-  typing: TypingGame,
-  blocks: BlocksGame,
-  numbers: NumbersGame,
-  writer: WriterPad,
-  code: Playground,
-  memory: MemoryGame,
-  spell: SpellGame,
-  piano: PianoKeyboard,
-  tables: TablesGame,
-  india: IndiaGame,
-  snake: SnakeGame,
-  tictactoe: TicTacToeGame,
-  fourrow: FourRowGame,
-  echo: EchoGame,
-  maze: MazeGame,
-  slide: SlideGame,
-  bricks: BricksGame,
-  merge: MergeGame,
+/*
+ * Each game is its own file, fetched when it is opened rather than with the
+ * page. The home page a parent reads on a phone over mobile data used to carry
+ * all nineteen games inside it; now it carries none, and a game costs its own
+ * few kilobytes the first time a child opens it.
+ */
+type Loader = () => Promise<Record<string, unknown>>;
+
+const LOADERS: Record<string, [Loader, string]> = {
+  paint: [() => import('./Paint'), 'PaintCanvas'],
+  typing: [() => import('./Typing'), 'TypingGame'],
+  blocks: [() => import('./Blocks'), 'BlocksGame'],
+  numbers: [() => import('./Numbers'), 'NumbersGame'],
+  writer: [() => import('./Writer'), 'WriterPad'],
+  code: [() => import('./Code'), 'Playground'],
+  memory: [() => import('./Memory'), 'MemoryGame'],
+  spell: [() => import('./Spell'), 'SpellGame'],
+  piano: [() => import('./Piano'), 'PianoKeyboard'],
+  tables: [() => import('./Tables'), 'TablesGame'],
+  india: [() => import('./India'), 'IndiaGame'],
+  snake: [() => import('./Snake'), 'SnakeGame'],
+  tictactoe: [() => import('./TicTacToe'), 'TicTacToeGame'],
+  fourrow: [() => import('./FourRow'), 'FourRowGame'],
+  echo: [() => import('./Echo'), 'EchoGame'],
+  maze: [() => import('./Maze'), 'MazeGame'],
+  slide: [() => import('./Slide'), 'SlideGame'],
+  bricks: [() => import('./Bricks'), 'BricksGame'],
+  merge: [() => import('./Merge'), 'MergeGame'],
 };
+
+export const GAMES: Record<string, Game> = Object.fromEntries(
+  Object.entries(LOADERS).map(([id, [load, name]]) => [
+    id,
+    lazy(async () => ({ default: (await load())[name] as Game })),
+  ]),
+);
+
+/**
+ * Fetch these games now, quietly, so opening one is instant.
+ *
+ * The child's launcher calls it with the games that child may open. A TV on a
+ * slow connection would otherwise show a loading tile after every press of OK;
+ * the browser caches each file, so this costs nothing the second time.
+ */
+export function preloadGames(ids: readonly string[]): void {
+  for (const id of ids) void LOADERS[id]?.[0]().catch(() => {});
+}
+
+/** A game in its slot, with a placeholder the size of a game while it loads. */
+export function GameSlot({ Game, activity }: { Game: Game; activity: ActivityApi }) {
+  return createElement(
+    Suspense,
+    { fallback: createElement('div', { className: 'skeleton game-loading', 'aria-busy': true }) },
+    createElement(Game, { activity }),
+  );
+}

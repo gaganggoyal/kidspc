@@ -20,10 +20,24 @@
 	# still pointing at the previous build's hashed bundles. `no-cache` means
 	# "revalidate before use", not "do not store", so it stays a conditional
 	# request rather than a full download.
-	@html not path /assets/*
+	@html not path /assets/* /media/*
 	header @html Cache-Control "no-cache"
 
-	# Single-page app: an unknown path is a client route, not a missing file.
-	try_files {path} /index.html
+	# The explainer video, its poster and captions. Not fingerprinted, so not
+	# immutable -- a day is long enough to spare a re-download on every visit,
+	# and short enough that a re-rendered video reaches people this week.
+	@media path /media/*
+	header @media Cache-Control "public, max-age=86400"
+	# Go's table does not know .vtt, and a captions track served as text/plain
+	# is silently ignored by some TV browsers.
+	@vtt path *.vtt
+	header @vtt Content-Type "text/vtt; charset=utf-8"
+
+	# Public pages are written out as HTML by the build (about/index.html and
+	# so on), so a search engine and a slow TV both get the content before any
+	# script runs. Anything else is a client route -- sign-in, the signed-in
+	# app -- and gets app.html, the empty shell, so a parent opening their
+	# dashboard never sees the home page flash up first.
+	try_files {path} {path}/index.html /app.html
 	file_server
 }

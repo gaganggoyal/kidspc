@@ -12,6 +12,7 @@ import {
   challengeForWeek,
   deliveryOf,
   extraChildPriceInr,
+  FOUNDERS,
   discountPercent,
   findApp,
   formatInr,
@@ -25,6 +26,8 @@ import { SiteFooter, SiteHeader } from './SiteChrome';
 import { HowItWorks } from './HowItWorks';
 import { PlanRequest } from './PlanRequest';
 import { glyphFor, tileStyle } from './AppTile';
+import { Explainer } from './Explainer';
+import { faqs } from '../faq';
 
 /**
  * The public home page.
@@ -109,12 +112,15 @@ export function Home() {
               {signedIn ? 'Go to your household' : `Start ${trialDays} days free`}
             </Link>
           </div>
+          <a className="watch-link" href="#tour">
+            <span aria-hidden="true">▶</span> Watch how it works on a TV
+          </a>
           <ul className="trust">
-            <li>{trialDays} days free</li>
             <li>No adverts</li>
+            <li>No chat or strangers</li>
             <li>No tracking</li>
-            <li>No hardware to buy</li>
-            <li>Delete your data any time</li>
+            <li>Nothing to install</li>
+            <li>Delete everything in one tap</li>
           </ul>
         </div>
 
@@ -139,6 +145,8 @@ export function Home() {
           <div className="tv-stand" />
         </div>
       </section>
+
+      <Explainer />
 
       {challengeApp && (
         <section className="home-section">
@@ -392,43 +400,63 @@ export function Home() {
         </div>
       </section>
 
-      <section className="band promise">
+      <section className="band" id="safety">
         <div className="home-section">
-          <h2>What we will never do</h2>
-          <div className="duo">
-            <div>
-              <h3>Never show your child an advert</h3>
-              <p className="muted">
-                Not a policy we could change later. There is no advertising in this product and no
-                setting that could switch one on.
-              </p>
+          <h2>The safest screen in your house</h2>
+          <p className="lede">
+            Built so the unsafe things are impossible, not merely switched off. There is no setting
+            anywhere in {PRODUCT_NAME} that could turn any of these on.
+          </p>
+          <div className="safety-grid">
+            {SAFETY.map((item) => (
+              <div className="safety-item" key={item.title}>
+                <span className="safety-glyph" aria-hidden="true">
+                  {item.glyph}
+                </span>
+                <h3>{item.title}</h3>
+                <p className="muted">{item.body}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="keep-grid">
+            <div className="keep-card">
+              <h3>What we keep</h3>
+              <ul>
+                <li>Your email address and the name you go by</li>
+                <li>Your child&apos;s first name, and birth month and year — not the date</li>
+                <li>Minutes used each day, so the limits work</li>
+                <li>Their personal bests, so they have something to beat</li>
+              </ul>
             </div>
-            <div>
-              <h3>Never build a profile of your child</h3>
-              <p className="muted">
-                We keep minutes used and personal bests. What your child writes, draws and codes
-                stays on your device and is never uploaded.
-              </p>
-            </div>
-            <div>
-              <h3>Never sell or share their data</h3>
-              <p className="muted">
-                We collect the least we can — a first name, and a birth month and year, so we know
-                which activities suit them.
-              </p>
-            </div>
-            <div>
-              <h3>Never hold it hostage</h3>
-              <p className="muted">
-                Export everything we hold, or delete all of it, from the parent dashboard. No
-                email, no waiting.
-              </p>
+            <div className="keep-card never">
+              <h3>What we never keep</h3>
+              <ul>
+                <li>Anything your child draws, writes or codes — it never leaves your device</li>
+                <li>Photos, voice, location or contacts</li>
+                <li>A profile of what your child likes, to sell or to target</li>
+                <li>Copies of the emails we send, once delivered</li>
+              </ul>
             </div>
           </div>
           <p className="small muted" style={{ marginTop: 'var(--pad)' }}>
-            Built to the Digital Personal Data Protection Act 2023, which is why a child&apos;s
-            account needs a verified parent behind it.
+            Unconfirmed sign-ups are deleted within a day, and everything else on a published
+            schedule — <Link to="/privacy">read exactly what and when</Link>. Built to India&apos;s
+            Digital Personal Data Protection Act 2023, which is why a child&apos;s profile needs a
+            verified parent behind it.
           </p>
+        </div>
+      </section>
+
+      <section className="home-section" id="faq">
+        <h2>Questions parents ask</h2>
+        <div className="faq">
+          {faqs().map((item) => (
+            <details key={item.q}>
+              <summary>{item.q}</summary>
+              <p>{item.a}</p>
+            </details>
+          ))}
         </div>
       </section>
 
@@ -446,9 +474,68 @@ export function Home() {
           their parent or guardian — the law requires it, and we would rather say so here than
           after you have signed up.
         </p>
+        <p className="founders-line">
+          Made in India by{' '}
+          {FOUNDERS.map((f, i) => (
+            <span key={f.name}>
+              {i > 0 && ' and '}
+              <strong>{f.name}</strong> <span className="muted">({f.role})</span>
+            </span>
+          ))}
+          . <Link to="/about">Why we built it</Link>
+        </p>
       </section>
 
       <SiteFooter />
     </div>
   );
 }
+
+/**
+ * The guarantees, each one a thing that is true of the code rather than a
+ * policy that could be changed. Where one depends on configuration outside
+ * this file -- the camera and microphone rule is a response header set at the
+ * edge -- it is the kind of configuration that is checked by preflight.
+ */
+const SAFETY = [
+  {
+    glyph: '🚫',
+    title: 'No adverts, ever',
+    body: 'Nothing here is paid for by attention, so there is nothing to show your child and nothing to maximise.',
+  },
+  {
+    glyph: '💬',
+    title: 'No chat, no strangers',
+    body: 'Nobody can message your child and your child cannot message anybody. No friend lists, no public profiles.',
+  },
+  {
+    glyph: '🌐',
+    title: 'No open internet',
+    body: 'Only the activities you tick. No open web browsing, no app store, no links out to anywhere else.',
+  },
+  {
+    glyph: '📷',
+    title: 'No camera or microphone',
+    body: 'The site is forbidden from even asking for them, by the same browser rule banks use.',
+  },
+  {
+    glyph: '🎨',
+    title: 'Nothing is uploaded',
+    body: 'Drawings, stories and code stay on your device. We could not see them if we wanted to.',
+  },
+  {
+    glyph: '⏱️',
+    title: 'Time that really ends',
+    body: 'When today\u2019s minutes are gone, the session ends on its own — the computer says no, not you.',
+  },
+  {
+    glyph: '👁️',
+    title: 'No tracking',
+    body: 'No analytics, no pixels, no third-party scripts. One cookie, only to keep you signed in.',
+  },
+  {
+    glyph: '🗑️',
+    title: 'Delete it all, in one tap',
+    body: 'Download everything we hold, or erase it, from the parent dashboard. No email, no waiting.',
+  },
+] as const;

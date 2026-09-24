@@ -453,6 +453,9 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   animation: shimmer 1.4s infinite;
   border-radius: var(--radius);
 }
+/* A game's own file is still arriving: hold the space it will fill. */
+.game-loading { min-height: min(70vh, 640px); }
+
 @keyframes shimmer { to { background-position: -200% 0; } }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1472,17 +1475,154 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 .promo-tile .glyph { font-size: 1.9rem; line-height: 1; display: block; margin-bottom: 10px; }
 .promo-tile p { margin: 0 0 4px; line-height: 1.5; }
 
-/* Each promise gets a mark, because a list of four negatives reads as fine
-   print otherwise -- and these are the reason a parent chooses this. */
-.promise h3 { padding-left: 30px; position: relative; }
-.promise h3::before {
-  content: '✓';
+/* ---- the tour: the explainer video and its three steps ---- */
+
+.watch-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 var(--pad);
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: none;
+}
+.watch-link span {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.8rem;
+  padding-left: 2px;
+}
+.watch-link:hover { text-decoration: underline; }
+
+.tour { padding-top: 0; }
+.tour-grid {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: clamp(20px, 4vw, 48px);
+  align-items: center;
+}
+.tour-video video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--bezel);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 48px -24px rgba(0, 0, 0, 0.55);
+}
+.tour-copy h2 { margin-top: 6px; }
+.tour-steps {
+  counter-reset: tour;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+.tour-steps li {
+  counter-increment: tour;
+  position: relative;
+  padding-left: 46px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.tour-steps li strong { color: var(--ink); }
+.tour-steps li::before {
+  content: counter(tour);
   position: absolute;
   left: 0;
-  color: var(--accent);
-  font-weight: 700;
+  top: -2px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--wash);
+  border: 1px solid var(--wash-line);
+  color: var(--ink);
+  font-weight: 800;
 }
-.promise .duo p { padding-left: 30px; }
+@media (max-width: 860px) {
+  .tour-grid { grid-template-columns: 1fr; }
+}
+
+/* ---- safety ---- */
+
+.safety-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: var(--pad);
+  margin-top: clamp(20px, 3vw, 36px);
+}
+.safety-item {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: calc(var(--pad) * 1.1);
+}
+.safety-item p { margin: 0; line-height: 1.55; }
+.safety-glyph { display: block; font-size: 1.7rem; line-height: 1; margin-bottom: 10px; }
+
+.keep-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: var(--pad);
+  margin-top: var(--pad);
+}
+.keep-card {
+  background: var(--wash);
+  border: 1px solid var(--wash-line);
+  border-radius: var(--radius);
+  padding: calc(var(--pad) * 1.2);
+}
+.keep-card.never { background: var(--surface); border-color: var(--line); }
+.keep-card ul { margin: 0; padding-left: 1.2em; line-height: 1.6; }
+.keep-card li + li { margin-top: 4px; }
+
+/* ---- questions ---- */
+
+.faq {
+  display: grid;
+  gap: 10px;
+  margin-top: var(--pad);
+  max-width: 820px;
+}
+.faq details {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0 calc(var(--pad) * 1.1);
+}
+.faq summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--pad);
+  padding: calc(var(--pad) * 0.9) 0;
+  font-weight: 700;
+  /* A comfortable target on a phone, and a visible one on a remote. */
+  min-height: 48px;
+  align-items: center;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after {
+  content: '+';
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--ink-soft);
+  flex: none;
+}
+.faq details[open] summary::after { content: '–'; }
+.faq summary:focus-visible { outline: none; box-shadow: var(--focus); border-radius: 8px; }
+.faq details p { margin: 0 0 var(--pad); line-height: 1.65; color: var(--ink-soft); }
+
+.founders-line { margin-top: calc(var(--pad) * 2); color: var(--ink-soft); }
+.founders-line strong { color: var(--ink); }
 
 .closing { text-align: center; }
 .closing .lede { margin-left: auto; margin-right: auto; }
@@ -1686,7 +1826,9 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 
 @media (max-width: 560px) {
   /* The number column costs more than it earns once the text is this narrow. */
-  .guide-list, .guide-video { padding-left: 0; }
+  /* 0 put the numbers on the card's edge; 1.4em is just room for them. */
+  .guide-list { padding-left: 1.4em; }
+  .guide-video { padding-left: 0; }
 }
 
 /* ===========================================================================
@@ -2191,6 +2333,39 @@ button.tile {
 }
 .tile:disabled {
   opacity: 0.45;
+}
+/* Their own best, in gold -- a trophy, not a notification. */
+.tile-badge.best {
+  color: #3b2a00;
+  background: #ffd766;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.25);
+}
+/* The Surprise-me roulette: the lit tile lifts and glows while it spins. The
+   tiles are disabled mid-spin (a session is starting), so this overrides the
+   dimming as well. */
+.tile.rolling,
+.tile.rolling:disabled {
+  opacity: 1;
+  transform: translateY(-6px) scale(1.04);
+  box-shadow:
+    0 0 0 4px #fff,
+    0 0 0 9px #ffd766,
+    0 18px 34px -12px rgb(0 0 0 / 0.8);
+}
+.tv button.surprise {
+  font-weight: 800;
+  color: #3b2a00;
+  background: #ffd766;
+  border-color: transparent;
+}
+.tv button.surprise:hover {
+  background: #ffe28a;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile.rolling,
+  .tile.rolling:disabled {
+    transform: none;
+  }
 }
 
 @media (hover: hover) {
@@ -3437,4 +3612,38 @@ input.code-input {
 }
 .tv .field label {
   margin-bottom: 10px;
+}
+
+/* Under a preview game: a note for the grown-up, kept quiet so the game stays
+   the thing on screen. Scrolled to, never in the way. */
+.activity-about {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: clamp(28px, 5vw, 56px) var(--pad) clamp(40px, 6vw, 72px);
+  color: var(--ink-soft);
+}
+.activity-about h2 { color: var(--ink); font-size: 1.3rem; margin-bottom: 0.3em; }
+.activity-about .lede { font-size: 1.05rem; margin: 0 0 12px; }
+.activity-about ul { margin: 0 0 var(--pad); padding-left: 1.2em; line-height: 1.65; }
+.activity-about strong { color: var(--ink); }
+.activity-about .row { gap: var(--pad); }
+
+/* Phones. The catalogue is two compact columns rather than nineteen full-width
+   cards (three thousand pixels of scrolling before a parent reaches a price),
+   and each safety promise puts its icon beside its words instead of above. */
+@media (max-width: 560px) {
+  .promo-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .promo-tile { padding: 12px; }
+  .promo-tile .glyph { font-size: 1.5rem; margin-bottom: 6px; }
+  .promo-tile h3 { font-size: 0.98rem; }
+  .promo-tile p { font-size: 0.86rem; line-height: 1.4; }
+  .try-cue { white-space: nowrap; }
+  .safety-item {
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    column-gap: 12px;
+    padding: 14px;
+  }
+  .safety-glyph { grid-row: span 2; margin: 2px 0 0; font-size: 1.5rem; }
+  .safety-item h3 { margin-bottom: 2px; }
 }

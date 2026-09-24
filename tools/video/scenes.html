@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en-IN">
+  <head>
+    <meta charset="utf-8" />
+    <title>How Online Kids PC works on your TV</title>
+    <!--
+      The explainer, as one page that can draw any moment of itself.
+
+      build.mjs loads this in a 1920x1080 headless browser, calls renderAt(t)
+      for every frame and takes a screenshot of each. Nothing here moves on
+      its own -- no CSS animation, no timers -- so frame 1,500 looks the same
+      however fast or slow the machine rendering it is.
+
+      The screens on the TV and the phone are the real app, recorded by
+      capture.mjs into .capture/. Timings come from .render/timeline.js, which
+      build.mjs writes from the length of each scene's narration.
+    -->
+    <style>
+      :root {
+        --ink: #1d1b19;
+        --soft: #5f5850;
+        --accent: #2f6f4f;
+        --gold: #ffd766;
+        --font: -apple-system, 'SF Pro Display', system-ui, 'Segoe UI', Roboto, sans-serif;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #f6efe4; }
+      body { font-family: var(--font); color: var(--ink); -webkit-font-smoothing: antialiased; }
+      #stage {
+        position: relative; width: 1920px; height: 1080px; overflow: hidden;
+        background:
+          radial-gradient(900px 600px at 12% 8%, #fffaf2 0%, transparent 70%),
+          radial-gradient(800px 600px at 92% 95%, #dcebe1 0%, transparent 70%),
+          linear-gradient(160deg, #fbf6ee 0%, #f1e8da 100%);
+      }
+      .abs { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform, opacity; }
+
+      /* ---- the television ---- */
+      #tv { width: 1188px; }
+      .bezel {
+        width: 1188px; height: 684px; padding: 18px; border-radius: 28px;
+        background: linear-gradient(180deg, #2b2825, #191715);
+        box-shadow: 0 40px 80px -30px rgb(0 0 0 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.08);
+      }
+      .screen { position: relative; width: 1152px; height: 648px; border-radius: 10px; overflow: hidden; background: #0d0c14; }
+      .screen img { position: absolute; left: 0; top: 0; width: 1152px; height: 648px; opacity: 0; }
+      .stand { width: 240px; height: 34px; margin: 0 auto; background: linear-gradient(#2a2724, #3a3632); border-radius: 0 0 14px 14px; }
+      .stand-foot { width: 420px; height: 10px; margin: 0 auto; background: #2a2724; border-radius: 6px; opacity: 0.85; }
+
+      #browser { position: absolute; inset: 0 0 auto 0; height: 84px; background: #26252b; display: flex; align-items: center; gap: 16px; padding: 0 22px; opacity: 0; }
+      #browser .dots { display: flex; gap: 8px; }
+      #browser .dots i { width: 12px; height: 12px; border-radius: 50%; background: #55535c; display: block; }
+      #url { flex: 1; height: 56px; border-radius: 28px; background: #3a3941; color: #fff; font-size: 34px; font-weight: 600; display: flex; align-items: center; padding: 0 26px; gap: 2px; }
+      #url.empty { color: #a7a4ae; }
+      #url .caret { width: 3px; height: 36px; background: #ffd766; margin-left: 2px; }
+      #newtab { position: absolute; inset: 84px 0 0 0; background: radial-gradient(600px 300px at 50% 40%, #33313a, #1d1c22); opacity: 0; display: grid; place-items: center; color: #8d8a96; font-size: 34px; font-weight: 600; }
+      #toast {
+        position: absolute; left: 50%; top: 26px; transform: translateX(-50%);
+        padding: 12px 26px; border-radius: 999px; background: #1f8f55; color: #fff;
+        font-size: 26px; font-weight: 700; opacity: 0; box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+      }
+
+      /* ---- the remote ---- */
+      #remote { width: 220px; }
+      #remote svg { width: 220px; height: 640px; filter: drop-shadow(0 30px 40px rgb(0 0 0 / 0.35)); }
+      #remote .key { fill: #3a3733; }
+      #remote .key.on { fill: var(--gold); }
+      #remote .glyph { fill: #d9d4cc; font: 700 26px var(--font); text-anchor: middle; dominant-baseline: central; }
+      #remote .glyph.on { fill: #3b2a00; }
+      #hints { width: 260px; display: flex; flex-direction: column; gap: 12px; }
+      .hint { background: #fff; border-radius: 16px; padding: 12px 18px; font-size: 26px; font-weight: 700; box-shadow: 0 10px 30px -12px rgb(0 0 0 / 0.3); }
+      .hint b { display: inline-block; min-width: 64px; padding: 2px 10px; margin-right: 10px; border-radius: 10px; background: #2b2825; color: #fff; text-align: center; }
+
+      /* ---- the phone ---- */
+      #phone { width: 372px; }
+      .handset {
+        width: 372px; height: 770px; padding: 14px; border-radius: 56px;
+        background: linear-gradient(160deg, #2c2a27, #111);
+        box-shadow: 0 40px 80px -30px rgb(0 0 0 / 0.6), inset 0 0 0 2px #45413c;
+      }
+      .handset .glass { position: relative; width: 344px; height: 742px; border-radius: 44px; overflow: hidden; background: #fff; }
+      .handset img { position: absolute; left: 0; top: 0; width: 344px; height: auto; opacity: 0; }
+      #code-glow { position: absolute; left: 20px; top: 186px; width: 304px; height: 92px; border-radius: 16px; border: 5px solid var(--gold); box-shadow: 0 0 0 8px rgb(255 215 102 / 0.35); opacity: 0; z-index: 3; }
+      .notch { position: absolute; left: 50%; top: 10px; width: 110px; height: 30px; border-radius: 20px; background: #0b0b0b; transform: translateX(-50%); z-index: 2; }
+
+      /* ---- words ---- */
+      #chip { display: flex; align-items: center; gap: 20px; }
+      #chip .n { width: 72px; height: 72px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 40px; font-weight: 800; display: grid; place-items: center; }
+      #chip .t { font-size: 46px; font-weight: 800; letter-spacing: -0.02em; }
+      #chip .s { font-size: 22px; font-weight: 700; color: var(--soft); letter-spacing: 0.12em; text-transform: uppercase; }
+
+      #caption {
+        left: 50%; top: auto; bottom: 46px; max-width: 1560px; transform: translateX(-50%);
+        padding: 16px 34px; border-radius: 22px; background: rgb(24 22 20 / 0.84);
+        color: #fff; font-size: 38px; font-weight: 600; line-height: 1.3; text-align: center;
+      }
+
+      .title-block { width: 1920px; text-align: center; }
+      #intro-logo { width: 180px; height: 180px; border-radius: 40px; box-shadow: 0 30px 60px -24px rgb(0 0 0 / 0.45); }
+      #intro-title { font-size: 120px; font-weight: 800; letter-spacing: -0.04em; }
+      #intro-tag { font-size: 50px; color: var(--soft); font-weight: 500; }
+
+      .pill { display: flex; align-items: center; gap: 16px; padding: 18px 30px; border-radius: 999px; background: #fff; font-size: 34px; font-weight: 800; box-shadow: 0 16px 40px -18px rgb(0 0 0 / 0.35); white-space: nowrap; }
+      .pill span { font-size: 40px; }
+      .row { display: flex; gap: 22px; justify-content: center; width: 1920px; }
+
+      .card {
+        width: 860px; display: flex; align-items: center; gap: 28px; padding: 30px 36px; border-radius: 30px;
+        background: #fff; box-shadow: 0 24px 50px -24px rgb(0 0 0 / 0.35);
+      }
+      .card span { font-size: 64px; }
+      .card b { display: block; font-size: 42px; letter-spacing: -0.02em; }
+      .card small { display: block; font-size: 28px; color: var(--soft); margin-top: 4px; }
+
+      #ring { width: 260px; height: 260px; }
+      #ring svg { width: 260px; height: 260px; filter: drop-shadow(0 20px 30px rgb(0 0 0 / 0.4)); }
+      #ring text { font: 800 64px var(--font); fill: #fff; text-anchor: middle; dominant-baseline: central; }
+      #ring .unit { font-size: 28px; font-weight: 700; fill: #d8d2ff; }
+
+      #end-url { font-size: 150px; font-weight: 900; letter-spacing: -0.045em; color: var(--accent); }
+      #end-top { font-size: 64px; font-weight: 800; letter-spacing: -0.02em; }
+      #end-sub { font-size: 40px; color: var(--soft); font-weight: 600; }
+      #end-made { font-size: 36px; color: var(--soft); }
+      #end-made b { color: var(--ink); }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+      <!-- Intro -->
+      <div class="abs title-block" id="intro" style="top: 250px">
+        <img id="intro-logo" src="../../apps/web/public/icon-512.png" alt="" />
+        <div id="intro-title">Online Kids PC</div>
+        <div id="intro-tag">A safe computer for your child — on the TV you already own.</div>
+      </div>
+
+      <!-- The television -->
+      <div class="abs" id="tv">
+        <div class="bezel">
+          <div class="screen" id="screen">
+            <div id="newtab"><div style="text-align: center"><div style="font-size: 110px">🌐</div>The TV's web browser</div></div>
+            <div id="browser">
+              <div class="dots"><i></i><i></i><i></i></div>
+              <div id="url"></div>
+            </div>
+            <div id="toast">✓ Signed in</div>
+          </div>
+        </div>
+        <div class="stand"></div>
+        <div class="stand-foot"></div>
+      </div>
+
+      <!-- The remote -->
+      <div class="abs" id="remote">
+        <svg viewBox="0 0 220 640" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#2d2a27" /><stop offset="1" stop-color="#151311" />
+            </linearGradient>
+          </defs>
+          <rect x="10" y="4" width="200" height="632" rx="100" fill="url(#body)" />
+          <circle cx="110" cy="70" r="16" fill="#8c3b32" />
+          <circle cx="110" cy="230" r="92" class="key" id="k-ring" />
+          <path class="key" id="k-up" d="M72 150 L148 150 L128 186 L92 186 Z" opacity="0" />
+          <text class="glyph" id="g-up" x="110" y="164">▲</text>
+          <text class="glyph" id="g-down" x="110" y="296">▼</text>
+          <text class="glyph" id="g-left" x="44" y="230">◀</text>
+          <text class="glyph" id="g-right" x="176" y="230">▶</text>
+          <circle cx="110" cy="230" r="44" class="key" id="k-ok" stroke="#1c1a18" stroke-width="6" />
+          <text class="glyph" id="g-ok" x="110" y="230">OK</text>
+          <circle cx="62" cy="372" r="30" class="key" id="k-back" />
+          <text class="glyph" x="62" y="372" style="font-size: 30px">↩</text>
+          <circle cx="158" cy="372" r="30" class="key" id="k-home" />
+          <text class="glyph" x="158" y="372" style="font-size: 28px">⌂</text>
+          <g opacity="0.9">
+            <circle cx="62" cy="450" r="22" class="key" /><circle cx="110" cy="450" r="22" class="key" /><circle cx="158" cy="450" r="22" class="key" />
+            <circle cx="62" cy="508" r="22" class="key" /><circle cx="110" cy="508" r="22" class="key" /><circle cx="158" cy="508" r="22" class="key" />
+          </g>
+        </svg>
+      </div>
+      <div class="abs" id="hints">
+        <div class="hint"><b>◀ ▶</b>move</div>
+        <div class="hint"><b>OK</b>play</div>
+        <div class="hint"><b>↩</b>back</div>
+      </div>
+
+      <!-- The phone -->
+      <div class="abs" id="phone">
+        <div class="handset"><div class="glass" id="glass"><div class="notch"></div><div id="code-glow"></div></div></div>
+      </div>
+
+      <!-- Words -->
+      <div class="abs" id="chip"><div class="n" id="chip-n">1</div><div><div class="s" id="chip-s">Step 1 of 4</div><div class="t" id="chip-t"></div></div></div>
+
+      <div class="abs row" id="badges" style="top: 800px">
+        <div class="pill" data-i="0"><span>🚫</span>No adverts</div>
+        <div class="pill" data-i="1"><span>💬</span>No chat or strangers</div>
+        <div class="pill" data-i="2"><span>👁️</span>No tracking</div>
+        <div class="pill" data-i="3"><span>📦</span>Nothing to install</div>
+      </div>
+
+      <div class="abs row" id="devices" style="top: 836px">
+        <div class="pill" data-i="0"><span>📺</span>Fire TV → Silk</div>
+        <div class="pill" data-i="1"><span>📺</span>Samsung → Internet</div>
+        <div class="pill" data-i="2"><span>📺</span>LG → Web Browser</div>
+        <div class="pill" data-i="3"><span>💻</span>Laptop + HDMI</div>
+      </div>
+
+      <div class="abs" id="bullets" style="left: 0; top: 0">
+        <div class="card" data-i="0"><span>⏱️</span><div><b>Minutes a day</b><small>When they are gone, they are gone.</small></div></div>
+        <div class="card" data-i="1" style="margin-top: 26px"><span>🕓</span><div><b>Hours they can play</b><small>An after-school hour, longer at weekends.</small></div></div>
+        <div class="card" data-i="2" style="margin-top: 26px"><span>✅</span><div><b>Which games they open</b><small>Sensible for their age, from the start.</small></div></div>
+      </div>
+
+      <div class="abs" id="ring">
+        <svg viewBox="0 0 260 260">
+          <circle cx="130" cy="130" r="118" fill="#1a1830" />
+          <circle cx="130" cy="130" r="96" fill="none" stroke="#3a3660" stroke-width="22" />
+          <circle id="ring-fill" cx="130" cy="130" r="96" fill="none" stroke="#ffd766" stroke-width="22" stroke-linecap="round" transform="rotate(-90 130 130)" stroke-dasharray="603.2" stroke-dashoffset="0" />
+          <text id="ring-n" x="130" y="118">30</text>
+          <text class="unit" x="130" y="170">min left</text>
+        </svg>
+      </div>
+
+      <div class="abs" id="cards" style="left: 530px; top: 190px">
+        <div class="card" data-i="0"><span>🎨</span><div><b>Nothing is uploaded</b><small>What your child draws, writes or codes stays at home.</small></div></div>
+        <div class="card" data-i="1" style="margin-top: 26px"><span>🗑️</span><div><b>Delete everything, in one tap</b><small>Or download it all, from the parent dashboard.</small></div></div>
+        <div class="card" data-i="2" style="margin-top: 26px"><span>🇮🇳</span><div><b>Built for India's data law</b><small>DPDP Act 2023 — a verified parent behind every child.</small></div></div>
+      </div>
+
+      <div class="abs title-block" id="end" style="top: 190px">
+        <img src="../../apps/web/public/icon-512.png" alt="" style="width: 130px; height: 130px; border-radius: 30px" id="end-logo" />
+        <div id="end-top" style="margin-top: 26px">Try every game free</div>
+        <div id="end-url">kidspc.online</div>
+        <div id="end-sub">No sign-up needed · Works with your TV remote</div>
+        <div id="end-made" style="margin-top: 40px">Made in India by <b>Gagan</b> (Founder) &amp; <b>Vansh</b> (Co-founder)</div>
+      </div>
+
+      <div class="abs" id="og" style="left: 90px; top: 250px; width: 780px">
+        <img src="../../apps/web/public/icon-512.png" alt="" style="width: 120px; height: 120px; border-radius: 28px" />
+        <div style="font-size: 92px; font-weight: 900; letter-spacing: -0.04em; margin-top: 18px">Online Kids PC</div>
+        <div style="font-size: 44px; line-height: 1.2; color: var(--soft); font-weight: 600; margin-top: 10px">A safe computer for your child, on the TV you already own.</div>
+        <div style="font-size: 32px; font-weight: 800; color: var(--accent); margin-top: 26px">No ads · No chat · No tracking · Plays with the remote</div>
+      </div>
+
+      <div class="abs" id="caption"></div>
+    </div>
+
+    <script src="./.render/timeline.js"></script>
+    <script>
+      const T = window.TIMELINE;
+      const $ = (id) => document.getElementById(id);
+      const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+      const smooth = (v) => { v = clamp(v); return v * v * (3 - 2 * v); };
+      const lerp = (a, b, k) => a + (b - a) * k;
+      /** 0 -> 1 across [start, start + dur]. */
+      const ramp = (t, start, dur = 0.5) => smooth((t - start) / dur);
+
+      // ---- images: every frame the TV or phone can show, decoded up front ----
+      const TV_FRAMES = [
+        'tv-home', 'tv-code-0', 'tv-code-1', 'tv-code-2', 'tv-code-3', 'tv-code-4', 'tv-code-5',
+        'tv-house-0', 'tv-house-1', 'tv-house-2', 'tv-pin-0', 'tv-pin-1', 'tv-pin-2', 'tv-pin-3',
+        'tv-launch-0', 'tv-launch-1', 'tv-launch-2', 'tv-launch-3', 'tv-launch-snake', 'tv-timeup',
+        ...Array.from({ length: 24 }, (_, i) => `tv-snake-${i}`),
+      ];
+      const PHONE_FRAMES = ['phone-letter', 'phone-parent'];
+      const images = {};
+      for (const name of TV_FRAMES) {
+        const img = new Image();
+        img.src = `./.capture/${name}.png`;
+        $('screen').insertBefore(img, $('newtab'));
+        images[name] = img;
+      }
+      for (const name of PHONE_FRAMES) {
+        const img = new Image();
+        img.src = `./.capture/${name}.png`;
+        $('glass').appendChild(img);
+        images[name] = img;
+      }
+      window.ready = Promise.all(Object.values(images).map((img) => img.decode())).then(() => true);
+
+      // ---- where things sit -------------------------------------------------
+      const HIDDEN = { x: 0, y: 0, s: 1, o: 0 };
+      const LAYOUTS = {
+        none: {},
+        promise: { tv: { x: 485, y: 96, s: 0.8, o: 1 } },
+        center: { tv: { x: 366, y: 120, s: 1, o: 1 } },
+        open: { tv: { x: 150, y: 110, s: 0.9, o: 1 }, remote: { x: 1480, y: 120, s: 1, o: 1 } },
+        remote: { tv: { x: 130, y: 120, s: 1, o: 1 }, remote: { x: 1400, y: 110, s: 1, o: 1 }, hints: { x: 1640, y: 250, s: 1, o: 1 } },
+        phone: { tv: { x: 640, y: 170, s: 0.95, o: 1 }, phone: { x: 150, y: 110, s: 1, o: 1 } },
+        phoneFocus: { phone: { x: 250, y: 96, s: 1.08, o: 1 } },
+      };
+      const SCENE_LAYOUT = {
+        intro: 'none', promise: 'promise', open: 'open', code: 'phone', limits: 'phoneFocus',
+        handover: 'remote', play: 'remote', timeup: 'center', privacy: 'none', end: 'none',
+      };
+      const PARTS = ['tv', 'remote', 'hints', 'phone'];
+      function blend(a, b, k) {
+        if (a.o === 0 && b.o === 0) return HIDDEN;
+        if (a.o === 0) return { ...b, o: b.o * k };
+        if (b.o === 0) return { ...a, o: a.o * (1 - k) };
+        return { x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k), s: lerp(a.s, b.s, k), o: lerp(a.o, b.o, k) };
+      }
+
+      /** When, inside a scene, the narration reaches a phrase. */
+      function cue(sc, phrase) {
+        const i = sc.say.indexOf(phrase);
+        if (i < 0) throw new Error(`no "${phrase}" in ${sc.id}`);
+        return sc.speechStart + sc.speechDur * (i / sc.say.length);
+      }
+
+      // ---- what each scene does -------------------------------------------------
+      // presses(sc): remote presses, as [time, key, frame-after] -- also read by
+      // build.mjs to put a click on the soundtrack at each one.
+      const SCENES = {
+        promise: {
+          frames: (sc) => [[0, 'tv-launch-0']],
+        },
+        open: {
+          presses: (sc) => {
+            const typed = cue(sc, 'Then go to') + 1.5;
+            return [[typed + 0.1, 'ok', 'tv-home']];
+          },
+        },
+        code: {
+          frames: (sc) => {
+            const t0 = cue(sc, 'Type them');
+            const out = [[0, 'tv-code-0']];
+            for (let i = 1; i <= 5; i++) out.push([t0 + i * 0.28, `tv-code-${i}`]);
+            out.push([t0 + 5 * 0.28 + 0.45, 'tv-house-0']);
+            return out;
+          },
+        },
+        limits: { frames: () => [[0, 'tv-house-0']] },
+        handover: {
+          presses: (sc) => {
+            const p = cue(sc, 'picks their');
+            const q = cue(sc, 'types their own');
+            return [
+              [p - 0.5, 'right', 'tv-house-1'],
+              [p + 0.1, 'left', 'tv-house-2'],
+              [p + 0.7, 'ok', 'tv-pin-0'],
+              [q, 'ok', 'tv-pin-1'],
+              [q + 0.38, 'ok', 'tv-pin-2'],
+              [q + 0.76, 'ok', 'tv-pin-3'],
+              [q + 1.14, 'ok', 'tv-launch-0'],
+            ];
+          },
+          frames: () => [[0, 'tv-house-0']],
+        },
+        play: {
+          presses: (sc) => {
+            const a = cue(sc, 'Arrows to move');
+            const ok = cue(sc, 'O K to play');
+            return [
+              [a + 0.05, 'down', 'tv-launch-1'],
+              [a + 0.5, 'right', 'tv-launch-2'],
+              [a + 0.95, 'right', 'tv-launch-3'],
+              [ok - 0.25, 'left', 'tv-launch-snake'],
+              [ok + 0.35, 'ok', 'snake'],
+            ];
+          },
+          frames: () => [[0, 'tv-launch-0']],
+        },
+        timeup: {
+          frames: (sc) => [[0, 'tv-launch-0'], [cue(sc, 'the session ends') - 0.1, 'tv-timeup']],
+        },
+      };
+
+      function tvFrameAt(sc, lt) {
+        const def = SCENES[sc.id] ?? {};
+        const events = [...(def.frames?.(sc) ?? []), ...(def.presses?.(sc) ?? []).map(([t, , f]) => [t + 0.12, f])]
+          .sort((a, b) => a[0] - b[0]);
+        let frame = null, since = 0;
+        for (const [t, f] of events) if (lt >= t) { frame = f; since = lt - t; }
+        if (frame === 'snake') frame = `tv-snake-${Math.min(23, Math.floor(since * 6.5))}`;
+        return frame;
+      }
+      function pressAt(sc, lt) {
+        for (const [t, key] of SCENES[sc.id]?.presses?.(sc) ?? []) if (lt >= t && lt < t + 0.3) return key;
+        return null;
+      }
+
+      /** Every remote press in the film, for the soundtrack. */
+      window.pressTimes = () =>
+        T.scenes.flatMap((sc) => (SCENES[sc.id]?.presses?.(sc) ?? []).map(([t]) => sc.start + t));
+
+      // ---- drawing one moment -----------------------------------------------------
+      const set = (el, { x = 0, y = 0, s = 1, o = 1 } = {}, extra = '') => {
+        el.style.opacity = o.toFixed(3);
+        el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${s.toFixed(4)}) ${extra}`;
+        el.style.visibility = o > 0.001 ? 'visible' : 'hidden';
+      };
+      const show = (el, o) => { el.style.opacity = o.toFixed(3); el.style.visibility = o > 0.001 ? 'visible' : 'hidden'; };
+      const rise = (el, t, start, dur = 0.55, dist = 30) => {
+        const k = ramp(t, start, dur);
+        el.style.opacity = k.toFixed(3);
+        el.style.transform = `translateY(${((1 - k) * dist).toFixed(1)}px)`;
+        return k;
+      };
+
+      function layoutAt(index, lt) {
+        const sc = T.scenes[index];
+        const target = LAYOUTS[SCENE_LAYOUT[sc.id]];
+        if (index === 0 || lt >= 0.7) return target;
+        const prev = LAYOUTS[SCENE_LAYOUT[T.scenes[index - 1].id]];
+        const k = smooth(lt / 0.7);
+        return Object.fromEntries(PARTS.map((p) => [p, blend(prev[p] ?? HIDDEN, target[p] ?? HIDDEN, k)]));
+      }
+
+      window.renderAt = (t) => {
+        const index = Math.max(0, T.scenes.findIndex((s) => t >= s.start && t < s.start + s.dur));
+        const sc = T.scenes[index];
+        const lt = t - sc.start;
+        const exit = 1 - smooth((lt - (sc.dur - 0.35)) / 0.35);
+        const last = index === T.scenes.length - 1;
+
+        // Everything off, then this scene's things on.
+        for (const id of ['intro', 'badges', 'devices', 'bullets', 'ring', 'cards', 'end', 'chip', 'og', 'code-glow']) show($(id), 0);
+
+        const L = layoutAt(index, lt);
+        set($('tv'), L.tv ?? HIDDEN);
+        set($('remote'), L.remote ?? HIDDEN);
+        set($('hints'), L.hints ?? HIDDEN);
+        set($('phone'), L.phone ?? HIDDEN);
+        if (sc.id === 'promise') {
+          const k = ramp(lt, 0, 0.9);
+          set($('tv'), { ...L.tv, s: L.tv.s * (0.94 + 0.06 * k), o: L.tv.o * k });
+        }
+
+        // The TV's screen.
+        const frame = tvFrameAt(sc, lt) ?? (index > 0 ? tvFrameAt(T.scenes[index - 1], T.scenes[index - 1].dur) : null);
+        for (const name of TV_FRAMES) images[name].style.opacity = name === frame ? 1 : 0;
+        show($('browser'), 0); show($('newtab'), 0); show($('toast'), 0);
+
+        // The remote's keys.
+        const key = pressAt(sc, lt);
+        for (const k of ['up', 'down', 'left', 'right', 'ok']) {
+          $(`g-${k}`).classList.toggle('on', k === key && k !== 'ok');
+        }
+        $('k-ok').classList.toggle('on', key === 'ok');
+        $('g-ok').classList.toggle('on', key === 'ok');
+        $('k-ring').classList.toggle('on', key && key !== 'ok');
+
+        // The phone's screen.
+        const phoneFrame = sc.id === 'limits' ? 'phone-parent' : 'phone-letter';
+        for (const name of PHONE_FRAMES) images[name].style.opacity = name === phoneFrame ? 1 : 0;
+
+        // Step label.
+        const STEPS = { open: [1, 'Open it on your TV'], code: [2, 'Sign in with a code'], limits: [3, 'Set their limits'], handover: [4, 'Hand over the remote'] };
+        if (STEPS[sc.id]) {
+          const [n, title] = STEPS[sc.id];
+          $('chip-n').textContent = n; $('chip-s').textContent = `Step ${n} of 4`; $('chip-t').textContent = title;
+          set($('chip'), { x: sc.id === 'limits' ? 900 : 80, y: sc.id === 'limits' ? 110 : 30, o: ramp(lt, 0.1, 0.4) * exit });
+        }
+
+        switch (sc.id) {
+          case 'intro': {
+            show($('intro'), exit);
+            rise($('intro-logo'), lt, 0.1); rise($('intro-title'), lt, 0.35); rise($('intro-tag'), lt, 0.8);
+            break;
+          }
+          case 'promise': {
+            show($('badges'), exit);
+            const at = [cue(sc, 'No adverts'), cue(sc, 'No chat'), cue(sc, 'No tracking'), cue(sc, 'nothing to buy')];
+            document.querySelectorAll('#badges .pill').forEach((el, i) => rise(el, lt, at[i] - 0.1, 0.4, 24));
+            break;
+          }
+          case 'open': {
+            const typedFrom = cue(sc, 'Then go to');
+            const url = 'kidspc.online';
+            const loaded = typedFrom + 1.5 + 0.22;
+            if (lt < loaded) {
+              show($('browser'), 1); show($('newtab'), 1);
+              for (const name of TV_FRAMES) images[name].style.opacity = 0;
+              const n = Math.floor(clamp((lt - typedFrom) / 1.3) * url.length);
+              const u = $('url');
+              u.className = n === 0 ? 'empty' : '';
+              u.innerHTML = n === 0 ? 'Search or type a web address' : `${url.slice(0, n)}<span class="caret"></span>`;
+            }
+            show($('devices'), exit);
+            const at = [cue(sc, 'Silk'), cue(sc, 'Internet'), cue(sc, 'Web Browser'), cue(sc, 'Web Browser') + 0.9];
+            document.querySelectorAll('#devices .pill').forEach((el, i) => rise(el, lt, at[i] - 0.15, 0.4, 20));
+            break;
+          }
+          case 'code': {
+            const done = cue(sc, 'Type them') + 5 * 0.28 + 0.45;
+            show($('toast'), ramp(lt, done, 0.25) * (1 - ramp(lt, done + 1.8, 0.3)));
+            // The six digits in the letter, lit while the voice mentions them.
+            show($('code-glow'), ramp(lt, cue(sc, 'Six digits') - 0.2, 0.3) * (1 - ramp(lt, done, 0.3)));
+            break;
+          }
+          case 'limits': {
+            set($('bullets'), { x: 900, y: 290, o: exit });
+            const at = [cue(sc, 'minutes a day'), cue(sc, 'the hours'), cue(sc, 'exactly which')];
+            document.querySelectorAll('#bullets .card').forEach((el, i) => rise(el, lt, at[i] - 0.2, 0.45, 26));
+            break;
+          }
+          case 'timeup': {
+            const start = 0.6, end = cue(sc, 'the session ends') - 0.15;
+            const k = clamp((lt - start) / (end - start));
+            const o = ramp(lt, 0.3, 0.4) * (1 - ramp(lt, end + 0.25, 0.3));
+            set($('ring'), { x: 1450, y: 70, o });
+            $('ring-n').textContent = String(Math.round(30 * (1 - k)));
+            $('ring-fill').setAttribute('stroke-dashoffset', (603.2 * k).toFixed(1));
+            break;
+          }
+          case 'privacy': {
+            show($('cards'), exit);
+            const at = [cue(sc, 'Nothing your child'), cue(sc, 'delete everything'), cue(sc, 'delete everything') + 1.1];
+            document.querySelectorAll('#cards .card').forEach((el, i) => rise(el, lt, at[i] - 0.2, 0.45, 26));
+            break;
+          }
+          case 'end': {
+            show($('end'), last ? 1 : exit);
+            rise($('end-logo'), lt, 0.05); rise($('end-top'), lt, 0.2); rise($('end-url'), lt, cue(sc, 'kids P C') - 0.2);
+            rise($('end-sub'), lt, cue(sc, 'No sign-up') - 0.1); rise($('end-made'), lt, cue(sc, 'Made in India') - 0.1);
+            break;
+          }
+        }
+        // Scenes that fade their TV out at the end, into a scene with none.
+        if (!last && ['none'].includes(SCENE_LAYOUT[T.scenes[index + 1]?.id]) && L.tv) {
+          $('tv').style.opacity = ((L.tv.o ?? 1) * exit).toFixed(3);
+        }
+
+        // Captions -- except on the title cards, whose words are already the
+        // biggest thing on the screen.
+        const quiet = sc.id === 'intro' || sc.id === 'end';
+        const cap = quiet ? null : T.captions.find((c) => t >= c.start && t < c.end);
+        const c = $('caption');
+        if (cap) {
+          c.textContent = cap.text;
+          show(c, ramp(t, cap.start, 0.15) * (1 - ramp(t, cap.end - 0.15, 0.15)));
+        } else show(c, 0);
+        c.style.transform = 'translateX(-50%)';
+      };
+
+      /** The social preview image: one composed still, 1200x630. */
+      window.renderOg = () => {
+        const promise = T.scenes.find((s) => s.id === 'promise');
+        window.renderAt(promise.start + promise.dur - 0.5);
+        for (const id of ['caption', 'badges', 'chip']) show($(id), 0);
+        set($('tv'), { x: 900, y: 200, s: 0.8, o: 1 });
+        show($('og'), 1);
+      };
+    </script>
+  </body>
+</html>

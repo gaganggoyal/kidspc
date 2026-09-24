@@ -174,6 +174,12 @@ system and the schema rather than in a checklist:
   passed within its month, so we assume it has not — keeping a child in the
   younger band and inside minor protections for up to 31 extra days.
 - **Data rights** are self-service: `/v1/privacy/export` and `/v1/privacy/erase`.
+  Erasure also takes the letters and plan requests keyed only by address.
+- **Kept only while it is useful.** A sweep (`services/api/src/retention.ts`)
+  deletes unconfirmed sign-ups after a day, spent codes, old sessions and audit
+  rows on the schedule in `packages/shared/src/retention.ts` — which the
+  privacy policy renders, so the page and the code cannot disagree. A letter's
+  body is wiped the moment it is delivered.
 - **Surveillance is visible.** Per-session summaries are off by default, and the
   child's home screen says so whenever a parent turns them on.
 - **Production refuses to lie.** The config loader will not start in production
@@ -203,7 +209,13 @@ Working and tested end to end:
 - Progress tracking on a closed set of numeric metrics
 - A first-run welcome that puts a child into an activity in one press
 - Per-scope parent resets (limits, PIN, scores, session)
-- All client surfaces, building at 128 KB gzipped
+- All client surfaces, building at about 100 KB gzipped, with each game and the
+  signed-in screens loaded only when opened
+- Every public page written out as HTML at build time, with its own title,
+  description, social preview and schema.org data, plus `sitemap.xml` and
+  `robots.txt` (`apps/web/scripts/prerender.mjs`, from `apps/web/src/seo.ts`)
+- An 80-second explainer video of the real app on a TV, rebuilt from the live
+  screens by `tools/video/`
 
 Written but **not yet exercised**, because this environment had no container
 runtime — treat each as a real task, not a formality:

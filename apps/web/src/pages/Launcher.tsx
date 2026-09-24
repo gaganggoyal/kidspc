@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { challengeForWeek, findApp } from '@kidpc/shared';
 import { ApiError, type HomeDto, type SessionDto, api, setChildToken } from '../api';
@@ -6,6 +6,8 @@ import { useAutoFocusFirst, useSpatialNavigation } from '../tv';
 import { glyphFor, shelve, TileFace, tileStyle } from './AppTile';
 import { AVATARS } from './Household';
 import { Welcome } from './Welcome';
+import { formatMetric, headlineBests, type Headline, METRIC_LABEL } from '../play/metrics';
+import { preloadGames } from '../play/games';
 
 /**
  * The child's home screen.
@@ -22,6 +24,12 @@ export function Launcher() {
   // Dismissing the welcome is per-visit; the server decides whether it is a
   // first run at all, so this only covers "skip" within one sitting.
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
+  // Their own bests, one per tile. Nobody else's: there is no leaderboard,
+  // and the only record worth beating is the one they set last time.
+  const [bests, setBests] = useState<Record<string, Headline>>({});
+  // "Surprise me": which tile the roulette is lit on while it spins.
+  const [rolling, setRolling] = useState<string | null>(null);
+  const spin = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useSpatialNavigation();
   useAutoFocusFirst([home]);
@@ -42,6 +50,25 @@ export function Launcher() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Once the tiles are drawn, fetch the games behind them, so OK opens one at
+  // once instead of after a download.
+  const appIds = home?.apps.map((app) => app.id).join(',') ?? '';
+  useEffect(() => {
+    if (appIds) preloadGames(appIds.split(','));
+  }, [appIds]);
+
+  useEffect(() => {
+    api<{ progress: Array<{ appId: string; metric: string; best: number }> }>('/progress', {
+      as: 'child',
+    })
+      .then(({ progress }) => setBests(headlineBests(progress)))
+      // A missing trophy is cosmetic; never a reason to show an error.
+      .catch(() => {});
+    return () => {
+      if (spin.current) clearInterval(spin.current);
+    };
+  }, []);
 
   // A child sitting on this screen when their window opens (or their budget
   // rolls over at midnight) should see it unlock without touching anything.
@@ -67,6 +94,34 @@ export function Launcher() {
     } finally {
       setStarting(null);
     }
+  };
+
+  /**
+   * Light up tiles at random, slowing to a stop, then open the one it lands
+   * on. A second of suspense is most of the fun of a dice; the choice itself
+   * is made before the first frame, so the spin is only theatre.
+   */
+  const surprise = () => {
+    const pool = (home?.apps ?? []).filter((app) => app.delivery !== 'hosted');
+    if (pool.length === 0 || rolling || starting) return;
+    const pick = pool[Math.floor(Math.random() * pool.length)]!;
+    let step = 0;
+    const steps = 14;
+    const tick = () => {
+      step++;
+      if (step >= steps) {
+        if (spin.current) clearInterval(spin.current);
+        spin.current = null;
+        setRolling(pick.id);
+        setTimeout(() => {
+          setRolling(null);
+          void start(pick.id);
+        }, 450);
+        return;
+      }
+      setRolling(pool[Math.floor(Math.random() * pool.length)]!.id);
+    };
+    spin.current = setInterval(tick, 90);
   };
 
   if (error && !home) {
@@ -197,19 +252,26 @@ export function Launcher() {
                 <span className="hero-eyebrow">This week</span>
                 <h2>{challenge.title}</h2>
                 <p>{challenge.prompt}</p>
-                <button
-                  className="primary"
-                  onClick={() => void start(challenge.appId)}
-                  disabled={locked}
-                >
-                  Try it in {challengeApp.name}
-                </button>
+                <div className="row">
+                  <button
+                    className="primary"
+                    onClick={() => void start(challenge.appId)}
+                    disabled={locked}
+                  >
+                    Try it in {challengeApp.name}
+                  </button>
+                  <SurpriseButton onPress={surprise} rolling={rolling !== null} disabled={locked} />
+                </div>
               </div>
               <span className="hero-glyph" aria-hidden="true">
                 {glyphFor(challengeApp)}
               </span>
             </section>
-          ) : null}
+          ) : (
+            <div className="row">
+              <SurpriseButton onPress={surprise} rolling={rolling !== null} disabled={locked} />
+            </div>
+          )}
 
           {shelve(home.apps).map((shelf) => (
             <section className="shelf" key={shelf.id} aria-label={shelf.title}>
@@ -218,7 +280,7 @@ export function Launcher() {
                 {shelf.apps.map((app) => (
                   <button
                     key={app.id}
-                    className="tile"
+                    className={rolling === app.id ? 'tile rolling' : 'tile'}
                     style={tileStyle(app.id)}
                     onClick={() => void start(app.id)}
                     disabled={locked}
@@ -231,6 +293,10 @@ export function Launcher() {
                         ) : app.delivery === 'hosted' ? (
                           <span className="tile-badge" title="Opens on the big computer">
                             big computer
+                          </span>
+                        ) : bests[app.id] ? (
+                          <span className="tile-badge best" title={METRIC_LABEL[bests[app.id]!.metric]}>
+                            🏆 {formatMetric(bests[app.id]!.metric, bests[app.id]!.best)}
                           </span>
                         ) : null
                       }
@@ -252,6 +318,22 @@ export function Launcher() {
         </main>
       </div>
     </div>
+  );
+}
+
+function SurpriseButton({
+  onPress,
+  rolling,
+  disabled,
+}: {
+  onPress: () => void;
+  rolling: boolean;
+  disabled: boolean;
+}) {
+  return (
+    <button className="surprise" onClick={onPress} disabled={disabled || rolling}>
+      <span aria-hidden="true">🎲</span> {rolling ? 'Rolling…' : 'Surprise me!'}
+    </button>
   );
 }
 

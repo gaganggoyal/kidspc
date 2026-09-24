@@ -8,7 +8,7 @@ import tseslint from 'typescript-eslint';
  * neither is duplicated here.
  */
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/node_modules/**', '**/.data/**', '*.tmp.ts'] },
+  { ignores: ['**/dist/**', '**/dist-ssr/**', '**/node_modules/**', '**/.data/**', '*.tmp.ts', 'tools/video/.render/**', 'tools/video/.capture/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -21,6 +21,20 @@ export default tseslint.config(
       // and the empty block is the point.
       'no-empty': ['error', { allowEmptyCatch: true }],
       '@typescript-eslint/no-explicit-any': 'warn',
+    },
+  },
+  // Build scripts run in Node, where URL and console are globals.
+  {
+    files: ['**/scripts/**/*.mjs', 'tools/video/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        URL: 'readonly',
+        console: 'readonly',
+        process: 'readonly',
+        setTimeout: 'readonly',
+        fetch: 'readonly',
+        Buffer: 'readonly',
+      },
     },
   },
   {

@@ -37,6 +37,7 @@ import type { EmailChallengePurpose } from '../db/schema.js';
 import { limit } from '../limits.js';
 import { type AppContext, buildChildView, loadChildForGuardian } from '../context.js';
 import { defaultPolicyFor } from '../repos.js';
+import { forgetAddress } from '../retention.js';
 import {
   NO_PASSWORD,
   burnPasswordTime,
@@ -268,6 +269,7 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
         passwordHash: NO_PASSWORD,
         displayName: input.displayName,
         timezone: input.timezone,
+        createdAt: ctx.now(),
       });
       guardian = { ...existing, displayName: input.displayName };
     } else {
@@ -276,6 +278,7 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
         passwordHash: NO_PASSWORD,
         displayName: input.displayName,
         timezone: input.timezone,
+        createdAt: ctx.now(),
       });
       await repos.audit.record({
         actorType: 'guardian',
@@ -1023,6 +1026,7 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
 
   app.post('/privacy/erase', async (req) => {
     const guardianId = requireGuardian(req);
+    const guardian = await repos.guardians.byId(guardianId);
 
     // End every live session before the rows go away, otherwise the desktops
     // outlive the records that would have reclaimed them.
@@ -1039,6 +1043,10 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
       subjectId: guardianId,
     });
     await repos.refreshTokens.revokeAllFor(guardianId);
+    // Letters and plan requests are keyed by address, not by account, so the
+    // cascade from the guardian row cannot reach them. First, while the plan
+    // requests still point at this account.
+    if (guardian) await forgetAddress(ctx.database.db, guardianId, guardian.email);
     await repos.guardians.purge(guardianId);
 
     return { ok: true, erased: true };

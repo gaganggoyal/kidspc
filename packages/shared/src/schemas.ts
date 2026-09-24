@@ -37,6 +37,25 @@ export const phoneE164 = z.string().regex(/^\+[1-9]\d{7,14}$/, 'Expected E.164, 
 // ---------------------------------------------------------------------------
 
 /**
+ * The browser's time zone, or India's when it sends something we cannot use.
+ *
+ * Read from `Intl` on the device, so it is whatever the TV's firmware says --
+ * and some say nothing, or a name no runtime knows. That used to reach the
+ * first date calculation and come back as a 500. A family in India whose TV is
+ * confused about where it is should still be able to sign up, and India is
+ * where nearly all of them are.
+ */
+export function knownTimeZone(zone: string | undefined): string {
+  if (!zone) return 'Asia/Kolkata';
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: zone });
+    return zone;
+  } catch {
+    return 'Asia/Kolkata';
+  }
+}
+
+/**
  * Signing up: a name and an address, and nothing else yet.
  *
  * No password here, on purpose. A password chosen before the address is proved
@@ -48,7 +67,7 @@ export const phoneE164 = z.string().regex(/^\+[1-9]\d{7,14}$/, 'Expected E.164, 
 export const registerGuardianInput = z.object({
   email,
   displayName: z.string().trim().min(1).max(80),
-  timezone: z.string().min(1).max(64).default('Asia/Kolkata'),
+  timezone: z.string().max(64).optional().transform(knownTimeZone),
 });
 export type RegisterGuardianInput = z.infer<typeof registerGuardianInput>;
 
