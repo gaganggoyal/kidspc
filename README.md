@@ -1,4 +1,75 @@
-# KidPC
+# KidPC — a safe first computer for every child, on the TV you already own
+
+**Live at [kidspc.online](https://kidspc.online)** · TypeScript monorepo ·
+React · Fastify · PostgreSQL · Docker · 272 passing tests
+
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![Fastify](https://img.shields.io/badge/Fastify-5-000000?logo=fastify&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-PGlite%20%2F%20Postgres-4169E1?logo=postgresql&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-272%20passing-2EA44F?logo=vitest&logoColor=white)
+
+[![Watch the 80-second explainer](apps/web/public/media/how-it-works.jpg)](apps/web/public/media/how-it-works.mp4)
+
+Many families can't justify a laptop for a young child — but most already own
+a smart TV or an Android TV box. **KidPC turns that screen into a child's
+computer**: add a Bluetooth keyboard and mouse, and a child gets
+typing, drawing, maths, coding, music and games, while the parent gets real
+controls over time, apps and data. No hardware to sell, nothing to install.
+
+I designed and built it end to end — product, architecture, backend, frontend,
+infrastructure, compliance and launch — as a solo project.
+
+### Highlights
+
+- **Full-stack product, shipped.** Parent sign-up with emailed verification
+  codes, verifiable parental consent, child profiles with PIN sign-in, a
+  TV-first launcher, a parent dashboard, and a public marketing site that is
+  pre-rendered for SEO — deployed to a real domain behind Caddy/TLS.
+- **19 in-browser activities and games** (Paint, Typing, Piano, Code, Snake,
+  2048, Brick Breaker, Four in a Row, …) — every one fully playable with a **TV
+  remote's D-pad**, a keyboard or a mouse, with two-player modes for a shared
+  screen.
+- **A policy engine that can't be argued with.** A pure, fully tested decision
+  engine combines daily and weekly budgets, curfews that wrap past midnight,
+  age bands and per-app gating into a single time *lease* frozen onto each
+  session — so editing limits mid-session can never accidentally extend it.
+- **Cost-aware architecture.** A two-tier model runs most activities locally in
+  the browser (**about ₹0.24 per subscriber at 5,000 users, on one small VPS**)
+  and reserves sandboxed cloud Linux desktops for the heavy apps; a
+  `pnpm capacity` tool models the unit economics from the real sizing code.
+- **Security by construction.** Cloud desktops are disposable containers with no
+  capabilities, a read-only root, no published ports and no internet route
+  except a default-deny egress proxy; the only way in is a 30-second,
+  session-bound WebSocket ticket.
+- **Privacy law in the type system.** Built for India's DPDP Act 2023: no
+  analytics or ad-tracking tables exist to misuse, children are stored with
+  birth year and month only, data export and erasure are self-service, and
+  retention sweeps delete data on a schedule the privacy policy itself renders.
+- **Quality you can run.** 272 tests including clock-controlled end-to-end
+  scenarios (midnight rollovers, birthdays, weekly caps), plus custom tools that
+  check **every colour pairing for WCAG contrast** and **every public page at
+  every width from 320 to 2560 px**. The client ships at ~100 KB gzipped.
+- **Production discipline.** A preflight gate refuses to deploy with example
+  secrets, parked DNS or a mock consent verifier; the config loader refuses to
+  boot production with unsafe settings; transactional mail is queued with
+  retries and idempotency keys.
+
+### Tech stack
+
+| Layer | Tools |
+|---|---|
+| Frontend | React 18, TypeScript, Vite, build-time pre-rendering, schema.org / sitemap SEO |
+| Backend | Node.js, Fastify 5, Zod, WebSockets, scrypt auth with rotating refresh tokens |
+| Data | PostgreSQL (PGlite — Postgres in WebAssembly — for zero-setup development), SQL migrations |
+| Infra | Docker, Docker Compose, Caddy (auto-TLS), nginx, Xvfb / x11vnc desktop image, egress proxy |
+| Email | Resend (SMTP fallback), outbox queue with retries |
+| Quality | Vitest, ESLint, Prettier, strict `tsc -b`, custom contrast and layout checkers |
+
+---
+
+## About this repository
 
 A cloud desktop for children, delivered to a screen the household already owns —
 an Android TV box, a smart TV, or an ageing laptop — plus a Bluetooth keyboard
@@ -24,7 +95,7 @@ Open http://localhost:5173 and sign in as `demo@kidpc.test` /
 `demo-password-1234`. Child PINs are printed by the seed.
 
 ```bash
-pnpm test          # 232 tests
+pnpm test          # 272 tests
 pnpm typecheck
 pnpm lint
 pnpm contrast      # every enforced colour pairing, light and dark
