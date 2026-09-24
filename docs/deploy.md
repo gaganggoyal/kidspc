@@ -105,12 +105,15 @@ ORDERS_EMAIL=hello@kidspc.online      # plan requests and contact messages
 ### 2. Prove the domain, which is most of the work
 
 Resend refuses to send as `kidspc.online` until DNS says it may. Add the domain
-in the Resend dashboard (Domains → Add, region of your choice), or with a
-full-access key from the API container:
+in the Resend dashboard (Domains → Add), or with a full-access key from the
+API container:
 
 ```bash
-docker compose exec api pnpm mail check --create
+docker compose exec api pnpm mail check --create --region ap-northeast-1
 ```
+
+`kidspc.online` is in `ap-northeast-1`, beside meravansh.lol. Without
+`--region`, Resend puts a domain in `us-east-1`.
 
 Either way you get the exact records. They look like this at BigRock — copy the
 values from Resend, not from here:
@@ -120,6 +123,7 @@ values from Resend, not from here:
 | TXT | `resend._domainkey` | *the key Resend generates* | DKIM: signs each letter. |
 | MX | `send` | `feedback-smtp.<region>.amazonses.com` (priority 10) | Bounces come back here. |
 | TXT | `send` | `v=spf1 include:amazonses.com ~all` | SPF for the return path. |
+| CNAME | `rsend` | `send.forge.rmta.net` | Resend's own return path; it will not verify without it. |
 | TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:hello@kidspc.online` | Tells receivers what to do when the others disagree. |
 
 The `send` records sit on a subdomain on purpose, so they never collide with

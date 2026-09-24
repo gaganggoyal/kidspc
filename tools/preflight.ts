@@ -12,7 +12,7 @@
  * are not the examples from the README.
  */
 import { readFile } from 'node:fs/promises';
-import { lookup, resolveMx, resolveTxt } from 'node:dns/promises';
+import { lookup, resolveCname, resolveMx, resolveTxt } from 'node:dns/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { loadConfig } from '../services/api/src/config.js';
@@ -439,6 +439,17 @@ async function checkSenderDns(domain: string, viaResend: boolean) {
       );
     } else {
       record('pass', `send.${domain} takes bounces`, bounce.map((m) => m.exchange).join(', '));
+    }
+
+    const returnPath = await resolveCname(`rsend.${domain}`).catch(() => []);
+    if (returnPath.length === 0) {
+      record(
+        'warn',
+        `rsend.${domain} points at Resend`,
+        'No CNAME. Resend will not verify the domain without it (value: pnpm mail check).',
+      );
+    } else {
+      record('pass', `rsend.${domain} points at Resend`, returnPath.join(', '));
     }
   }
 

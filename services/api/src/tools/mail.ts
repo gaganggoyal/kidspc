@@ -8,6 +8,7 @@
  *
  *   pnpm mail check                  is the provider set up, and the domain proved?
  *   pnpm mail check --create         ...and add the domain to Resend if it is missing
+ *                   [--region ap-northeast-1]   (Resend's default is us-east-1)
  *   pnpm mail send you@example.com   send one real letter, now
  *   pnpm mail link [address]         read a queued code or link out of the outbox
  *
@@ -58,6 +59,7 @@ const [command, ...rest] = process.argv.slice(2);
 const envPath = rest.find((a) => a.includes('.env'));
 const recipient = rest.find((a) => a.includes('@'));
 const create = rest.includes('--create');
+const region = rest.includes('--region') ? rest[rest.indexOf('--region') + 1] : undefined;
 
 const COMMANDS = ['check', 'send', 'link'] as const;
 
@@ -66,6 +68,7 @@ const COMMANDS = ['check', 'send', 'link'] as const;
 if (!command || !(COMMANDS as readonly string[]).includes(command)) {
   console.log('\n  pnpm mail check                  is the provider set up, and the domain proved?');
   console.log('  pnpm mail check --create         ...and add the domain to Resend if it is missing');
+  console.log('        [--region ap-northeast-1]   where Resend sends from (default us-east-1)');
   console.log('  pnpm mail send you@example.com   send one real letter');
   console.log('  pnpm mail link [address]         read a queued code or link out of the outbox');
   console.log(dim('\n  What is queued in general: pnpm orders queue'));
@@ -144,6 +147,9 @@ interface ResendDomain {
   id: string;
   name: string;
   status: string;
+  region?: string;
+  open_tracking?: boolean;
+  click_tracking?: boolean;
   records?: ResendRecord[];
 }
 
@@ -215,7 +221,10 @@ async function checkResend() {
       process.exitCode = 1;
       return;
     }
-    const made = await resend('/domains', { method: 'POST', body: JSON.stringify({ name: domain }) });
+    const made = await resend('/domains', {
+      method: 'POST',
+      body: JSON.stringify({ name: domain, ...(region && { region }) }),
+    });
     if (!made.ok) {
       console.error(red(`\n  Could not add ${domain}: ${String(made.body.message ?? made.status)}\n`));
       process.exitCode = 1;
@@ -229,8 +238,25 @@ async function checkResend() {
   const full = (detail.ok ? detail.body : found) as unknown as ResendDomain;
   const verified = full.status === 'verified';
   console.log(
-    `\n  ${verified ? green('VERIFIED') : yellow(full.status.toUpperCase())}  ${full.name}`,
+    `\n  ${verified ? green('VERIFIED') : yellow(full.status.toUpperCase())}  ${full.name}` +
+      dim(full.region ? `  (${full.region})` : ''),
   );
+
+  // Resend can rewrite every link through its own redirector and add a pixel
+  // to every letter. The letters say they load nothing, and a rewritten
+  // sign-in link is a code in somebody else's access log -- so both stay off.
+  if (full.open_tracking || full.click_tracking) {
+    if (create) {
+      await resend(`/domains/${full.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ open_tracking: false, click_tracking: false }),
+      });
+      console.log(green('  Turned off open and click tracking.'));
+    } else {
+      console.log(red('  Open or click tracking is on. Turn both off: pnpm mail check --create'));
+      process.exitCode = 1;
+    }
+  }
 
   const records = full.records ?? [];
   if (records.length > 0) {

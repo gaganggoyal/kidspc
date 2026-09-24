@@ -20,7 +20,7 @@ Current state of https://kidspc.online:
 | Referrals | working — codes captured, longer trial honoured, rewards paid by hand (step 2) |
 | Company & policy pages | live — about, contact, terms, privacy, refunds, delivery (three facts still blank, step 4a) |
 | Contact form | working — messages queued to your desk, with a copy to the sender |
-| Email | **queued, not sending** — Resend not set up yet (step 1) |
+| Email | **queued, not sending** — domain added in Resend, waiting for the DNS records (step 1b) |
 | Pro plan | priced and listed, no free trial, streamed desktop not built (step 6) |
 
 How all of that is meant to bring people in is written up separately, in
@@ -41,37 +41,52 @@ out on the first sweep after you finish this.
 Sending is Resend, the same account meravansh.lol uses. Receiving (replies to
 `hello@kidspc.online`, plan requests) is separate, in 1c.
 
-### 1a. A key, and the domain, in Resend
+### 1a. The domain, in Resend — done
 
-1. Sign in at https://resend.com with the meravansh.lol account.
-2. **API Keys → Create API key** → name it `kidspc`, permission **Sending
-   access**. Copy it — it starts `re_` and is shown once.
-3. **Domains → Add domain** → `kidspc.online`. Resend shows the DNS records
-   for 1b. Leave the page open.
+`kidspc.online` is added to the meravansh.lol Resend account, in the same
+region (`ap-northeast-1`, Tokyo — nearer Indian inboxes than Resend's default
+US region), with open and click tracking off. Resend is now waiting for the
+DNS records below.
+
+The server will hold its own **sending-only** key, limited to this domain,
+created when the API is next deployed — so a key that can read or delete
+domains never sits on the server.
 
 ### 1b. The DNS records, at BigRock
 
-`kidspc.online` is at BigRock — sign in, open DNS management for the domain,
-and add exactly what Resend shows. It will be these four, with Resend's values:
+`kidspc.online` is at BigRock. Sign in, open **Manage DNS** for the domain,
+and add these five. In the host field type only what is in the second column —
+BigRock adds `.kidspc.online` itself. Leave the existing A records alone.
 
-| Type | Host / Name | Value | Priority |
+| Type | Host | Value | Priority |
 |---|---|---|---|
-| TXT | `resend._domainkey` | `p=MIGfMA0GCSq…` *(Resend's DKIM key)* | — |
-| MX | `send` | `feedback-smtp.<region>.amazonses.com` | 10 |
+| TXT | `resend._domainkey` | *the long key below* | — |
+| MX | `send` | `feedback-smtp.ap-northeast-1.amazonses.com` | 10 |
 | TXT | `send` | `v=spf1 include:amazonses.com ~all` | — |
+| CNAME | `rsend` | `send.forge.rmta.net` | — |
 | TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:hello@kidspc.online` | — |
 
-**Do not skip any of them.** Without them Resend refuses to send at all, and
-without DMARC Gmail treats a letter saying "here is your code" as the phishing
-mail it resembles.
+The DKIM key, all on one line, no quotes:
 
-Wait for DNS — usually minutes at BigRock, occasionally an hour — then press
-**Verify** in Resend. Check from your own machine:
+```text
+p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDg0091k7b4zFZ4jwhfvSJxGv8aDOYMFqoCtynwzbR4niQmODTROmkesAzJ3vhIDIQwymtm2X0TWZ/s5LV4aGKs80K+DroQI7H0jhUrlkwHjjBgwXji7HNP2IaEo2DjI1s0/5gxxZ+4p/Z9nTGpDbWWQoZmEvcdaGXhoEOeyBGtHQIDAQAB
+```
+
+**Do not skip any of them.** The first four are what Resend checks before it
+will send at all (`pnpm mail check` lists them with their status). Without
+DMARC, Gmail treats a letter saying "here is your code" as the phishing mail it
+resembles.
+
+Wait for DNS — usually minutes at BigRock, occasionally an hour. Resend checks
+on its own; `pnpm mail check` shows which records it has seen. From your own
+machine:
 
 ```bash
-dig +short resend._domainkey.kidspc.online TXT
-dig +short send.kidspc.online MX
-dig +short _dmarc.kidspc.online TXT
+dig +short TXT resend._domainkey.kidspc.online
+dig +short MX send.kidspc.online
+dig +short TXT send.kidspc.online
+dig +short CNAME rsend.kidspc.online
+dig +short TXT _dmarc.kidspc.online
 ```
 
 ### 1c. Somewhere for replies to land
