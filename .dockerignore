@@ -19,3 +19,9 @@ coverage
 .env.*
 !.env.example
 !.env.production.example
+
+# Build and render output that is regenerated, and large: the explainer's
+# frames alone are hundreds of megabytes.
+**/dist-ssr
+tools/video/.render
+tools/video/.capture
