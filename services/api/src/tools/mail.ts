@@ -22,6 +22,7 @@
  *
  *   docker compose exec api pnpm mail check
  */
+import { resolveTxt } from 'node:dns/promises';
 import { readFile } from 'node:fs/promises';
 import { desc, inArray } from 'drizzle-orm';
 import { loadConfig } from '../config.js';
@@ -268,14 +269,17 @@ async function checkResend() {
       console.log(dim(`          ${r.priority !== undefined ? `priority ${r.priority}  ` : ''}${r.value}`));
     }
   }
+  // Resend does not check DMARC, and Gmail does. Only mention it when absent.
+  const dmarc = (await resolveTxt(`_dmarc.${domain}`).catch(() => []))
+    .map((parts) => parts.join(''))
+    .find((r) => r.toLowerCase().startsWith('v=dmarc1'));
   console.log(
-    dim(
-      '\n  Also worth adding: TXT _dmarc.' +
-        domain +
-        '  "v=DMARC1; p=none; rua=mailto:' +
-        (config!.MAIL_REPLY_TO ?? `hello@${domain}`) +
-        '"',
-    ),
+    dmarc
+      ? `  ${green('ok     ')} TXT   _dmarc.${domain}\n${dim(`          ${dmarc}`)}`
+      : yellow(
+          `\n  Also add: TXT _dmarc.${domain}  "v=DMARC1; p=none; rua=mailto:` +
+            `${config!.MAIL_REPLY_TO ?? `hello@${domain}`}"`,
+        ),
   );
 
   if (verified) {

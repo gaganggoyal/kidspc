@@ -20,7 +20,7 @@ Current state of https://kidspc.online:
 | Referrals | working — codes captured, longer trial honoured, rewards paid by hand (step 2) |
 | Company & policy pages | live — about, contact, terms, privacy, refunds, delivery (three facts still blank, step 4a) |
 | Contact form | working — messages queued to your desk, with a copy to the sender |
-| Email | **queued, not sending** — domain added in Resend, waiting for the DNS records (step 1b) |
+| Email | **ready, not live** — domain verified in Resend, `hello@` forwarding; turns on with the next deploy (step 1d) |
 | Pro plan | priced and listed, no free trial, streamed desktop not built (step 6) |
 
 How all of that is meant to bring people in is written up separately, in
@@ -52,7 +52,9 @@ The server will hold its own **sending-only** key, limited to this domain,
 created when the API is next deployed — so a key that can read or delete
 domains never sits on the server.
 
-### 1b. The DNS records, at BigRock
+### 1b. The DNS records, at BigRock — done
+
+Added 2026-09-24; Resend verified the domain the same day.
 
 `kidspc.online` is at BigRock. Sign in, open **Manage DNS** for the domain,
 and add these five. In the host field type only what is in the second column —
@@ -89,21 +91,24 @@ dig +short CNAME rsend.kidspc.online
 dig +short TXT _dmarc.kidspc.online
 ```
 
-### 1c. Somewhere for replies to land
+### 1c. Somewhere for replies to land — done
 
 Resend only sends. Parents reply to letters, and plan requests go to
-`hello@kidspc.online`, so that address has to arrive somewhere. The quickest:
-**ImprovMX** (free) — add the domain, forward `hello@kidspc.online` to
-goyalgagan82@gmail.com, and add its two MX records at BigRock:
+`hello@kidspc.online`, so that address forwards through **ImprovMX** (free
+plan, the gagan2735@gmail.com account):
 
-| Type | Host / Name | Value | Priority |
-|---|---|---|---|
-| MX | `@` | `mx1.improvmx.com` | 10 |
-| MX | `@` | `mx2.improvmx.com` | 20 |
+| Address | Forwards to |
+|---|---|
+| `hello@kidspc.online` | goyalgagan82@gmail.com |
+| anything else `@kidspc.online` | gagan2735@gmail.com *(ImprovMX's default catch-all)* |
 
-A Zoho mailbox works instead, if more than one person will answer — its MX
-records go at `@` the same way. Either way these are on the root domain, and
-Resend's `send` records never collide with them.
+Its two MX records are at `@` (`mx1.improvmx.com` 10, `mx2.improvmx.com` 20).
+ImprovMX's dashboard asks for a root SPF record too; that is only for sending
+*through* ImprovMX, which the free plan does not do, so it is not needed.
+
+A Zoho mailbox can replace this later, if more than one person answers — its
+MX records go at `@` the same way, and Resend's `send` records never collide
+with them.
 
 ### 1d. Put the key on the server
 
