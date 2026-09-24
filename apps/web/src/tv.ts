@@ -12,14 +12,48 @@ import { useEffect } from 'react';
  * Deliberately not a library. The whole behaviour is forty lines, and every TV
  * navigation package brings a focus manager that fights React's own.
  */
+/*
+ * `tabindex="-1"` is excluded from buttons too, not only from the generic
+ * `[tabindex]` clause. The games draw an on-screen D-pad for phones, and those
+ * arrows are for a thumb: a remote landing on "↑" and pressing OK would steer
+ * the snake with the button meant to replace the remote.
+ */
 const FOCUSABLE =
-  'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])';
+  'button:not(:disabled):not([tabindex="-1"]), [href], input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * The first control a remote should land on: the first rendered one inside
+ * the screen's `[data-focus-root]`, or in the page when the root has none --
+ * a profile picker whose every child still awaits approval has a root full of
+ * disabled buttons, and a remote with nowhere to go is a remote that is broken.
+ *
+ * The page means `document.body`, never `document`. The selector includes
+ * `[href]`, and the first `[href]` in a document is a `<link>` in its head --
+ * the icon, the manifest. Focusing one of those does nothing, so every screen
+ * without a focus root (the profile picker, the PIN pad, the launcher) used to
+ * open with nothing focused, and a remote's first press had nowhere to start.
+ */
+function firstControl(): HTMLElement | undefined {
+  const visible = (root: ParentNode) =>
+    [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].find((el) => el.offsetParent !== null);
+  const root = document.querySelector('[data-focus-root]');
+  return (root && visible(root)) || visible(document.body);
+}
 
 export function useSpatialNavigation(enabled = true): void {
   useEffect(() => {
     if (!enabled) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
+      /*
+       * Somebody closer to the key has already used it.
+       *
+       * The arrow games -- Snake, 2048, the maze -- listen in the capture
+       * phase and claim the arrows while a round is being played. Without this
+       * the same press steered the snake and then moved focus off the board
+       * onto the Back button, and the next OK left the game.
+       */
+      if (event.defaultPrevented) return;
       const direction = (
         {
           ArrowUp: 'up',
@@ -33,6 +67,22 @@ export function useSpatialNavigation(enabled = true): void {
       const active = document.activeElement as HTMLElement | null;
       // Inside a text field, arrows move the caret. Never steal those.
       if (active?.tagName === 'INPUT' || active?.tagName === 'TEXTAREA') return;
+
+      /*
+       * Nothing focused yet: the first press lands on the first control, not
+       * on whatever happens to lie in that direction from the middle of the
+       * page -- which is where the body's own rectangle put the origin, and
+       * how the first press on the arcade used to land on a tile halfway down.
+       */
+      if (!active || active === document.body) {
+        const first = firstControl();
+        if (first) {
+          event.preventDefault();
+          first.focus();
+          first.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }
+        return;
+      }
 
       const candidates = [...document.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
         (el) => el !== active && el.offsetParent !== null,
@@ -56,6 +106,14 @@ export function useSpatialNavigation(enabled = true): void {
         // sideways. Without the penalty, a diagonal neighbour often wins over
         // the obvious one directly below.
         const lateral = direction === 'up' || direction === 'down' ? Math.abs(dx) : Math.abs(dy);
+        /*
+         * And nothing far off to the side at all. "Right" from the last tile in
+         * a row used to find the only thing further right on the whole screen
+         * -- the "Not me" button at the top -- so a child pressing right along
+         * the games and then OK was signed out of their own profile. Past the
+         * end of a row, right now does nothing, as it does on every television.
+         */
+        if (lateral > forward * 3) continue;
         const score = forward + lateral * 3;
         if (!best || score < best.score) best = { el, score };
       }
@@ -85,8 +143,7 @@ export function useSpatialNavigation(enabled = true): void {
  */
 export function useAutoFocusFirst(deps: unknown[] = []): void {
   useEffect(() => {
-    const root: ParentNode = document.querySelector('[data-focus-root]') ?? document;
-    const first = root.querySelector<HTMLElement>(FOCUSABLE);
+    const first = firstControl();
     // Only claim focus if nothing already has it, so we never yank the cursor
     // out from under someone mid-interaction.
     if (first && (!document.activeElement || document.activeElement === document.body)) {

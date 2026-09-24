@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityShell, type ActivityApi } from './ActivityShell';
+import type { ActivityApi } from './ActivityShell';
 import { useAutoFocusFirst } from '../tv';
 import { pickOther, shuffle } from './random';
 
@@ -185,13 +185,5 @@ export function SpellGame({ activity }: { activity: ActivityApi }) {
         {complete && <strong>{target.word.toUpperCase()}! 🎉</strong>}
       </div>
     </div>
-  );
-}
-
-export function Spell() {
-  return (
-    <ActivityShell appId="spell" title="Spell It">
-      {(activity) => <SpellGame activity={activity} />}
-    </ActivityShell>
   );
 }

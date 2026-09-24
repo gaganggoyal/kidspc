@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityShell, type ActivityApi } from './ActivityShell';
+import type { ActivityApi } from './ActivityShell';
 import { useAutoFocusFirst } from '../tv';
 import { useChoiceKeys } from '../input';
 
@@ -162,13 +162,5 @@ export function NumbersGame({ activity }: { activity: ActivityApi }) {
         )}
       </div>
     </div>
-  );
-}
-
-export function Numbers() {
-  return (
-    <ActivityShell appId="numbers" title="Number Ninja">
-      {(activity) => <NumbersGame activity={activity} />}
-    </ActivityShell>
   );
 }

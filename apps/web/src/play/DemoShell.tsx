@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { challengeForWeek } from '@kidpc/shared';
+import { challengeForWeek, findApp } from '@kidpc/shared';
 import type { ActivityApi } from './ActivityShell';
 import { previewAchievements, previewBest, recordPreviewBest } from './previewProgress';
 import { useAutoFocusFirst, useBackKey, useSpatialNavigation } from '../tv';
+import { SoundToggle } from './kit';
 import { ShowAGrownUp } from '../pages/ShowAGrownUp';
 
 /**
@@ -97,7 +98,13 @@ export function DemoShell({
         <button onClick={leave} aria-label="Back to the activities">
           ← Back
         </button>
-        <h1>{title}</h1>
+        <h1>
+          <span className="bar-glyph" aria-hidden="true">
+            {findApp(appId)?.glyph}
+          </span>
+          {title}
+        </h1>
+        <SoundToggle />
         <div className="row" style={{ gap: 8 }}>
           <span className="pill">Free preview</span>
           <button onClick={() => setShowing(true)}>Show a grown-up</button>

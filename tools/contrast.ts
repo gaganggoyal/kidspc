@@ -6,14 +6,18 @@
  * on -- this file existed for ten minutes with a stale hex in it and reported a
  * failure that had already been fixed.
  *
- * Two themes are defined in that file: the `:root` block and the
- * `prefers-color-scheme: dark` override. A colour that passes in one and fails
- * in the other is the normal failure mode, so both are checked.
+ * Three themes are defined in that file: the `:root` block, the
+ * `prefers-color-scheme: dark` override, and the stage -- the always-dark
+ * ground under everything a child sees, marked `@theme stage`. A colour that
+ * passes in one and fails in another is the normal failure mode, so all three
+ * are checked. So is every tile colour, which carries white text on both ends
+ * of its gradient.
  *
  *   pnpm contrast        exits non-zero if any pairing fails
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { TILE_PALETTE } from '../apps/web/src/looks';
 
 const CSS = readFileSync(fileURLToPath(new URL('../apps/web/src/styles.css', import.meta.url)), 'utf8');
 
@@ -32,6 +36,8 @@ const lightBlock = CSS.slice(CSS.indexOf(':root {'), CSS.indexOf('@media (prefer
 const darkBlock = CSS.slice(CSS.indexOf('@media (prefers-color-scheme: dark)'));
 const light = tokensIn(lightBlock);
 const dark = { ...light, ...tokensIn(darkBlock.slice(0, darkBlock.indexOf('\n}\n\n'))) };
+const stageBlock = CSS.slice(CSS.indexOf('/* @theme stage */'));
+const stage = { ...light, ...tokensIn(stageBlock.slice(0, stageBlock.indexOf('\n}\n'))) };
 
 function channel(c: number): number {
   const s = c / 255;
@@ -104,6 +110,7 @@ let failures = 0;
 for (const [name, theme] of [
   ['light', light],
   ['dark', dark],
+  ['stage', stage],
 ] as const) {
   console.log(`\n${name} theme`);
   for (const p of PAIRINGS) {
@@ -121,6 +128,20 @@ for (const [name, theme] of [
     const note = !passed && p.decorative ? '  (decorative, not enforced)' : '';
     console.log(`  ${mark}  ${p.what.padEnd(26)} ${r.toFixed(2).padStart(5)}:1  needs ${p.need}${note}`);
   }
+}
+
+/*
+ * The tiles. White text sits on the gradient from one end to the other, so
+ * both stops are held to body-text contrast -- the tagline is small and not
+ * bold, and it is read from a sofa.
+ */
+console.log('\ntile colours (white text)');
+for (const [name, stops] of Object.entries(TILE_PALETTE)) {
+  const worst = Math.min(...stops.map((stop) => contrast('#ffffff', stop)));
+  const passed = worst >= 4.5;
+  if (!passed) failures++;
+  const mark = passed ? 'ok  ' : 'FAIL';
+  console.log(`  ${mark}  ${name.padEnd(26)} ${worst.toFixed(2).padStart(5)}:1  needs 4.5`);
 }
 
 console.log(failures === 0 ? '\nAll enforced pairings pass.' : `\n${failures} failed.`);

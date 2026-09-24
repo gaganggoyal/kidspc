@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityShell, type ActivityApi } from './ActivityShell';
+import type { ActivityApi } from './ActivityShell';
 import { useAutoFocusFirst } from '../tv';
 import { useChoiceKeys } from '../input';
 import { shuffle } from './random';
@@ -204,13 +204,5 @@ export function TablesGame({ activity }: { activity: ActivityApi }) {
         ))}
       </div>
     </div>
-  );
-}
-
-export function Tables() {
-  return (
-    <ActivityShell appId="tables" title="Times Tables">
-      {(activity) => <TablesGame activity={activity} />}
-    </ActivityShell>
   );
 }

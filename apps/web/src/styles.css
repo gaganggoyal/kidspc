@@ -266,7 +266,8 @@ button:active:not(:disabled) { transform: scale(0.98); }
 .tv :focus {
   outline: none;
   box-shadow: var(--focus);
-  border-radius: var(--radius);
+  /* No border-radius here: the ring follows each control's own corners, so a
+     round PIN key stays round and a tile keeps its shape when focus lands. */
   /* A ring alone is a thin thing at three metres; the lift is what your eye
      actually catches when it moves across the screen. */
   transform: scale(1.04);
@@ -304,21 +305,6 @@ button:active:not(:disabled) { transform: scale(0.98); }
 :root[data-input='pointer'] .tv :focus {
   transform: none;
   box-shadow: 0 0 0 3px var(--surface), 0 0 0 6px var(--accent);
-}
-
-/*
- * Hover, for the households that have a mouse.
- *
- * Behind `hover: hover` because a touchscreen resolves `:hover` on tap and
- * then keeps it until something else is tapped, which on a phone reads as a
- * tile that stayed pressed.
- */
-@media (hover: hover) {
-  .app-tile:hover,
-  .profile:hover {
-    border-color: var(--edge);
-    background: var(--surface-2);
-  }
 }
 
 /*
@@ -413,64 +399,6 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 .notice.bad { border-left-color: var(--danger); }
 .notice.good { border-left-color: var(--accent); }
 
-/* ---- launcher ---------------------------------------------------------- */
-
-.app-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: var(--pad);
-}
-.tv .app-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
-
-.app-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  text-align: left;
-  min-height: 130px;
-  padding: var(--pad);
-  background: var(--surface);
-}
-.tv .app-tile { min-height: 200px; }
-.app-tile .name { font-size: 1.15em; font-weight: 700; }
-.app-tile .tagline { color: var(--ink-soft); font-weight: 400; font-size: 0.9em; }
-.app-tile .glyph { font-size: 2em; line-height: 1; }
-.tv .app-tile .glyph { font-size: 3em; }
-
-/*
- * How much time is left is the single most consequential thing on a child's
- * screen, and the track was 1.16:1 against the card it sits on -- so an almost
- * empty bar was an almost invisible bar, and there was no way to see how far
- * it had left to run. The outline is what makes the extent readable.
- */
-.time-bar {
-  height: 14px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  border: 1px solid var(--edge);
-  overflow: hidden;
-}
-.time-bar > i { display: block; height: 100%; background: var(--accent); transition: width 400ms ease; }
-.time-bar.low > i { background: var(--warn); }
-.time-bar.out > i { background: var(--danger); }
-
-/* Left-aligned, sharing the heading's edge. Centring them looked deliberate
-   only while the page was 1400px wide; in a column the two rows disagreeing
-   about where the page starts is the more obvious mistake. */
-.profiles { display: flex; gap: var(--pad); flex-wrap: wrap; }
-.profile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  width: 180px;
-  padding: var(--pad);
-}
-.tv .profile { width: 240px; }
-.profile .avatar { font-size: 3.4em; line-height: 1; }
-.tv .profile .avatar { font-size: 5em; }
-
 /*
  * Widths in `em`, not pixels.
  *
@@ -482,10 +410,6 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
  */
 .narrow { max-width: 29em; }
 
-.pinpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 19em; }
-.tv .pinpad { max-width: 26em; }
-.pinpad button { font-size: 1.4em; }
-.pin-dots { display: flex; gap: 14px; justify-content: center; font-size: 2em; letter-spacing: 0.2em; }
 
 /* ---- session viewer ---------------------------------------------------- */
 
@@ -1262,27 +1186,12 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   border-radius: var(--radius);
 }
 
-/* ---- launcher badge ---------------------------------------------------- */
-
-.app-tile .badge {
-  margin-top: auto;
-  font-size: 0.72em;
-  font-weight: 600;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  color: var(--ink-soft);
-}
-
 /* ---- welcome ----------------------------------------------------------- */
 
 .welcome {
   min-height: 100%;
   display: grid;
   place-items: center;
-  background:
-    radial-gradient(1200px 600px at 50% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent),
-    var(--bg);
 }
 .welcome-inner {
   width: 100%;
@@ -1294,9 +1203,15 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   animation: rise 500ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
 }
 .welcome-avatar {
-  display: block;
-  font-size: 4.5em;
+  display: inline-grid;
+  place-items: center;
+  width: 2.2em;
+  height: 2.2em;
+  font-size: 3em;
   line-height: 1;
+  border-radius: 50%;
+  background: linear-gradient(150deg, var(--tile-a), var(--tile-b));
+  box-shadow: 0 16px 40px -16px rgb(0 0 0 / 0.7);
 }
 .welcome-hello h1 {
   font-size: 2.6em;
@@ -1324,29 +1239,6 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: var(--pad);
-}
-.welcome-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: calc(var(--pad) * 1.2);
-  min-height: 190px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-}
-.welcome-card .glyph {
-  font-size: 3em;
-  line-height: 1;
-}
-.welcome-card .name {
-  font-size: 1.2em;
-  font-weight: 700;
-}
-.welcome-card .line {
-  font-weight: 400;
-  color: var(--ink-soft);
-  font-size: 0.9em;
 }
 .welcome-skip {
   margin-top: var(--pad);
@@ -1520,8 +1412,9 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
   flex: 1;
 }
 .tv-tile {
-  background: var(--surface);
-  border: 1px solid var(--line);
+  color: #fff;
+  background: linear-gradient(150deg, var(--tile-a, var(--surface)), var(--tile-b, var(--surface)));
+  border: 0;
   border-radius: 10px;
   padding: 8px;
   display: flex;
@@ -1536,8 +1429,14 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 .tv-tile .glyph { font-size: 1.2rem; }
 /* The one lit tile: focus is how a TV shows you where you are. */
 .tv-tile:nth-child(2) {
-  border-color: transparent;
-  box-shadow: 0 0 0 3px var(--accent);
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+  transform: scale(1.05);
+}
+/* The drawing is a stage in miniature; the page-sized glow the real one
+   carries would be pinned to the window, not to the drawing. */
+.tv-screen.stage {
+  background: var(--bg);
+  background-attachment: scroll;
 }
 .tv-clock { font-size: 0.72rem; color: var(--ink-soft); }
 .tv-stand {
@@ -2133,6 +2032,1037 @@ input[type='text'], input[type='email'], input[type='password'], input[type='num
 }
 
 /* ===========================================================================
+   The stage
+   ===========================================================================
+   Everything a child looks at -- the profile picker, the launcher, every
+   activity -- and the public arcade a family opens on the television itself.
+
+   Dark, always, whatever the device's own theme. This is the one decision in
+   the file that ignores `prefers-color-scheme`, and it is deliberate: a
+   television is watched in a living room, often in the evening, and every
+   ten-foot interface people already know -- the set's own home screen, every
+   streaming app -- is dark for the same two reasons. A pale page is a light
+   bulb three metres from a child's face, and colour reads as colour only
+   against something that is not white. The tiles below are the colour; the
+   stage is what makes them glow.
+
+   The tokens are the same names the rest of the file uses, redefined, so every
+   activity written against `--surface` and `--ink` came across without a line
+   of its own changing. `pnpm contrast` reads this block as a third theme.
+*/
+/* @theme stage */
+.tv,
+.stage {
+  --bg: #0b1020;
+  --surface: #161c38;
+  --surface-2: #1f2749;
+  --ink: #f5f7ff;
+  --ink-soft: #b3bbdd;
+  --line: #2a3260;
+  --edge: #7d87bd;
+  --accent: #ffd23f;
+  --accent-ink: #1b1500;
+  --warn: #ffb45e;
+  --danger: #ff8f8f;
+  --wash: #1b2556;
+  --wash-line: #3a4796;
+  /* The ring a remote follows: dark gap, yellow ring, and a glow wide enough
+     to catch the eye as it moves. Yellow because it is the one colour that no
+     tile below is, so the ring is never lost against the thing it is on. */
+  --focus: 0 0 0 4px var(--bg), 0 0 0 9px var(--accent), 0 0 34px 6px rgb(255 210 63 / 0.35);
+  color-scheme: dark;
+  color: var(--ink);
+  background:
+    radial-gradient(1100px 620px at 8% -12%, rgb(64 88 220 / 0.32), transparent 62%),
+    radial-gradient(900px 560px at 108% 4%, rgb(168 60 220 / 0.22), transparent 58%),
+    var(--bg);
+  background-attachment: fixed;
+}
+.activity.tv {
+  background: var(--bg);
+}
+
+/* A mouse on the stage gets a quieter ring, as it does everywhere else. */
+.stage :focus {
+  outline: none;
+  box-shadow: var(--focus);
+}
+:root[data-input='pointer'] .stage :focus {
+  box-shadow: 0 0 0 3px var(--bg), 0 0 0 6px var(--accent);
+}
+/* The marketing links on the arcade page are prose-coloured; on the stage
+   they need the stage's ink. */
+.stage a:not(.btn):not(.tile) {
+  color: var(--ink);
+}
+
+/* ---- tiles ------------------------------------------------------------- */
+
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, clamp(150px, 13vw, 260px)), 1fr));
+  gap: var(--pad);
+}
+
+/* `button.tile`, not only `.tile`: the child's scope sizes every button with
+   `.tv button`, which outranks a single class and would put generic button
+   padding inside a tile. The same holds for every game control below. */
+.tile,
+button.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 2px;
+  aspect-ratio: 5 / 4;
+  min-height: 140px;
+  /* Said outright. A grid item with an aspect ratio is not stretched to its
+     column; it takes its width from its height instead -- 140 x 5/4, a 175px
+     tile in a 156px column on a 360px phone. The column decides the width,
+     and the min-height is allowed to beat the ratio. */
+  width: 100%;
+  padding: var(--pad);
+  text-align: left;
+  text-decoration: none;
+  color: #fff;
+  background: linear-gradient(150deg, var(--tile-a), var(--tile-b));
+  border: 0;
+  border-radius: calc(var(--radius) * 1.3);
+  box-shadow:
+    0 14px 28px -16px rgb(0 0 0 / 0.8),
+    inset 0 1px 0 rgb(255 255 255 / 0.2);
+  overflow: hidden;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+.tile:hover {
+  background: linear-gradient(150deg, var(--tile-a), var(--tile-b));
+}
+/* A sheen from the top corner, so a tile reads as an object and not a swatch. */
+.tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 100% 0%, rgb(255 255 255 / 0.2), transparent 55%);
+  pointer-events: none;
+}
+.tile-glyph {
+  position: absolute;
+  top: 0.3em;
+  right: 0.3em;
+  font-size: 3.1em;
+  line-height: 1;
+  transform: rotate(-6deg);
+  filter: drop-shadow(0 8px 10px rgb(0 0 0 / 0.35));
+  transition: transform 200ms ease;
+}
+.tile-name {
+  position: relative;
+  font-size: 1.2em;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  /* Clear of the glyph in the corner on a narrow tile. */
+  max-width: 100%;
+}
+.tile-line {
+  position: relative;
+  font-size: 0.84em;
+  font-weight: 500;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tile-badge {
+  position: absolute;
+  top: 0.7em;
+  left: 0.7em;
+  padding: 0.2em 0.65em;
+  font-size: 0.72em;
+  font-weight: 700;
+  color: #fff;
+  background: rgb(0 0 0 / 0.38);
+  border-radius: 999px;
+}
+.tile:disabled {
+  opacity: 0.45;
+}
+
+@media (hover: hover) {
+  .tile:hover:not(:disabled) {
+    transform: translateY(-4px);
+  }
+  .tile:hover .tile-glyph {
+    transform: rotate(0) scale(1.08);
+  }
+}
+/* The focused tile lifts, rings and glows: the one thing on the screen that
+   moves when the remote does. */
+.tv .tile:focus,
+.stage .tile:focus {
+  transform: scale(1.07);
+  box-shadow:
+    var(--focus),
+    0 24px 44px -14px rgb(0 0 0 / 0.85);
+  z-index: 3;
+}
+.tv .tile:focus .tile-glyph,
+.stage .tile:focus .tile-glyph {
+  transform: rotate(0) scale(1.12);
+}
+:root[data-input='pointer'] .tv .tile:focus,
+:root[data-input='pointer'] .stage .tile:focus {
+  transform: none;
+}
+
+.shelf h2 {
+  font-size: 1.3em;
+  margin: 0 0 0.6em;
+}
+
+/* ---- launcher ---------------------------------------------------------- */
+
+.stage-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pad);
+  flex-wrap: wrap;
+}
+.stage-top-actions {
+  gap: calc(var(--pad) * 0.75);
+}
+.stage-brand {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--ink-soft);
+}
+.who {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--pad) * 0.75);
+}
+.who h1 {
+  margin: 0;
+  font-size: 1.8em;
+}
+.who-avatar {
+  display: grid;
+  place-items: center;
+  width: 2.1em;
+  height: 2.1em;
+  font-size: 1.8em;
+  line-height: 1;
+  border-radius: 50%;
+  background: linear-gradient(150deg, var(--tile-a), var(--tile-b));
+  box-shadow: 0 10px 24px -12px rgb(0 0 0 / 0.8);
+}
+.launcher {
+  gap: calc(var(--pad) * 1.4);
+}
+
+.time-ring {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+}
+.time-ring svg {
+  width: 2.8em;
+  height: 2.8em;
+  transform: rotate(-90deg);
+  flex: none;
+}
+.time-ring circle {
+  fill: none;
+  stroke-width: 7;
+}
+.time-ring .track {
+  stroke: var(--surface-2);
+}
+.time-ring .fill {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 600ms ease;
+}
+.time-ring.low .fill {
+  stroke: var(--warn);
+}
+.time-ring.out .fill {
+  stroke: var(--danger);
+}
+.time-ring-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.time-ring-text b {
+  font-size: 1.15em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The big card at the top: carry on, or this week's challenge. */
+.hero-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pad);
+  padding: calc(var(--pad) * 1.6);
+  color: #fff;
+  background:
+    radial-gradient(140% 120% at 100% 0%, rgb(255 255 255 / 0.16), transparent 50%),
+    linear-gradient(135deg, var(--tile-a), var(--tile-b));
+  border-radius: calc(var(--radius) * 1.6);
+  box-shadow: 0 24px 48px -24px rgb(0 0 0 / 0.9);
+  overflow: hidden;
+}
+.hero-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35em;
+  max-width: 36em;
+  min-width: 0;
+}
+.hero-copy h2 {
+  font-size: 1.9em;
+  margin: 0;
+}
+.hero-copy p {
+  margin: 0 0 0.4em;
+  font-size: 1.05em;
+}
+.hero-copy .hero-note {
+  font-size: 0.85em;
+}
+.hero-eyebrow {
+  font-size: 0.78em;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.hero-glyph {
+  font-size: 6em;
+  line-height: 1;
+  transform: rotate(-8deg);
+  filter: drop-shadow(0 18px 20px rgb(0 0 0 / 0.4));
+  animation: bob 3.2s ease-in-out infinite;
+  flex: none;
+}
+@keyframes bob {
+  50% {
+    transform: rotate(-4deg) translateY(-8px);
+  }
+}
+
+/* ---- who's playing ----------------------------------------------------- */
+
+.who-page {
+  gap: calc(var(--pad) * 1.6);
+}
+.who-title {
+  text-align: center;
+  font-size: 2.4em;
+  margin: 0;
+}
+.profiles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(var(--pad) * 1.5);
+}
+button.profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5em;
+  width: 11em;
+  padding: var(--pad) 0.5em;
+  background: transparent;
+  border-color: transparent;
+}
+.profile:hover {
+  background: transparent;
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 2.3em;
+  height: 2.3em;
+  font-size: 3em;
+  line-height: 1;
+  border-radius: 50%;
+  background: linear-gradient(150deg, var(--tile-a, var(--surface-2)), var(--tile-b, var(--surface)));
+  box-shadow: 0 16px 36px -16px rgb(0 0 0 / 0.9);
+  transition: transform 160ms ease;
+}
+.profile-name {
+  font-size: 1.2em;
+  font-weight: 800;
+}
+.tv .profile:focus {
+  box-shadow: none;
+  transform: none;
+}
+.tv .profile:focus .avatar {
+  box-shadow: var(--focus);
+  transform: scale(1.1);
+}
+@media (hover: hover) {
+  .profile:hover:not(:disabled) .avatar {
+    transform: scale(1.06);
+  }
+}
+
+.pin-page {
+  align-items: center;
+  text-align: center;
+}
+.pin-page h1 {
+  margin: 0;
+}
+.pinpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6em;
+  width: min(100%, 17em);
+}
+.pinpad button {
+  font-size: 1.4em;
+  border-radius: 50%;
+  aspect-ratio: 1;
+  padding: 0;
+}
+.pin-dots {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  font-size: 2em;
+  letter-spacing: 0.2em;
+}
+
+/* ---- the bar above an activity ----------------------------------------- */
+
+.tv .activity-bar {
+  background: rgb(11 16 32 / 0.92);
+  border-bottom-color: var(--line);
+}
+.activity-bar h1 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+}
+.bar-glyph {
+  font-size: 1.15em;
+}
+button.icon-btn {
+  min-width: max(48px, calc(var(--font) * 2.6));
+  padding-inline: 0;
+}
+
+/* ---- the arcade page --------------------------------------------------- */
+
+.arcade-page {
+  /* Wider than the marketing pages: this one is a shelf of things to pick,
+     read on a television at least as often as on a phone. */
+  --measure: 1480px;
+}
+.arcade-page .home-section {
+  padding-block: clamp(14px, 2.4vw, 28px);
+}
+.arcade-page .try-head {
+  padding-top: clamp(24px, 5vw, 56px);
+}
+.arcade-page .band {
+  margin-top: clamp(24px, 5vw, 56px);
+}
+
+/* ===========================================================================
+   The games
+   ===========================================================================
+   One frame for all of them: numbers along the top, a board as large as the
+   screen allows, a line of help underneath. The board is square wherever it
+   can be and never taller than the space left once the bar, the numbers and
+   the help have had theirs -- which is the only way to fit the same board to
+   a television, a laptop and a phone held either way up.
+*/
+
+.arcade {
+  --board: min(100%, calc(100vh - 7.5em - 6 * var(--pad) - 40px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pad);
+  width: 100%;
+  max-width: 1100px;
+}
+@supports (height: 100dvh) {
+  .arcade {
+    --board: min(100%, calc(100dvh - 7.5em - 6 * var(--pad) - 40px));
+  }
+}
+/* Two games put a row of mode chips above the board, and it has to come out
+   of the board's share. */
+.arcade:has(> .chips) {
+  --board: min(100%, calc(100dvh - 10.5em - 7 * var(--pad) - 40px));
+}
+
+.hud {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5em;
+}
+.hud span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35em;
+  padding: 0.3em 0.9em;
+  color: var(--ink-soft);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.hud b {
+  color: var(--ink);
+  font-size: 1.2em;
+  font-variant-numeric: tabular-nums;
+}
+
+.board-wrap {
+  position: relative;
+  /* Exactly the board's size, so the menu laid over it covers the board and
+     not the empty stage either side. */
+  width: var(--board);
+}
+.game-board {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: calc(var(--radius) * 1.2);
+  touch-action: none;
+  outline: none;
+}
+/* The board takes focus only so that nothing else has it; a ring and a lift
+   round the whole playing field would be the loudest thing on the screen. */
+.tv .game-board:focus {
+  transform: none;
+  box-shadow: 0 0 0 2px var(--line);
+}
+.game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  touch-action: none;
+}
+
+.board-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: var(--pad);
+  background: rgb(8 11 26 / 0.74);
+  border-radius: calc(var(--radius) * 1.2);
+  animation: fade-in 180ms ease both;
+}
+@supports (backdrop-filter: blur(4px)) {
+  .board-overlay {
+    backdrop-filter: blur(4px);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+.result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3em;
+  max-width: 26em;
+  text-align: center;
+}
+.result h2 {
+  margin: 0;
+  font-size: 1.7em;
+}
+.result p {
+  margin: 0;
+}
+.result-glyph {
+  font-size: 3.4em;
+  line-height: 1.1;
+  animation: bob 1.8s ease-in-out infinite;
+}
+.result-actions {
+  justify-content: center;
+  margin-top: 0.7em;
+  gap: 0.6em;
+}
+.board-banner {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0.3em 1em;
+  font-size: 2em;
+  font-weight: 800;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-radius: 999px;
+  pointer-events: none;
+  animation: pop-in 300ms cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.play-hint {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.9em;
+  text-align: center;
+}
+.hint-touch {
+  display: none;
+}
+.pointer-only {
+  display: none;
+}
+:root[data-input='pointer'] .pointer-only {
+  display: inline-flex;
+}
+
+/* A thumb's D-pad, on a touch screen only. */
+.touch-pad {
+  display: none;
+}
+@media (hover: none) and (pointer: coarse) {
+  .hint-touch {
+    display: inline;
+  }
+  .hint-remote {
+    display: none;
+  }
+  .touch-pad {
+    display: grid;
+    grid-template-columns: repeat(3, 58px);
+    grid-template-rows: repeat(3, 58px);
+    grid-template-areas: '. up .' 'left ok right' '. down .';
+    gap: 6px;
+    user-select: none;
+  }
+  .touch-pad button,
+  .touch-pad .pad-ok {
+    min-height: 0;
+    padding: 0;
+    font-size: 1.2em;
+    border-radius: 16px;
+  }
+  .touch-pad .pad-up { grid-area: up; }
+  .touch-pad .pad-down { grid-area: down; }
+  .touch-pad .pad-left { grid-area: left; }
+  .touch-pad .pad-right { grid-area: right; }
+  .touch-pad .pad-ok { grid-area: ok; }
+}
+
+.confetti {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  overflow: hidden;
+  pointer-events: none;
+}
+.confetti i {
+  position: absolute;
+  top: -5vh;
+  width: 11px;
+  height: 17px;
+  border-radius: 3px;
+  animation: confetti-fall 2.4s cubic-bezier(0.2, 0.6, 0.4, 1) both;
+}
+@keyframes confetti-fall {
+  to {
+    transform: translate(var(--drift), 115vh) rotate(calc(var(--spin) + 720deg));
+  }
+}
+@keyframes pop-in {
+  from {
+    transform: translate(-50%, -50%) scale(0.4);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .confetti {
+    display: none;
+  }
+}
+
+/* ---- snake ------------------------------------------------------------- */
+
+.snake-board {
+  background: #13203d;
+  box-shadow: 0 30px 60px -30px rgb(0 0 0 / 0.9);
+}
+
+/* ---- 2048 ---------------------------------------------------------------- */
+
+.merge-board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2.4%;
+  padding: 2.4%;
+  background: #2b3566;
+}
+.merge-cell {
+  position: relative;
+  border-radius: 12%;
+  background: rgb(255 255 255 / 0.06);
+}
+.merge-tile {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 2.1em;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  border-radius: 12%;
+  color: #1e1b4b;
+}
+.merge-tile.new {
+  animation: tile-appear 180ms ease-out both;
+}
+.merge-tile.merged {
+  animation: tile-merge 200ms ease-out both;
+}
+@keyframes tile-appear {
+  from {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+}
+@keyframes tile-merge {
+  50% {
+    transform: scale(1.14);
+  }
+}
+.merge-tile.v2 { background: #e0e7ff; }
+.merge-tile.v4 { background: #c7d2fe; }
+.merge-tile.v8 { background: #fdba74; color: #431407; }
+.merge-tile.v16 { background: #fb923c; color: #431407; }
+.merge-tile.v32 { background: #f87171; color: #450a0a; }
+.merge-tile.v64 { background: #ef4444; color: #fff; }
+.merge-tile.v128 { background: #fde047; color: #422006; }
+.merge-tile.v256 { background: #facc15; color: #422006; }
+.merge-tile.v512 { background: #a3e635; color: #1a2e05; }
+.merge-tile.v1024 { background: #22d3ee; color: #083344; font-size: 1.6em; }
+.merge-tile.v2048 { background: #ffd23f; color: #1b1500; font-size: 1.6em; box-shadow: 0 0 30px 6px rgb(255 210 63 / 0.55); }
+.merge-tile.v4096 { background: #c084fc; color: #2e1065; font-size: 1.6em; }
+
+/* ---- slide puzzle -------------------------------------------------------- */
+
+.slide-board {
+  background: #1b2350;
+  padding: 1.5%;
+}
+.slide-board > .slide-tile {
+  position: absolute;
+  top: 1.5%;
+  left: 1.5%;
+  width: calc(97% / var(--n));
+  height: calc(97% / var(--n));
+  min-height: 0;
+  padding: 0;
+  /* The gap between tiles is a transparent border, so the tile itself can be
+     moved by exactly its own width. */
+  border: 5px solid transparent;
+  background-clip: padding-box;
+  background-color: #4f46e5;
+  background-image: linear-gradient(150deg, #6366f1, #4338ca);
+  color: #fff;
+  font-size: 2.2em;
+  font-weight: 800;
+  border-radius: 18%;
+  transform: translate(calc(var(--x) * 100%), calc(var(--y) * 100%));
+  transition: transform 130ms ease-out;
+}
+.slide-board > .slide-tile.home {
+  background-image: linear-gradient(150deg, #16a34a, #15803d);
+}
+.slide-board > .slide-tile:hover {
+  background-color: #4f46e5;
+}
+
+/* ---- tic-tac-toe ------------------------------------------------------- */
+
+.ttt-board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(6px, 1.6vmin, 16px);
+  width: min(var(--board), 560px);
+}
+button.ttt-cell {
+  aspect-ratio: 1;
+  min-height: 0;
+  padding: 10%;
+  background: var(--surface);
+  border: 2px solid var(--edge);
+  border-radius: 20%;
+}
+.ttt-cell.win {
+  background: var(--wash);
+  border-color: var(--accent);
+}
+.ttt-mark {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke-width: 13;
+  stroke-linecap: round;
+}
+.ttt-mark.x {
+  stroke: #38bdf8;
+}
+.ttt-mark.o {
+  stroke: #fb7185;
+}
+.ttt-cell .ttt-mark path,
+.ttt-cell .ttt-mark circle {
+  stroke-dasharray: 200;
+  animation: draw-in 280ms ease-out both;
+}
+@keyframes draw-in {
+  from {
+    stroke-dashoffset: 200;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.turn-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0;
+  font-size: 1.15em;
+  font-weight: 700;
+  min-height: 1.6em;
+}
+.turn-line .ttt-mark {
+  width: 1.3em;
+  height: 1.3em;
+}
+
+/* ---- four in a row ------------------------------------------------------ */
+
+.c4-board {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1%;
+  width: min(100%, calc(var(--board) * 7 / 6));
+  margin-top: clamp(36px, 6vmin, 80px);
+  padding: 1.2%;
+  background: linear-gradient(180deg, #2f5bea, #1e40af);
+  border-radius: calc(var(--radius) * 1.2);
+  box-shadow: 0 30px 60px -30px rgb(0 0 0 / 0.9);
+}
+button.c4-col {
+  position: relative;
+  display: grid;
+  grid-template-rows: repeat(6, 1fr);
+  /* Not a percentage. A row gap in % inside a grid whose height comes from
+     its content counts as nothing while the height is worked out and as
+     something afterwards, and the difference was the bottom row of counters
+     hanging out of the bottom of the board. */
+  gap: clamp(3px, 0.9vmin, 10px);
+  min-height: 0;
+  padding: 8% 6%;
+  background: transparent;
+  border: 0;
+  border-radius: 14px;
+}
+.c4-col:hover {
+  background: rgb(255 255 255 / 0.08);
+}
+.tv .c4-col:focus {
+  transform: none;
+  background: rgb(255 255 255 / 0.14);
+  box-shadow: 0 0 0 4px var(--accent);
+}
+/* The counter you are about to drop, hovering over the column you are on. */
+.c4-col:focus::before,
+.c4-col:hover::before {
+  content: '';
+  position: absolute;
+  left: 24%;
+  right: 24%;
+  bottom: 100%;
+  margin-bottom: 0.25em;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #dc2626;
+}
+.c4-col.turn-2:focus::before,
+.c4-col.turn-2:hover::before {
+  background: #facc15;
+}
+.c4-col[aria-disabled='true']::before {
+  display: none;
+}
+.c4-cell {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #0b1020;
+  box-shadow: inset 0 4px 8px rgb(0 0 0 / 0.6);
+}
+.c4-disc {
+  position: absolute;
+  inset: 4%;
+  border-radius: 50%;
+}
+.c4-disc.p1 {
+  background: radial-gradient(circle at 35% 30%, #ff9a9a, #dc2626 58%, #991b1b);
+}
+.c4-disc.p2 {
+  background: radial-gradient(circle at 35% 30%, #fff3a3, #facc15 58%, #b45309);
+}
+.c4-disc.falling {
+  z-index: 2;
+  animation: fall calc(160ms + var(--fall) * 45ms) cubic-bezier(0.55, 0, 1, 0.45) both;
+}
+@keyframes fall {
+  from {
+    transform: translateY(calc(var(--fall) * -122%));
+  }
+}
+.c4-cell.win .c4-disc {
+  box-shadow:
+    0 0 0 4px #fff,
+    0 0 24px 6px rgb(255 255 255 / 0.6);
+}
+.c4-disc.inline {
+  position: static;
+  display: inline-block;
+  width: 1.2em;
+  height: 1.2em;
+}
+
+/* ---- colour echo -------------------------------------------------------- */
+
+.echo-pad-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 3%;
+  width: 100%;
+  aspect-ratio: 1;
+}
+button.echo-pad {
+  min-height: 0;
+  padding: 0;
+  font-size: 2em;
+  color: rgb(255 255 255 / 0.85);
+  border: 0;
+  border-radius: 28%;
+  filter: saturate(0.55) brightness(0.6);
+  transition:
+    filter 90ms ease,
+    transform 90ms ease,
+    box-shadow 90ms ease;
+}
+.echo-pad.pad-up { grid-area: 1 / 2; }
+.echo-pad.pad-right { grid-area: 2 / 3; }
+.echo-pad.pad-down { grid-area: 3 / 2; }
+.echo-pad.pad-left { grid-area: 2 / 1; }
+.echo-pad.green, .echo-pad.green:hover { background: #22c55e; }
+.echo-pad.red, .echo-pad.red:hover { background: #ef4444; }
+.echo-pad.yellow, .echo-pad.yellow:hover { background: #facc15; color: rgb(0 0 0 / 0.6); }
+.echo-pad.blue, .echo-pad.blue:hover { background: #3b82f6; }
+.echo-pad.lit {
+  filter: none;
+  transform: scale(1.07);
+}
+.echo-pad.green.lit { box-shadow: 0 0 60px 14px rgb(34 197 94 / 0.7); }
+.echo-pad.red.lit { box-shadow: 0 0 60px 14px rgb(239 68 68 / 0.7); }
+.echo-pad.yellow.lit { box-shadow: 0 0 60px 14px rgb(250 204 21 / 0.7); }
+.echo-pad.blue.lit { box-shadow: 0 0 60px 14px rgb(59 130 246 / 0.7); }
+.echo-pad-grid.input .echo-pad {
+  filter: saturate(0.8) brightness(0.8);
+}
+.echo-pad-grid.input .echo-pad.lit {
+  filter: none;
+}
+.echo-hub {
+  grid-area: 2 / 2;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+}
+
+/* ---- maze ---------------------------------------------------------------- */
+
+.maze-board {
+  --wall: #c7d2fe;
+  display: grid;
+  grid-template-columns: repeat(var(--n), 1fr);
+  background: #101938;
+  border-radius: 10px;
+}
+.maze-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  line-height: 1;
+}
+.maze-cell.n { border-top: max(2px, 0.4vmin) solid var(--wall); }
+.maze-cell.w { border-left: max(2px, 0.4vmin) solid var(--wall); }
+.maze-cell.e { border-right: max(2px, 0.4vmin) solid var(--wall); }
+.maze-cell.s { border-bottom: max(2px, 0.4vmin) solid var(--wall); }
+.maze-cell.trail {
+  /* Breadcrumbs: a lit floor and a dot in the middle, the way a child would
+     mark a maze on paper. */
+  background:
+    radial-gradient(circle, rgb(255 210 63 / 0.85) 0 9%, transparent 10%),
+    rgb(99 102 241 / 0.28);
+}
+.maze-cell svg {
+  position: absolute;
+  inset: 4%;
+  width: 92%;
+  height: 92%;
+  overflow: visible;
+}
+
+/* ---- brick breaker ------------------------------------------------------- */
+
+.arcade.wide .board-wrap {
+  width: min(100%, calc(var(--board) * 10 / 7));
+}
+.bricks-canvas {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 10 / 7;
+  border-radius: calc(var(--radius) * 1.2);
+  box-shadow: 0 30px 60px -30px rgb(0 0 0 / 0.9);
+  touch-action: none;
+}
+
+/* ===========================================================================
    Phones
    ===========================================================================
    The other half of the audience. A parent reads the marketing pages, signs in
@@ -2380,4 +3310,99 @@ button, .btn, .chip, a, [role='button'], input, textarea, select {
   .answer-grid.wide .answer { min-height: 50px; font-size: 0.98em; }
   .india-prompt { font-size: 1.05rem; }
   .play-stage { gap: calc(var(--pad) * 0.75); }
+}
+
+/* ---- the games, on a phone held sideways ---------------------------------- */
+
+/*
+ * Side by side, not stacked.
+ *
+ * Stacked, a phone held sideways gave the board what was left of 390px after
+ * the bar, the numbers and the help had theirs -- 134px, a postage stamp with
+ * a snake on it. The board takes the full height on the left instead, and
+ * everything else stands in a column beside it, where a landscape screen has
+ * room to spare.
+ *
+ * `--board` is set without a percentage here, because the board's column is
+ * sized by the board, and a board sized by its column is a circle.
+ */
+@media (max-height: 520px) and (orientation: landscape) {
+  .arcade {
+    --board: min(52vw, calc(100vh - 84px));
+    display: grid;
+    grid-template-columns: auto minmax(0, 17em);
+    grid-auto-flow: row dense;
+    align-content: center;
+    justify-content: center;
+    column-gap: calc(var(--pad) * 1.5);
+    row-gap: 8px;
+    max-width: none;
+  }
+  .arcade:has(> .chips) {
+    --board: min(52vw, calc(100vh - 84px));
+  }
+  @supports (height: 100dvh) {
+    .arcade {
+      --board: min(52vw, calc(100dvh - 84px));
+    }
+    .arcade:has(> .chips) {
+      --board: min(52vw, calc(100dvh - 84px));
+    }
+  }
+  .arcade > * {
+    grid-column: 2;
+    justify-self: center;
+  }
+  .arcade > .board-wrap,
+  .arcade > .ttt-board,
+  .arcade > .c4-board {
+    grid-column: 1;
+    grid-row: 1 / span 8;
+    align-self: center;
+  }
+  .arcade.wide .board-wrap {
+    width: calc(var(--board) * 10 / 7);
+  }
+  /* The counter that hovers over a column is for a remote; a phone has no
+     focus to show it on, and the room it needs above the board is room the
+     board does not have. */
+  .c4-board {
+    width: calc(var(--board) * 7 / 6);
+    margin-top: 0;
+  }
+  /* Three rows of square cells plus two gaps come out taller than they are
+     wide; the gaps are taken back off the width. */
+  .ttt-board {
+    width: calc(var(--board) - 2 * clamp(6px, 1.6vmin, 16px));
+  }
+  .c4-col::before {
+    display: none;
+  }
+  .arcade > .chips {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .arcade > .chips > .chip {
+    flex: 0 0 auto;
+  }
+  .result-glyph {
+    font-size: 2.2em;
+  }
+  .result h2 {
+    font-size: 1.25em;
+  }
+  .result p {
+    font-size: 0.9em;
+  }
+  .result-actions button {
+    min-height: 42px;
+    padding-block: 6px;
+  }
+  .touch-pad {
+    grid-template-columns: repeat(3, 50px);
+    grid-template-rows: repeat(3, 50px);
+  }
 }

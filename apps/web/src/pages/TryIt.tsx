@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import {
   AGE_BAND_SPECS,
@@ -10,7 +11,8 @@ import {
 } from '@kidpc/shared';
 import { DemoShell } from '../play/DemoShell';
 import { GAMES } from '../play/games';
-import { glyphFor } from './Launcher';
+import { useSpatialNavigation } from '../tv';
+import { glyphFor, shelve, TileFace, tileStyle } from './AppTile';
 import { SiteFooter, SiteHeader } from './SiteChrome';
 
 /**
@@ -39,6 +41,23 @@ export function TryIt() {
   const challenge = challengeForWeek(new Date());
   const activities = localApps(CATALOG);
 
+  /*
+   * The arcade is the page a family is most likely to open on the television
+   * itself -- type the address into the TV's browser and play -- so it answers
+   * a remote the way the child's own launcher does. Off inside an activity,
+   * where DemoShell runs its own and two would move focus twice per press.
+   */
+  useSpatialNavigation(!appId);
+  useEffect(() => {
+    if (appId) return;
+    // Only on a set with no pointer at all. On a laptop a ring appearing on a
+    // tile nobody chose is noise; on a television it is the only way to know
+    // where the first press of an arrow will go.
+    if (window.matchMedia?.('(pointer: none)').matches) {
+      document.querySelector<HTMLElement>('[data-focus-root] a, [data-focus-root] button')?.focus();
+    }
+  }, [appId]);
+
   if (appId) {
     const app = findApp(appId);
     const Game = app ? GAMES[app.id] : undefined;
@@ -53,46 +72,66 @@ export function TryIt() {
   const challengeApp = findApp(challenge.appId);
 
   return (
-    <div className="home">
+    <div className="home stage arcade-page">
       <SiteHeader />
 
-      <section className="home-section try-head">
-        <h1>Try it now</h1>
-        <p className="lede">
-          All {activities.length} activities, free, with no account and nothing to install. Nothing
-          your child draws, writes or types here is uploaded — it stays in this browser.
-        </p>
-      </section>
-
-      {challengeApp && (
-        <section className="home-section">
-          <div className="challenge-card">
-            <span className="cert-label">This week&apos;s challenge</span>
-            <h2>{challenge.title}</h2>
-            <p className="challenge-prompt">{challenge.prompt}</p>
-            <p className="small muted">{challenge.grownUp}</p>
-            <Link to={`/try/${challenge.appId}`} className="btn primary big">
-              Start it in {challengeApp.name}
-            </Link>
-          </div>
+      <main data-focus-root>
+        <section className="home-section try-head">
+          <h1>The arcade</h1>
+          <p className="lede">
+            All {activities.length} games and activities, free, with no account and nothing to
+            install. Nothing your child draws, writes or types here is uploaded — it stays in this
+            browser.
+          </p>
+          <p className="small muted">
+            On a TV? Use the remote: arrows to move, OK to play, Back to come out.
+          </p>
         </section>
-      )}
 
-      <section className="home-section">
-        <h2>Or pick anything</h2>
-        <div className="promo-grid">
-          {activities.map((app) => (
-            <Link className="promo-tile try-tile" key={app.id} to={`/try/${app.id}`}>
-              <span className="glyph" aria-hidden="true">
-                {glyphFor(app)}
+        {challengeApp && (
+          <section className="home-section arcade-hero">
+            <div className="hero-card" style={tileStyle(challengeApp.id)}>
+              <div className="hero-copy">
+                <span className="hero-eyebrow">This week&apos;s challenge</span>
+                <h2>{challenge.title}</h2>
+                <p>{challenge.prompt}</p>
+                <p className="small hero-note">{challenge.grownUp}</p>
+                <Link to={`/try/${challenge.appId}`} className="btn primary">
+                  Start it in {challengeApp.name}
+                </Link>
+              </div>
+              <span className="hero-glyph" aria-hidden="true">
+                {glyphFor(challengeApp)}
               </span>
-              <h3>{app.name}</h3>
-              <p className="muted">{app.tagline}</p>
-              <p className="small muted">From age {AGE_BAND_SPECS[app.minBand].minAge}</p>
-            </Link>
-          ))}
-        </div>
-      </section>
+            </div>
+          </section>
+        )}
+
+        {shelve(activities).map((shelf) => (
+          <section className="home-section shelf" key={shelf.id} aria-label={shelf.title}>
+            <h2>{shelf.title}</h2>
+            <div className="tile-grid">
+              {shelf.apps.map((app) => (
+                <Link className="tile" key={app.id} to={`/try/${app.id}`} style={tileStyle(app.id)}>
+                  <TileFace
+                    app={app}
+                    // Only where it narrows things: "from 5" on every tile of a
+                    // product that starts at five says nothing nineteen times.
+                    note={
+                      app.minBand !== 'explorer' ? (
+                        <span className="tile-badge">
+                          Age {AGE_BAND_SPECS[app.minBand].minAge}+
+                        </span>
+                      ) : null
+                    }
+                  />
+                </Link>
+              ))}
+            </div>
+          </section>
+        ))}
+
+      </main>
 
       <section className="band">
         <div className="home-section closing">

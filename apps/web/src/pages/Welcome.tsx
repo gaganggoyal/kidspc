@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { HomeDto } from '../api';
 import { useAutoFocusFirst, useSpatialNavigation } from '../tv';
+import { tileStyle } from './AppTile';
 import { AVATARS } from './Household';
 
 /**
@@ -27,6 +28,14 @@ const PITCH: Record<string, { glyph: string; line: string }> = {
   piano: { glyph: '🎹', line: 'Play Sa Re Ga Ma' },
   tables: { glyph: '✖️', line: 'Learn your times tables' },
   india: { glyph: '🗺️', line: 'Travel around India' },
+  snake: { glyph: '🍎', line: 'Steer the snake to the apples' },
+  tictactoe: { glyph: '⭕', line: 'Beat the robot at noughts and crosses' },
+  fourrow: { glyph: '🔴', line: 'Get four in a row first' },
+  echo: { glyph: '🌈', line: 'Remember the colours' },
+  maze: { glyph: '🐭', line: 'Find the way to the cheese' },
+  slide: { glyph: '🔢', line: 'Put the numbers back in order' },
+  bricks: { glyph: '💥', line: 'Smash all the bricks' },
+  merge: { glyph: '🔶', line: 'Join the numbers to make 2048' },
   scratch: { glyph: '🐱', line: 'Build a game in Scratch' },
   gcompris: { glyph: '🧩', line: 'A hundred little games' },
 };
@@ -54,8 +63,10 @@ export function Welcome({
 
   // Offer what this child actually has, in an order that puts the most
   // immediately rewarding first. Never more than three: a first choice between
-  // eight things is not a choice, it is a wall.
-  const preferred = ['paint', 'blocks', 'typing', 'numbers', 'writer', 'code'];
+  // eight things is not a choice, it is a wall. Colour Echo is second because
+  // it is the one game a five-year-old can play on the first try with nothing
+  // but the remote -- the arrows are the colours.
+  const preferred = ['paint', 'echo', 'blocks', 'typing', 'numbers', 'snake', 'writer', 'code'];
   const picks = home.apps
     .slice()
     .sort((a, b) => {
@@ -68,10 +79,14 @@ export function Welcome({
     .slice(0, 3);
 
   return (
-    <div className="tv welcome">
+    <div className="tv stage welcome">
       <div className="welcome-inner">
         <div className="welcome-hello">
-          <span className="welcome-avatar" aria-hidden="true">
+          <span
+            className="welcome-avatar"
+            style={tileStyle(home.child.avatarId)}
+            aria-hidden="true"
+          >
             {AVATARS[home.child.avatarId] ?? '🦊'}
           </span>
           <h1>Hi {home.child.displayName}!</h1>
@@ -86,12 +101,17 @@ export function Welcome({
             {picks.map((app) => {
               const pitch = PITCH[app.id] ?? { glyph: '✨', line: app.tagline };
               return (
-                <button key={app.id} className="welcome-card" onClick={() => onPick(app.id)}>
-                  <span className="glyph" aria-hidden="true">
+                <button
+                  key={app.id}
+                  className="tile welcome-card"
+                  style={tileStyle(app.id)}
+                  onClick={() => onPick(app.id)}
+                >
+                  <span className="tile-glyph" aria-hidden="true">
                     {pitch.glyph}
                   </span>
-                  <span className="name">{app.name}</span>
-                  <span className="line">{pitch.line}</span>
+                  <span className="tile-name">{app.name}</span>
+                  <span className="tile-line">{pitch.line}</span>
                 </button>
               );
             })}

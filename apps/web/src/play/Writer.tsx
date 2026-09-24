@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityShell, type ActivityApi } from './ActivityShell';
+import type { ActivityApi } from './ActivityShell';
 
 /**
  * Story Writer.
@@ -101,13 +101,5 @@ export function WriterPad({ activity }: { activity: ActivityApi }) {
         </span>
       </div>
     </div>
-  );
-}
-
-export function Writer() {
-  return (
-    <ActivityShell appId="writer" title="Story Writer">
-      {(activity) => <WriterPad activity={activity} />}
-    </ActivityShell>
   );
 }

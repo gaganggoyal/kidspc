@@ -77,7 +77,7 @@ thirty seconds.
 | Per subscriber | **Rs 0.24** | Rs 66 |
 | Session RAM at peak | 348 MiB | 993 GiB |
 | Egress | ~2 GiB/month total | 18 TiB/month |
-| Gives you | Paint, Typing, Blocks, Numbers, Writer, Code | plus Scratch, Python, LibreOffice, GCompris, research |
+| Gives you | Paint, Typing, Blocks, Numbers, Writer, Code, the games | plus Scratch, Python, LibreOffice, GCompris, research |
 
 The honest cost is on the client: lite moves the work onto a Rs 2,000 Android
 box, which is a weak computer. Every local activity has to stay light, and that

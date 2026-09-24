@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityShell, type ActivityApi } from './ActivityShell';
+import type { ActivityApi } from './ActivityShell';
 import { useAutoFocusFirst } from '../tv';
 import { useChoiceKeys } from '../input';
 import { pick, shuffle } from './random';
@@ -197,13 +197,5 @@ export function IndiaGame({ activity }: { activity: ActivityApi }) {
         {verdict === 'wrong' && <span className="muted">{question.note}</span>}
       </div>
     </div>
-  );
-}
-
-export function India() {
-  return (
-    <ActivityShell appId="india" title="Know India">
-      {(activity) => <IndiaGame activity={activity} />}
-    </ActivityShell>
   );
 }

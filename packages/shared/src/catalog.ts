@@ -61,7 +61,13 @@ export function resolveLaunch(spec: LaunchSpec, appsOrigin: string): ResolvedLau
   return { kind: 'web', url: spec.url };
 }
 
-export type AppCategory = 'create' | 'code' | 'type' | 'learn' | 'office' | 'research';
+/**
+ * `play` is the games shelf: things a child picks because they are fun, each
+ * of which still asks for something -- planning, memory, a strategy -- that a
+ * parent would recognise. They are all local, because a game that needed a
+ * streamed desktop would be the most expensive way to play Snake ever built.
+ */
+export type AppCategory = 'play' | 'create' | 'code' | 'type' | 'learn' | 'office' | 'research';
 
 export interface CatalogApp {
   id: string;
@@ -94,8 +100,9 @@ export interface CatalogApp {
 
 /**
  * The curated catalogue. Deliberately small: every entry is something a parent
- * would recognise as learning, and each one is reviewed before it lands here.
- * A large open app store is the thing we are explicitly not building.
+ * would recognise as learning or as a game worth a child's time, and each one
+ * is reviewed before it lands here. A large open app store is the thing we are
+ * explicitly not building.
  */
 export const CATALOG: readonly CatalogApp[] = [
   // ---- Explorer (5-8) -----------------------------------------------------
@@ -180,6 +187,81 @@ export const CATALOG: readonly CatalogApp[] = [
     memoryHintMib: 320,
   },
 
+  // Games. Every one is playable with the five buttons on a remote -- four
+  // arrows and OK -- because that is the only controller most households
+  // have, and the two-player ones exist because a television is a screen
+  // people sit in front of together.
+  {
+    id: 'snake',
+    name: 'Snake',
+    tagline: 'Eat the apples and grow. Don’t bite your tail!',
+    category: 'play',
+    minBand: 'explorer',
+    glyph: '🍎',
+    launch: { kind: 'local', route: '/play/snake' },
+    memoryHintMib: 0,
+  },
+  {
+    id: 'tictactoe',
+    name: 'Tic-Tac-Toe',
+    tagline: 'Three in a row beats the robot, or a friend',
+    category: 'play',
+    minBand: 'explorer',
+    glyph: '⭕',
+    launch: { kind: 'local', route: '/play/tictactoe' },
+    memoryHintMib: 0,
+  },
+  {
+    id: 'fourrow',
+    name: 'Four in a Row',
+    tagline: 'Drop counters and line up four',
+    category: 'play',
+    minBand: 'explorer',
+    glyph: '🔴',
+    launch: { kind: 'local', route: '/play/fourrow' },
+    memoryHintMib: 0,
+  },
+  {
+    id: 'echo',
+    name: 'Colour Echo',
+    tagline: 'Watch the colours, then play them back',
+    category: 'play',
+    minBand: 'explorer',
+    glyph: '🌈',
+    launch: { kind: 'local', route: '/play/echo' },
+    memoryHintMib: 0,
+  },
+  {
+    id: 'maze',
+    name: 'Maze',
+    tagline: 'Help the mouse find the cheese',
+    category: 'play',
+    minBand: 'explorer',
+    glyph: '🐭',
+    launch: { kind: 'local', route: '/play/maze' },
+    memoryHintMib: 0,
+  },
+  {
+    id: 'slide',
+    name: 'Slide Puzzle',
+    tagline: 'Slide the numbers back into order',
+    category: 'play',
+    minBand: 'explorer',
+    glyph: '🔢',
+    launch: { kind: 'local', route: '/play/slide' },
+    memoryHintMib: 0,
+  },
+  {
+    id: 'bricks',
+    name: 'Brick Breaker',
+    tagline: 'Bounce the ball and break every brick',
+    category: 'play',
+    minBand: 'explorer',
+    glyph: '💥',
+    launch: { kind: 'local', route: '/play/bricks' },
+    memoryHintMib: 0,
+  },
+
   // ---- Builder (9-12) -----------------------------------------------------
   {
     id: 'writer',
@@ -209,6 +291,16 @@ export const CATALOG: readonly CatalogApp[] = [
     minBand: 'builder',
     glyph: '🇮🇳',
     launch: { kind: 'local', route: '/play/india' },
+    memoryHintMib: 0,
+  },
+  {
+    id: 'merge',
+    name: '2048',
+    tagline: 'Slide and join the numbers to make 2048',
+    category: 'play',
+    minBand: 'builder',
+    glyph: '🔶',
+    launch: { kind: 'local', route: '/play/merge' },
     memoryHintMib: 0,
   },
   {

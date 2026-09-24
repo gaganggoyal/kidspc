@@ -24,7 +24,7 @@ import { currentReferral } from '../referral';
 import { SiteFooter, SiteHeader } from './SiteChrome';
 import { HowItWorks } from './HowItWorks';
 import { PlanRequest } from './PlanRequest';
-import { glyphFor } from './Launcher';
+import { glyphFor, tileStyle } from './AppTile';
 
 /**
  * The public home page.
@@ -66,6 +66,12 @@ export function Home() {
   // pricing page is two half-filled forms.
   const [requesting, setRequesting] = useState<PlanId | null>(null);
   const activities = localApps(CATALOG);
+  // The drawn television shows a mix -- two games among the things to make and
+  // learn -- because that mix is the product, and six learning tiles in a row
+  // undersold the half a child actually runs towards.
+  const onScreen = ['snake', 'paint', 'fourrow', 'numbers', 'echo', 'blocks']
+    .map((id) => activities.find((app) => app.id === id))
+    .filter((app): app is (typeof activities)[number] => Boolean(app));
 
   return (
     <div className="home">
@@ -86,8 +92,8 @@ export function Home() {
           </h1>
           <p className="lede">
             {PRODUCT_NAME} turns a smart TV, laptop or tablet into a place where children aged 5
-            to 16 can draw, type, build and code. You decide how long, and when. There are no
-            adverts and nothing to plug in.
+            to 16 can play, draw, type, build and code — every game works with the TV remote. You
+            decide how long, and when. There are no adverts and nothing to plug in.
           </p>
           <div className="row">
             {/*
@@ -117,11 +123,11 @@ export function Home() {
             to sell itself. */}
         <div className="hero-art" aria-hidden="true">
           <div className="tv-frame">
-            <div className="tv-screen">
-              <div className="tv-greeting">Hi Meera! What shall we do first?</div>
+            <div className="tv-screen stage">
+              <div className="tv-greeting">Hi Meera! What shall we play?</div>
               <div className="tv-grid">
-                {activities.slice(0, 6).map((app) => (
-                  <div className="tv-tile" key={app.id}>
+                {onScreen.map((app) => (
+                  <div className="tv-tile" key={app.id} style={tileStyle(app.id)}>
                     <span className="glyph">{glyphFor(app)}</span>
                     <span>{app.name}</span>
                   </div>
@@ -188,8 +194,8 @@ export function Home() {
       <section className="home-section" id="inside">
         <h2>What your child gets</h2>
         <p className="lede">
-          A small, deliberate catalogue — every activity is something you would recognise as
-          learning. There is no open app store to wander into.
+          A small, deliberate catalogue — games that ask for a plan, a memory or a strategy, and
+          activities you would recognise as learning. There is no open app store to wander into.
         </p>
         {/* Each tile is a way in, not a description. Reading about Paint and
             then being able to open Paint is the shortest path there is from

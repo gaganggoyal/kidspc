@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityShell, type ActivityApi } from './ActivityShell';
+import type { ActivityApi } from './ActivityShell';
 
 /**
  * Paint.
@@ -226,13 +226,5 @@ export function PaintCanvas({ activity }: { activity: ActivityApi }) {
         aria-label="Drawing area"
       />
     </div>
-  );
-}
-
-export function Paint() {
-  return (
-    <ActivityShell appId="paint" title="Paint">
-      {(activity) => <PaintCanvas activity={activity} />}
-    </ActivityShell>
   );
 }

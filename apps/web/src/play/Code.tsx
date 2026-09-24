@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityShell, type ActivityApi } from './ActivityShell';
+import type { ActivityApi } from './ActivityShell';
 
 /**
  * Code Playground.
@@ -120,13 +120,5 @@ export function Playground({ activity }: { activity: ActivityApi }) {
         onLoad={() => frame.current?.contentWindow?.postMessage(document_, '*')}
       />
     </div>
-  );
-}
-
-export function Code() {
-  return (
-    <ActivityShell appId="code" title="Code Playground">
-      {(activity) => <Playground activity={activity} />}
-    </ActivityShell>
   );
 }

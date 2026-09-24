@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityShell, type ActivityApi } from './ActivityShell';
+import type { ActivityApi } from './ActivityShell';
 
 /**
  * Block Puzzles.
@@ -250,13 +250,5 @@ export function BlocksGame({ activity }: { activity: ActivityApi }) {
         </div>
       </div>
     </div>
-  );
-}
-
-export function Blocks() {
-  return (
-    <ActivityShell appId="blocks" title="Block Puzzles">
-      {(activity) => <BlocksGame activity={activity} />}
-    </ActivityShell>
   );
 }

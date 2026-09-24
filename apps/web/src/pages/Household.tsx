@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { PRODUCT_SHORT_NAME } from '@kidpc/shared';
 import { ApiError, type ChildDto, type HouseholdDto, api, setChildToken, setGuardianToken } from '../api';
 import { useAutoFocusFirst, useSpatialNavigation } from '../tv';
+import { tileStyle } from './AppTile';
 
 export const AVATARS: Record<string, string> = {
   fox: '🦊',
@@ -63,10 +64,10 @@ export function Household() {
   const active = household.children.filter((c) => !c.archivedAt);
 
   return (
-    <div className="tv">
-      <div className="page stack">
-        <div className="spread">
-          <h1>Who&apos;s using {PRODUCT_SHORT_NAME}?</h1>
+    <div className="tv stage">
+      <div className="page stack who-page">
+        <div className="stage-top">
+          <span className="stage-brand">{PRODUCT_SHORT_NAME}</span>
           <div className="row">
             <Link className="btn" to="/parent">
               Parent settings
@@ -83,6 +84,8 @@ export function Household() {
           </div>
         </div>
 
+        <h1 className="who-title">Who&apos;s playing?</h1>
+
         {active.length === 0 ? (
           <div className="card stack">
             <h2>No children yet</h2>
@@ -92,20 +95,20 @@ export function Household() {
             </Link>
           </div>
         ) : (
-          <div className="profiles">
+          <div className="profiles" data-focus-root>
             {active.map((child) => (
               <button
                 key={child.id}
-                className="card profile"
+                className="profile"
                 onClick={() => setPicked(child)}
                 // A profile that has not been approved yet cannot be entered,
                 // and the button says why rather than failing on tap.
                 disabled={!child.consentGranted}
               >
-                <span className="avatar" aria-hidden="true">
+                <span className="avatar" style={tileStyle(child.avatarId)} aria-hidden="true">
                   {AVATARS[child.avatarId] ?? '🦊'}
                 </span>
-                <span style={{ fontWeight: 700 }}>{child.displayName}</span>
+                <span className="profile-name">{child.displayName}</span>
                 <span className="small muted">
                   {child.consentGranted
                     ? `${household.bands[child.band]?.label} · ${child.usageTodayMinutes}/${child.policy.dailyMinutes} min today`
@@ -165,14 +168,12 @@ function PinEntry({ child, onCancel }: { child: ChildDto; onCancel: () => void }
   };
 
   return (
-    <div className="tv">
-      <div className="page stack narrow">
-        <div className="row">
-          <span className="avatar" style={{ fontSize: '3em' }} aria-hidden="true">
-            {AVATARS[child.avatarId] ?? '🦊'}
-          </span>
-          <h1 style={{ margin: 0 }}>Hi {child.displayName}!</h1>
-        </div>
+    <div className="tv stage">
+      <div className="page stack narrow pin-page">
+        <span className="avatar" style={tileStyle(child.avatarId)} aria-hidden="true">
+          {AVATARS[child.avatarId] ?? '🦊'}
+        </span>
+        <h1>Hi {child.displayName}!</h1>
         <p className="muted">Enter your 4-digit code.</p>
 
         <div className="pin-dots" aria-live="polite" aria-label={`${pin.length} of 4 digits entered`}>

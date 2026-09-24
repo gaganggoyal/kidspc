@@ -1,5 +1,5 @@
 import { type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityShell, type ActivityApi } from './ActivityShell';
+import type { ActivityApi } from './ActivityShell';
 
 /**
  * Piano.
@@ -300,13 +300,5 @@ export function PianoKeyboard({ activity }: { activity: ActivityApi }) {
         </div>
       </div>
     </div>
-  );
-}
-
-export function Piano() {
-  return (
-    <ActivityShell appId="piano" title="Piano">
-      {(activity) => <PianoKeyboard activity={activity} />}
-    </ActivityShell>
   );
 }

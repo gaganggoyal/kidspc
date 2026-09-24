@@ -179,9 +179,9 @@ production host for every locked-out parent.
 
 ## Start in lite mode
 
-`DEPLOYMENT_MODE=lite` serves the six local activities — Paint, Typing Garden,
-Block Puzzles, Number Ninja, Story Writer, Code Playground — which run in the
-child's own browser. The server holds a session row and answers a heartbeat, so
+`DEPLOYMENT_MODE=lite` serves every local activity and game — Paint, Typing
+Garden, Block Puzzles, Number Ninja, Story Writer, Code Playground, the quizzes
+and the arcade games — all of which run in the child's own browser. The server holds a session row and answers a heartbeat, so
 **one small VPS carries thousands of subscribers at about Rs 0.24 each**, against
 Rs 66 each on bare metal for streamed desktops.
 

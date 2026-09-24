@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityShell, type ActivityApi } from './ActivityShell';
+import type { ActivityApi } from './ActivityShell';
 
 /**
  * Typing Garden.
@@ -143,13 +143,5 @@ export function TypingGame({ activity }: { activity: ActivityApi }) {
         aria-label="Type here"
       />
     </div>
-  );
-}
-
-export function Typing() {
-  return (
-    <ActivityShell appId="typing" title="Typing Garden">
-      {(activity) => <TypingGame activity={activity} />}
-    </ActivityShell>
   );
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityShell, type ActivityApi } from './ActivityShell';
+import type { ActivityApi } from './ActivityShell';
 import { useAutoFocusFirst } from '../tv';
 import { shuffle } from './random';
 
@@ -161,13 +161,5 @@ export function MemoryGame({ activity }: { activity: ActivityApi }) {
         )}
       </div>
     </div>
-  );
-}
-
-export function Memory() {
-  return (
-    <ActivityShell appId="memory" title="Memory Match">
-      {(activity) => <MemoryGame activity={activity} />}
-    </ActivityShell>
   );
 }

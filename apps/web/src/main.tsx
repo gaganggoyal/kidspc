@@ -1,6 +1,7 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { CATALOG } from '@kidpc/shared';
 import './styles.css';
 import { getTokens, onTokenChange, tryRefresh } from './api';
 import { captureReferral } from './referral';
@@ -16,36 +17,18 @@ import { Household } from './pages/Household';
 import { Launcher } from './pages/Launcher';
 import { Viewer } from './pages/Viewer';
 import { ParentDashboard } from './pages/ParentDashboard';
-import { Paint } from './play/Paint';
-import { Typing } from './play/Typing';
-import { Blocks } from './play/Blocks';
-import { Numbers } from './play/Numbers';
-import { Writer } from './play/Writer';
-import { Code } from './play/Code';
-import { Memory } from './play/Memory';
-import { Spell } from './play/Spell';
-import { Piano } from './play/Piano';
-import { Tables } from './play/Tables';
-import { India } from './play/India';
+import { ActivityShell } from './play/ActivityShell';
+import { GAMES } from './play/games';
 
 /**
- * Local activities, keyed by the route the catalogue declares. Adding an entry
- * here and one to the catalogue is the whole cost of a new activity -- there is
- * no session plumbing to write, because ActivityShell owns it.
+ * Local activities, at the route the catalogue declares, each inside the shell
+ * that owns its session. Derived rather than listed: a catalogue entry with a
+ * game behind it is a route, and nothing else has to be kept in step.
  */
-const ACTIVITIES: Array<[string, React.ComponentType]> = [
-  ['/play/paint', Paint],
-  ['/play/typing', Typing],
-  ['/play/blocks', Blocks],
-  ['/play/numbers', Numbers],
-  ['/play/writer', Writer],
-  ['/play/code', Code],
-  ['/play/memory', Memory],
-  ['/play/spell', Spell],
-  ['/play/piano', Piano],
-  ['/play/tables', Tables],
-  ['/play/india', India],
-];
+const ACTIVITIES = CATALOG.flatMap((app) => {
+  const Game = GAMES[app.id];
+  return app.launch.kind === 'local' && Game ? [{ app, route: app.launch.route, Game }] : [];
+});
 
 function useTokens() {
   const [, bump] = useState(0);
@@ -152,13 +135,15 @@ function App() {
             </RequireChild>
           }
         />
-        {ACTIVITIES.map(([path, Component]) => (
+        {ACTIVITIES.map(({ app, route, Game }) => (
           <Route
-            key={path}
-            path={path}
+            key={route}
+            path={route}
             element={
               <RequireChild>
-                <Component />
+                <ActivityShell appId={app.id} title={app.name}>
+                  {(activity) => <Game activity={activity} />}
+                </ActivityShell>
               </RequireChild>
             }
           />

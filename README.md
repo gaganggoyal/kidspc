@@ -24,11 +24,11 @@ Open http://localhost:5173 and sign in as `demo@kidpc.test` /
 `demo-password-1234`. Child PINs are printed by the seed.
 
 ```bash
-pnpm test          # 211 tests
+pnpm test          # 232 tests
 pnpm typecheck
 pnpm lint
 pnpm contrast      # every enforced colour pairing, light and dark
-pnpm layout        # 286 checks: every public route at every width from 320 to 2560
+pnpm layout        # 390 checks: every public route at every width from 320 to 2560
 ```
 
 `pnpm contrast` and `pnpm layout` are there because the two things most easily
@@ -85,7 +85,7 @@ per subscriber from the broker's real sizing functions. See
 ```
 apps/web            React client. Three surfaces from one build:
                       · TV launcher + profile picker (D-pad navigable)
-                      · six local activities (apps/web/src/play)
+                      · nineteen local activities and games (apps/web/src/play)
                       · parent dashboard (limits, consent, usage, resets)
 
 services/api        Fastify control plane. Auth, consent, policy, sessions,
@@ -106,8 +106,8 @@ infra/              Compose topology, Dockerfiles, nginx.
 
 ### Two ways to serve a child
 
-Half the catalogue does not need a Linux desktop at all. Typing, drawing, block
-puzzles, maths, writing and a code playground are **local activities**: they run
+Most of the catalogue does not need a Linux desktop at all. Typing, drawing, block
+puzzles, maths, writing, a code playground and every game are **local activities**: they run
 in the client's own browser, so the server holds a session row and answers a
 heartbeat, and nothing else.
 
@@ -119,7 +119,7 @@ hardware this needs:
 | Runs on | the child's TV or laptop | a container on our server |
 | Costs us | a row and a heartbeat | ~1.5 GiB of RAM |
 | 5,000 subscribers | **one small VPS, Rs 0.24 each** | 6 bare-metal boxes, Rs 66 each |
-| Gives you | Paint, Typing, Blocks, Numbers, Writer, Code | plus Scratch, Python, LibreOffice, the research browser, GCompris |
+| Gives you | Paint, Typing, Blocks, Numbers, Writer, Code, the games | plus Scratch, Python, LibreOffice, the research browser, GCompris |
 
 `DEPLOYMENT_MODE=lite` offers only the local half. It needs no container
 runtime, no desktop image and no large host, and the launcher simply does not
@@ -191,11 +191,14 @@ Working and tested end to end:
 - Session lifecycle: start, resume, heartbeat billing across local midnight,
   deadline enforcement, idle reaping, orphan reconciliation
 - Egress policy endpoint the proxy authorises desktops against
-- Six local activities, each usable with a D-pad and a keyboard
+- Nineteen local activities and games, each usable with a D-pad and a keyboard —
+  including eight arcade games (Snake, 2048, Tic-Tac-Toe, Four in a Row, Colour
+  Echo, Maze, Slide Puzzle, Brick Breaker) that claim the remote's arrows while a
+  round is played, with two-player modes for a shared screen
 - Progress tracking on a closed set of numeric metrics
 - A first-run welcome that puts a child into an activity in one press
 - Per-scope parent resets (limits, PIN, scores, session)
-- All client surfaces, building at 84 KB gzipped
+- All client surfaces, building at 128 KB gzipped
 
 Written but **not yet exercised**, because this environment had no container
 runtime — treat each as a real task, not a formality:

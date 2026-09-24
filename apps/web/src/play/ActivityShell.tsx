@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { findApp } from '@kidpc/shared';
 import { ApiError, type SessionDto, api } from '../api';
 import { useSessionClock } from '../session';
 import { useAutoFocusFirst, useBackKey, useSpatialNavigation } from '../tv';
+import { SoundToggle } from './kit';
 
 export type ProgressMetric =
   | 'score'
@@ -197,7 +199,13 @@ export function ActivityShell({
         <button onClick={leave} aria-label="Back to my apps">
           ← Back
         </button>
-        <h1>{title}</h1>
+        <h1>
+          <span className="bar-glyph" aria-hidden="true">
+            {findApp(appId)?.glyph}
+          </span>
+          {title}
+        </h1>
+        <SoundToggle />
         <span className={`clock ${low ? 'low' : ''}`} aria-live="polite">
           {remaining === null ? '…' : remaining === 0 ? 'Time is up' : `${remaining} min left`}
         </span>

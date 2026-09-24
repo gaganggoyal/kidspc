@@ -3,28 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { challengeForWeek, findApp } from '@kidpc/shared';
 import { ApiError, type HomeDto, type SessionDto, api, setChildToken } from '../api';
 import { useAutoFocusFirst, useSpatialNavigation } from '../tv';
+import { glyphFor, shelve, TileFace, tileStyle } from './AppTile';
 import { AVATARS } from './Household';
 import { Welcome } from './Welcome';
-
-/**
- * The icon for an app, preferring its own over its category's.
- *
- * Read from the catalogue on the client rather than added to the API response:
- * the catalogue already ships in the bundle, and a glyph is presentation, not
- * something the server should have an opinion about.
- */
-export function glyphFor(app: { id: string; category: string }): string {
-  return findApp(app.id)?.glyph ?? CATEGORY_GLYPH[app.category] ?? '✨';
-}
-
-export const CATEGORY_GLYPH: Record<string, string> = {
-  create: '🎨',
-  code: '🧩',
-  type: '⌨️',
-  learn: '🧠',
-  office: '📄',
-  research: '🔎',
-};
 
 /**
  * The child's home screen.
@@ -119,55 +100,37 @@ export function Launcher() {
 
   const { time } = home;
   const challenge = challengeForWeek(new Date());
-  const challengeAllowed = home.apps.some((app) => app.id === challenge.appId);
-  const usedFraction = time.dailyMinutes > 0 ? time.usedTodayMinutes / time.dailyMinutes : 1;
-  const barState = time.remainingMinutes === 0 ? 'out' : time.remainingMinutes <= 10 ? 'low' : '';
+  const challengeApp = home.apps.find((app) => app.id === challenge.appId);
+  const resumeApp = home.session?.autoLaunchAppId
+    ? findApp(home.session.autoLaunchAppId)
+    : undefined;
+  const locked = !home.canStart || starting !== null;
 
   return (
-    <div className="tv">
-      <div className="page stack">
-        <div className="spread">
-          <div className="row">
-            <span style={{ fontSize: '2.4em' }} aria-hidden="true">
+    <div className="tv stage">
+      <div className="page stack launcher">
+        <header className="stage-top">
+          <div className="who">
+            <span className="who-avatar" style={tileStyle(home.child.avatarId)} aria-hidden="true">
               {AVATARS[home.child.avatarId] ?? '🦊'}
             </span>
             <div>
-              <h1 style={{ margin: 0 }}>Hi {home.child.displayName}!</h1>
+              <h1>Hi {home.child.displayName}!</h1>
               <div className="muted small">{home.bandSpec.label}</div>
             </div>
           </div>
-          <button
-            onClick={() => {
-              setChildToken(null);
-              navigate('/household');
-            }}
-          >
-            Not me
-          </button>
-        </div>
-
-        <div className="card stack">
-          <div className="spread">
-            <strong>
-              {time.remainingMinutes > 0
-                ? `${time.remainingMinutes} minutes left today`
-                : 'No time left today'}
-            </strong>
-            <span className="muted small">
-              {time.usedTodayMinutes} of {time.dailyMinutes} used
-            </span>
+          <div className="row stage-top-actions">
+            <TimeRing time={time} />
+            <button
+              onClick={() => {
+                setChildToken(null);
+                navigate('/household');
+              }}
+            >
+              Not me
+            </button>
           </div>
-          <div
-            className={`time-bar ${barState}`}
-            role="meter"
-            aria-valuenow={time.usedTodayMinutes}
-            aria-valuemin={0}
-            aria-valuemax={time.dailyMinutes}
-            aria-label="Screen time used today"
-          >
-            <i style={{ width: `${Math.min(100, usedFraction * 100)}%` }} />
-          </div>
-        </div>
+        </header>
 
         {home.summariesEnabled && (
           <div className="notice small">
@@ -192,74 +155,148 @@ export function Launcher() {
           </div>
         )}
 
-        {home.session ? (
-          <button
-            className="primary"
-            onClick={() =>
-              navigate(home.session!.localRoute ?? `/kid/session/${home.session!.id}`)
-            }
-          >
-            Carry on where you left off
-          </button>
-        ) : null}
-
         {/*
-          This week's prompt, and only when this child is actually allowed to
-          open the activity it needs -- a challenge a parent has switched off is
-          a child asking why they cannot do the thing on the screen.
-
-          No streak, no counter of weeks missed, and nothing that turns red on
-          Sunday. It is a suggestion that quietly becomes a different suggestion
-          on Monday.
+          Everything below is where a remote starts: the hero's button, then
+          the shelves. The header above it -- including "Not me" -- is one
+          deliberate press up, never the first thing OK does.
         */}
-        {challengeAllowed && (
-          <div className="card stack challenge-tile">
-            <span className="muted small">This week</span>
-            <strong>{challenge.title}</strong>
-            <span>{challenge.prompt}</span>
-            <button
-              className="primary"
-              onClick={() => void start(challenge.appId)}
-              disabled={!home.canStart || starting !== null}
-            >
-              Try it in {home.apps.find((a) => a.id === challenge.appId)?.name}
-            </button>
-          </div>
-        )}
+        <main className="stack launcher" data-focus-root>
+          {/*
+            The big card at the top: carry on with what was open, or else this
+            week's prompt -- and the prompt only when this child is actually
+            allowed to open the activity it needs, because a challenge a parent
+            has switched off is a child asking why they cannot do the thing on the
+            screen.
 
-        <h2>Your apps</h2>
-        <div className="app-grid">
-          {home.apps.map((app) => (
-            <button
-              key={app.id}
-              className="card app-tile"
-              onClick={() => void start(app.id)}
-              disabled={!home.canStart || starting !== null}
-            >
-              <span className="glyph" aria-hidden="true">
-                {glyphFor(app)}
+            No streak, no counter of weeks missed, and nothing that turns red on
+            Sunday. It is a suggestion that quietly becomes a different suggestion
+            on Monday.
+          */}
+          {home.session ? (
+            <section className="hero-card" style={tileStyle(resumeApp?.id ?? 'resume')}>
+              <div className="hero-copy">
+                <span className="hero-eyebrow">Still going</span>
+                <h2>{resumeApp ? resumeApp.name : 'Your session'}</h2>
+                <p>Pick up exactly where you left off.</p>
+                <button
+                  className="primary"
+                  onClick={() =>
+                    navigate(home.session!.localRoute ?? `/kid/session/${home.session!.id}`)
+                  }
+                >
+                  Carry on ▶
+                </button>
+              </div>
+              <span className="hero-glyph" aria-hidden="true">
+                {resumeApp ? glyphFor(resumeApp) : '▶️'}
               </span>
-              <span className="name">{app.name}</span>
-              <span className="tagline">{app.tagline}</span>
-              {app.delivery === 'hosted' && (
-                <span className="badge" title="Opens on the big computer">
-                  big computer
-                </span>
-              )}
-              {starting === app.id && <span className="small muted">Starting…</span>}
-            </button>
-          ))}
-        </div>
+            </section>
+          ) : challengeApp ? (
+            <section className="hero-card" style={tileStyle(challengeApp.id)}>
+              <div className="hero-copy">
+                <span className="hero-eyebrow">This week</span>
+                <h2>{challenge.title}</h2>
+                <p>{challenge.prompt}</p>
+                <button
+                  className="primary"
+                  onClick={() => void start(challenge.appId)}
+                  disabled={locked}
+                >
+                  Try it in {challengeApp.name}
+                </button>
+              </div>
+              <span className="hero-glyph" aria-hidden="true">
+                {glyphFor(challengeApp)}
+              </span>
+            </section>
+          ) : null}
 
-        {/* Only offered where there is a desktop to open. On a lite deployment
-            the local activities are the whole product, and a button that always
-            failed would be worse than no button. */}
-        {home.desktopsAvailable && (
-          <button onClick={() => void start()} disabled={!home.canStart || starting !== null}>
-            Just open the desktop
-          </button>
-        )}
+          {shelve(home.apps).map((shelf) => (
+            <section className="shelf" key={shelf.id} aria-label={shelf.title}>
+              <h2>{shelf.title}</h2>
+              <div className="tile-grid">
+                {shelf.apps.map((app) => (
+                  <button
+                    key={app.id}
+                    className="tile"
+                    style={tileStyle(app.id)}
+                    onClick={() => void start(app.id)}
+                    disabled={locked}
+                  >
+                    <TileFace
+                      app={app}
+                      note={
+                        starting === app.id ? (
+                          <span className="tile-badge">Starting…</span>
+                        ) : app.delivery === 'hosted' ? (
+                          <span className="tile-badge" title="Opens on the big computer">
+                            big computer
+                          </span>
+                        ) : null
+                      }
+                    />
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
+
+          {/* Only offered where there is a desktop to open. On a lite deployment
+              the local activities are the whole product, and a button that always
+              failed would be worse than no button. */}
+          {home.desktopsAvailable && (
+            <button onClick={() => void start()} disabled={locked}>
+              Just open the desktop
+            </button>
+          )}
+        </main>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Today's time, as a ring that empties.
+ *
+ * The most consequential number on a child's screen, and a ring is how every
+ * child already reads "how much is left" -- a battery, a phone's timer, a pie.
+ * The minutes are written inside it as well, because a ring is a picture and
+ * "12 min" is a fact.
+ */
+function TimeRing({ time }: { time: HomeDto['time'] }) {
+  const left =
+    time.dailyMinutes > 0
+      ? Math.max(0, Math.min(1, time.remainingMinutes / time.dailyMinutes))
+      : 0;
+  const state = time.remainingMinutes === 0 ? 'out' : time.remainingMinutes <= 10 ? 'low' : '';
+  const r = 26;
+  const around = 2 * Math.PI * r;
+  return (
+    <div
+      className={`time-ring ${state}`}
+      role="meter"
+      aria-valuenow={time.usedTodayMinutes}
+      aria-valuemin={0}
+      aria-valuemax={time.dailyMinutes}
+      aria-label="Screen time used today"
+    >
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <circle className="track" cx="32" cy="32" r={r} />
+        <circle
+          className="fill"
+          cx="32"
+          cy="32"
+          r={r}
+          strokeDasharray={around}
+          strokeDashoffset={around * (1 - left)}
+        />
+      </svg>
+      <span className="time-ring-text">
+        <b>{time.remainingMinutes > 0 ? `${time.remainingMinutes} min` : 'No time'}</b>
+        <span className="muted small">
+          left today · {time.usedTodayMinutes} of {time.dailyMinutes} used
+        </span>
+      </span>
     </div>
   );
 }
