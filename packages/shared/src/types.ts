@@ -156,6 +156,10 @@ export type AuditAction =
      with no matching request cannot happen. */
   | 'guardian.password_reset_requested'
   | 'guardian.password_reset'
+  /* The address was proved to belong to whoever signed up with it. Recorded
+     because a household is only as recoverable as its email is real. */
+  | 'guardian.email_verified'
+  | 'guardian.sign_in_code_requested'
   | 'child.create'
   | 'child.update'
   | 'child.archive'

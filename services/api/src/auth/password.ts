@@ -74,3 +74,15 @@ export async function verifySecret(secret: string, stored: string): Promise<bool
 export async function burnPasswordTime(): Promise<void> {
   await hashSecret('not-a-real-password');
 }
+
+/**
+ * What is stored for an account that has not chosen a password yet.
+ *
+ * A signed-up address is proved before a password exists, and the two steps
+ * can be minutes -- or a closed tab -- apart. This value is not a hash of
+ * anything, so `verifySecret` rejects every attempt against it; the account is
+ * reached by an emailed code until its owner picks a password.
+ */
+export const NO_PASSWORD = 'none';
+
+export const hasPassword = (stored: string): boolean => stored !== NO_PASSWORD;

@@ -94,21 +94,35 @@ const schema = z.object({
   CONSENT_PEPPER: optional(z.string().min(16)),
 
   /**
-   * Outgoing mail. Same variable names and the same provider as the other
-   * services on this host (Zoho, 465, implicit TLS), so one server has one mail
-   * configuration to reason about.
+   * Outgoing mail.
+   *
+   * Resend is the transport -- the same one meravansh.lol sends through -- and
+   * SMTP remains for a host that has a mailbox and no API key. Which one is
+   * used is `EMAIL_DELIVERY` when it is set, and otherwise whichever has
+   * credentials. See chooseTransport.
    *
    * All optional: without them the process queues mail and logs it instead of
    * sending, which is what keeps a deployment honest before its mailbox exists.
    */
+  EMAIL_DELIVERY: optional(z.enum(['resend', 'smtp', 'log'])),
+  /** A Resend API key, `re_…`. Sending access is enough. */
+  RESEND_API_KEY: optional(z.string().startsWith('re_', 'A Resend API key starts with re_')),
+  /**
+   * The From line, e.g. "Online Kids PC <hello@kidspc.online>". Its domain is
+   * the one the provider has to have verified. SMTP_FROM is still read when
+   * this is unset, so an existing env file keeps working.
+   */
+  MAIL_FROM: optional(z.string()),
+  /** Where replies go. A person reads it; a no-reply From should not be a dead end. */
+  MAIL_REPLY_TO: optional(z.string().email()),
   SMTP_HOST: optional(z.string()),
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(465),
   SMTP_SECURE: envBoolean(true),
   SMTP_USER: optional(z.string()),
   SMTP_PASS: optional(z.string()),
-  /** e.g. "Online Kids PC <hello@kidspc.online>" */
+  /** The older name for MAIL_FROM. */
   SMTP_FROM: optional(z.string()),
-  /** Where plan requests are announced. Falls back to SMTP_USER. */
+  /** Where plan requests are announced. Falls back to MAIL_REPLY_TO, then SMTP_USER. */
   ORDERS_EMAIL: optional(z.string().email()),
   MAIL_INTERVAL_MS: z.coerce.number().int().min(5_000).default(60_000),
 
@@ -125,7 +139,18 @@ export type Config = z.infer<typeof schema> & {
   jwtSecret: Uint8Array;
   consentPepper: string;
   isProduction: boolean;
+  /** MAIL_FROM, or SMTP_FROM for an env file written before it existed. */
+  mailFrom: string | null;
 };
+
+/**
+ * Where messages for whoever runs the service go: plan requests, and what
+ * people write on the contact page. ORDERS_EMAIL when it is set; otherwise the
+ * reply-to address, which a person already reads; otherwise the SMTP login.
+ */
+export function deskAddress(config: Config): string | null {
+  return config.ORDERS_EMAIL ?? config.MAIL_REPLY_TO ?? config.SMTP_USER ?? null;
+}
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = schema.safeParse(env);
@@ -156,6 +181,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (cfg.RATE_LIMITS === 'off') {
       problems.push('RATE_LIMITS=off cannot be used in production');
     }
+    /*
+     * Asked for a transport by name and did not give it what it needs. Falling
+     * back to the log here would look like a working deployment and deliver
+     * nothing -- including every sign-up's confirmation code.
+     */
+    const from = cfg.MAIL_FROM ?? cfg.SMTP_FROM;
+    if (cfg.EMAIL_DELIVERY === 'resend' && !(cfg.RESEND_API_KEY && from)) {
+      problems.push('EMAIL_DELIVERY=resend needs RESEND_API_KEY and MAIL_FROM');
+    }
+    if (cfg.EMAIL_DELIVERY === 'smtp' && !(cfg.SMTP_HOST && cfg.SMTP_USER && cfg.SMTP_PASS && from)) {
+      problems.push('EMAIL_DELIVERY=smtp needs SMTP_HOST, SMTP_USER, SMTP_PASS and MAIL_FROM');
+    }
     if (cfg.CONSENT_VERIFIER === 'digilocker' && !cfg.DIGILOCKER_CLIENT_ID) {
       problems.push('DIGILOCKER_CLIENT_ID is required when CONSENT_VERIFIER=digilocker');
     }
@@ -178,6 +215,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     ...cfg,
     isProduction,
+    mailFrom: cfg.MAIL_FROM ?? cfg.SMTP_FROM ?? null,
     // A generated key means every restart signs out every dev session, which is
     // the correct amount of annoying: it is obvious this is not a real key.
     jwtSecret: new TextEncoder().encode(cfg.JWT_SECRET ?? randomBytes(32).toString('hex')),

@@ -39,6 +39,8 @@ const guardian = await repos.guardians.create({
   passwordHash: await hashSecret(PASSWORD),
   displayName: 'Demo Parent',
   timezone: 'Asia/Kolkata',
+  // The demo address is not a real inbox, so it cannot be proved by a code.
+  emailVerifiedAt: new Date(),
 });
 
 for (const spec of FAMILY) {

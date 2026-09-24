@@ -4,6 +4,7 @@ import { desc, eq } from 'drizzle-orm';
 import { buildApp } from './app.js';
 import { createRuntime, type Runtime } from './boot.js';
 import { emailOutbox } from './db/schema.js';
+import { emailedCode } from './testing/harness.js';
 
 /**
  * End-to-end through the real HTTP surface: the same app object `index.ts`
@@ -42,17 +43,29 @@ const advanceMinutes = (n: number) => {
   clock = new Date(clock.getTime() + n * 60_000);
 };
 
+/** Sign up, confirm with the emailed code, and choose a password. */
 async function registerGuardian(email: string) {
-  const res = await app.inject({
+  const asked = await app.inject({
     method: 'POST',
     url: '/v1/auth/register',
-    payload: { email, password: 'a-long-enough-password', displayName: 'Parent' },
+    payload: { email, displayName: 'Parent' },
   });
-  expect(res.statusCode).toBe(201);
-  return {
-    token: res.json().accessToken as string,
-    cookie: res.cookies.find((c) => c.name === 'kidpc_rt')!,
-  };
+  expect(asked.statusCode).toBe(202);
+  const res = await app.inject({
+    method: 'POST',
+    url: '/v1/auth/email/verify',
+    payload: { email, code: await emailedCode(runtime, email, 'verify_email') },
+  });
+  expect(res.statusCode).toBe(200);
+  const token = res.json().accessToken as string;
+  const set = await app.inject({
+    method: 'POST',
+    url: '/v1/auth/password/set',
+    headers: { authorization: `Bearer ${token}` },
+    payload: { password: 'a-long-enough-password' },
+  });
+  expect(set.statusCode).toBe(200);
+  return { token, cookie: res.cookies.find((c) => c.name === 'kidpc_rt')! };
 }
 
 async function createChild(token: string, over: Record<string, unknown> = {}) {
@@ -209,6 +222,193 @@ const tokenFromResetEmail = (body: string) => {
   return decodeURIComponent(match![1]!);
 };
 
+describe('confirming an address at sign-up', () => {
+  const ask = (email: string, displayName = 'Parent') =>
+    app.inject({ method: 'POST', url: '/v1/auth/register', payload: { email, displayName } });
+  const verify = (payload: Record<string, unknown>) =>
+    app.inject({ method: 'POST', url: '/v1/auth/email/verify', payload });
+
+  it('answers a sign-up with a letter, not a session', async () => {
+    const res = await ask('letter-first@example.com');
+    expect(res.statusCode).toBe(202);
+    expect(res.json().accessToken).toBeUndefined();
+    expect(res.cookies.find((c) => c.name === 'kidpc_rt')).toBeUndefined();
+    expect((await lastEmail('letter-first@example.com'))?.template).toBe('verify_email');
+  });
+
+  it('signs in with the code, then lets the owner choose the first password once', async () => {
+    const email = 'first-password@example.com';
+    await ask(email);
+    const res = await verify({ email, code: await emailedCode(runtime, email, 'verify_email') });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ firstTime: true, needsPassword: true });
+    const token = res.json().accessToken as string;
+
+    const set = (password: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/v1/auth/password/set',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { password },
+      });
+    expect((await set('a-long-enough-password')).statusCode).toBe(200);
+    // A second "first password" would be a way to change one without the
+    // inbox, which is what the reset route is for.
+    const again = await set('somebody-elses-password');
+    expect(again.statusCode).toBe(409);
+    expect(again.json().error.code).toBe('password_exists');
+
+    const login = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/login',
+      payload: { email, password: 'a-long-enough-password' },
+    });
+    expect(login.statusCode).toBe(200);
+  });
+
+  it('accepts the button as well as the code, once', async () => {
+    const email = 'button@example.com';
+    await ask(email);
+    const token = /\/verify\?token=([^\s]+)/.exec(
+      (await lastEmail(email, 'verify_email'))!.bodyText,
+    )![1]!;
+    const first = await verify({ token: decodeURIComponent(token) });
+    expect(first.statusCode).toBe(200);
+    const second = await verify({ token: decodeURIComponent(token) });
+    expect(second.statusCode).toBe(401);
+    expect(second.json().error.code).toBe('code_rejected');
+  });
+
+  it('spends a letter after five wrong codes, so six digits cannot be walked', async () => {
+    const email = 'guesser@example.com';
+    await ask(email);
+    const real = await emailedCode(runtime, email, 'verify_email');
+    const wrong = real === '000000' ? '111111' : '000000';
+    for (let i = 0; i < 5; i++) {
+      expect((await verify({ email, code: wrong })).statusCode).toBe(401);
+    }
+    expect((await verify({ email, code: real })).statusCode).toBe(401);
+  });
+
+  it('gives an address nobody confirmed to whoever can read its inbox', async () => {
+    const email = 'squatted@example.com';
+    // Somebody types an address that is not theirs, and never confirms it.
+    await ask(email, 'Not the owner');
+    const theirs = await emailedCode(runtime, email, 'verify_email');
+    // The owner signs up with it later. Their letter replaces the first, and
+    // their name is the one the account carries. There is no password in
+    // either request, so there is nothing for the first person to have set.
+    const res = await ask(email, 'The owner');
+    expect(res.statusCode).toBe(202);
+    const owners = await emailedCode(runtime, email, 'verify_email');
+    if (owners !== theirs) expect((await verify({ email, code: theirs })).statusCode).toBe(401);
+    const signedIn = await verify({ email, code: owners });
+    expect(signedIn.statusCode).toBe(200);
+    expect(signedIn.json().guardian.displayName).toBe('The owner');
+  });
+
+  it('answers a code for an unknown address exactly as it answers a wrong one', async () => {
+    const res = await verify({ email: 'never-signed-up@example.com', code: '123456' });
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error.code).toBe('code_rejected');
+  });
+
+  it('lets a code go stale after half an hour', async () => {
+    const email = 'slow-to-confirm@example.com';
+    await ask(email);
+    const code = await emailedCode(runtime, email, 'verify_email');
+    advanceMinutes(31);
+    expect((await verify({ email, code })).statusCode).toBe(401);
+    advanceMinutes(-31);
+  });
+
+  it('sends the welcome once the address is confirmed, and not before', async () => {
+    const email = 'welcome-later@example.com';
+    await ask(email);
+    expect(await lastEmail(email, 'welcome')).toBeNull();
+    await verify({ email, code: await emailedCode(runtime, email, 'verify_email') });
+    expect((await lastEmail(email, 'welcome'))?.template).toBe('welcome');
+  });
+});
+
+describe('signing in with an emailed code', () => {
+  const askForCode = (email: string) =>
+    app.inject({ method: 'POST', url: '/v1/auth/email/code', payload: { email } });
+
+  it('signs a household in without its password', async () => {
+    const email = 'code-sign-in@example.com';
+    await registerGuardian(email);
+    expect((await askForCode(email)).statusCode).toBe(202);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/email/verify',
+      payload: { email, code: await emailedCode(runtime, email, 'sign_in_code') },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ firstTime: false, needsPassword: false });
+  });
+
+  it('says the same thing about an address that is not registered', async () => {
+    const known = 'code-known@example.com';
+    await registerGuardian(known);
+    const real = await askForCode(known);
+    const invented = await askForCode('code-nobody@example.com');
+    expect(invented.statusCode).toBe(real.statusCode);
+    expect(invented.body).toBe(real.body);
+    expect(await lastEmail('code-nobody@example.com')).toBeNull();
+  });
+
+  it('resends the sign-up code to an address that was never confirmed', async () => {
+    const email = 'lost-the-first-code@example.com';
+    await app.inject({
+      method: 'POST',
+      url: '/v1/auth/register',
+      payload: { email, displayName: 'P' },
+    });
+    await askForCode(email);
+    const mails = await runtime.ctx.database.db
+      .select()
+      .from(emailOutbox)
+      .where(eq(emailOutbox.toAddress, email));
+    expect(mails.map((m) => m.template)).toEqual(['verify_email', 'verify_email']);
+  });
+
+  it('stops filling one inbox after six letters in an hour', async () => {
+    const email = 'flooded@example.com';
+    await registerGuardian(email);
+    for (let i = 0; i < 9; i++) expect((await askForCode(email)).statusCode).toBe(202);
+    const codes = await runtime.ctx.database.db
+      .select()
+      .from(emailOutbox)
+      .where(eq(emailOutbox.toAddress, email));
+    expect(codes.filter((m) => m.template === 'sign_in_code')).toHaveLength(6);
+  });
+
+  it('keeps the kinds of letter apart', async () => {
+    const email = 'kinds@example.com';
+    await registerGuardian(email);
+    await askForCode(email);
+    const signInCode = await emailedCode(runtime, email, 'sign_in_code');
+    // A sign-in code is not a password reset.
+    const reset = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/password/reset',
+      payload: { email, code: signInCode, password: 'a-brand-new-long-password' },
+    });
+    expect(reset.statusCode).toBe(401);
+
+    await app.inject({ method: 'POST', url: '/v1/auth/password/forgot', payload: { email } });
+    const resetCode = await emailedCode(runtime, email, 'password_reset');
+    // And a reset code does not sign anybody in without choosing a password.
+    const signIn = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/email/verify',
+      payload: { email, code: resetCode },
+    });
+    expect(signIn.statusCode).toBe(401);
+  });
+});
+
 describe('a forgotten password', () => {
   it('emails a link, signs the household back in, and signs every other device out', async () => {
     const email = 'forgetful@example.com';
@@ -276,6 +476,25 @@ describe('a forgotten password', () => {
     // The address on the account is told, because an unexpected one of these
     // is the only warning the owner gets.
     expect((await lastEmail(email, 'password_changed'))?.template).toBe('password_changed');
+  });
+
+  it('takes the code from the letter as well as its link -- the way a TV is reset', async () => {
+    const email = 'reset-on-tv@example.com';
+    await registerGuardian(email);
+    await app.inject({ method: 'POST', url: '/v1/auth/password/forgot', payload: { email } });
+    const code = await emailedCode(runtime, email, 'password_reset');
+    const reset = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/password/reset',
+      payload: { email, code, password: 'typed-on-the-remote' },
+    });
+    expect(reset.statusCode).toBe(200);
+    const login = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/login',
+      payload: { email, password: 'typed-on-the-remote' },
+    });
+    expect(login.statusCode).toBe(200);
   });
 
   it('refuses a link that has already been spent', async () => {

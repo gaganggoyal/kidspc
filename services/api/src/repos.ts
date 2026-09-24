@@ -24,8 +24,9 @@ import {
   children,
   consentChallenges,
   consents,
+  emailChallenges,
+  type EmailChallengePurpose,
   guardians,
-  passwordResets,
   policies,
   refreshTokens,
   sessions,
@@ -44,6 +45,8 @@ export class GuardianRepo {
     passwordHash: string;
     displayName: string;
     timezone: string;
+    /** Only the seed passes this; a real sign-up is confirmed by email. */
+    emailVerifiedAt?: Date | null;
   }): Promise<Guardian> {
     const [row] = await this.db
       .insert(guardians)
@@ -72,6 +75,31 @@ export class GuardianRepo {
 
   async setPassword(id: string, passwordHash: string) {
     await this.db.update(guardians).set({ passwordHash }).where(eq(guardians.id, id));
+  }
+
+  /**
+   * A sign-up that was never confirmed, being made again: the person who
+   * typed the address first may not be the person who owns it, so the one who
+   * can read its inbox gets to choose the name and password.
+   */
+  async replaceUnverified(
+    id: string,
+    input: { passwordHash: string; displayName: string; timezone: string },
+  ) {
+    await this.db
+      .update(guardians)
+      .set(input)
+      .where(and(eq(guardians.id, id), isNull(guardians.emailVerifiedAt)));
+  }
+
+  /** Returns true the first time, so the caller knows to send the welcome. */
+  async markEmailVerified(id: string, at: Date): Promise<boolean> {
+    const rows = await this.db
+      .update(guardians)
+      .set({ emailVerifiedAt: at })
+      .where(and(eq(guardians.id, id), isNull(guardians.emailVerifiedAt)))
+      .returning({ id: guardians.id });
+    return rows.length > 0;
   }
 
   async requestDeletion(id: string) {
@@ -700,71 +728,134 @@ export class AuditRepo {
   }
 }
 
+/** How many wrong codes a single letter survives. */
+export const EMAIL_CODE_MAX_ATTEMPTS = 5;
+
 /**
- * Outstanding password resets.
+ * Letters that carry a secret: confirming an address, a sign-in code, a reset.
  *
  * Deliberately shaped like RefreshTokenRepo: issue a digest, look one up only
- * if it is unspent and unexpired, spend it once. The two are the only
- * credentials in this system that travel out of it, and they should be handled
- * the same way for the same reason.
+ * if it is unspent and unexpired, spend it once. These and refresh tokens are
+ * the only credentials in this system that travel out of it, and they should
+ * be handled the same way for the same reason.
  */
-export class PasswordResetRepo {
+export class EmailChallengeRepo {
   constructor(private readonly db: Database) {}
 
   /**
-   * Record a new request, cancelling any earlier one for the same household.
+   * Record a new letter, cancelling any earlier one of the same kind.
    *
-   * One live link at a time is the behaviour a person expects -- they asked
-   * twice because the first mail had not arrived, and they will click whichever
-   * turns up -- and it bounds how many working links exist if a mailbox is
-   * later compromised.
+   * One live letter at a time is the behaviour a person expects -- they asked
+   * twice because the first had not arrived, and they will use whichever turns
+   * up -- and it bounds how many working codes exist if a mailbox is later
+   * compromised. The id is chosen here so the caller can key the code's HMAC
+   * with it before the row exists.
    */
-  async issue(guardianId: string, tokenHash: string, ttlMinutes: number, now: Date) {
-    await this.revokeAllFor(guardianId, now);
-    const id = newId(ID_PREFIX.token);
-    await this.db.insert(passwordResets).values({
-      id,
-      guardianId,
-      tokenHash,
-      createdAt: now,
-      expiresAt: new Date(now.getTime() + ttlMinutes * 60_000),
+  async issue(input: {
+    id: string;
+    guardianId: string;
+    purpose: EmailChallengePurpose;
+    tokenHash: string;
+    codeHash: string;
+    ttlMinutes: number;
+    now: Date;
+  }) {
+    await this.revokeAllFor(input.guardianId, input.purpose, input.now);
+    await this.db.insert(emailChallenges).values({
+      id: input.id,
+      guardianId: input.guardianId,
+      purpose: input.purpose,
+      tokenHash: input.tokenHash,
+      codeHash: input.codeHash,
+      createdAt: input.now,
+      expiresAt: new Date(input.now.getTime() + input.ttlMinutes * 60_000),
     });
-    return id;
   }
 
-  async findValid(tokenHash: string, now: Date) {
+  /** A live letter, found by the token in its button. */
+  async byToken(tokenHash: string, purposes: readonly EmailChallengePurpose[], now: Date) {
     const [row] = await this.db
       .select()
-      .from(passwordResets)
+      .from(emailChallenges)
       .where(
         and(
-          eq(passwordResets.tokenHash, tokenHash),
-          isNull(passwordResets.usedAt),
-          gte(passwordResets.expiresAt, now),
+          eq(emailChallenges.tokenHash, tokenHash),
+          inArray(emailChallenges.purpose, [...purposes]),
+          isNull(emailChallenges.usedAt),
+          gte(emailChallenges.expiresAt, now),
         ),
       )
       .limit(1);
     return row ?? null;
   }
 
-  /** Spend it. Single use, so a forwarded link is already dead. */
-  async consume(id: string, now: Date) {
+  /** Live letters for a household that a typed code could belong to. */
+  async liveFor(guardianId: string, purposes: readonly EmailChallengePurpose[], now: Date) {
+    return this.db
+      .select()
+      .from(emailChallenges)
+      .where(
+        and(
+          eq(emailChallenges.guardianId, guardianId),
+          inArray(emailChallenges.purpose, [...purposes]),
+          isNull(emailChallenges.usedAt),
+          gte(emailChallenges.expiresAt, now),
+        ),
+      );
+  }
+
+  /** Letters of one kind sent to a household since a moment: the per-address throttle. */
+  async sentSince(guardianId: string, purpose: EmailChallengePurpose, since: Date) {
+    const rows = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(emailChallenges)
+      .where(
+        and(
+          eq(emailChallenges.guardianId, guardianId),
+          eq(emailChallenges.purpose, purpose),
+          gte(emailChallenges.createdAt, since),
+        ),
+      );
+    return rows[0]?.n ?? 0;
+  }
+
+  /**
+   * A wrong code against every letter it might have been meant for. Each one
+   * that reaches the limit is spent, so guessing has a ceiling per letter
+   * rather than per request.
+   */
+  async recordMiss(ids: readonly string[], now: Date) {
+    if (ids.length === 0) return;
     await this.db
-      .update(passwordResets)
-      .set({ usedAt: now })
-      .where(eq(passwordResets.id, id));
+      .update(emailChallenges)
+      .set({
+        attempts: sql`${emailChallenges.attempts} + 1`,
+        usedAt: sql`CASE WHEN ${emailChallenges.attempts} + 1 >= ${EMAIL_CODE_MAX_ATTEMPTS} THEN ${now.toISOString()}::timestamptz ELSE ${emailChallenges.usedAt} END`,
+      })
+      .where(inArray(emailChallenges.id, [...ids]));
+  }
+
+  /** Spend it. Single use, so a forwarded letter is already dead. */
+  async consume(id: string, now: Date) {
+    await this.db.update(emailChallenges).set({ usedAt: now }).where(eq(emailChallenges.id, id));
   }
 
   /**
    * Marked used rather than deleted: an unspent row is evidence that somebody
    * asked, which is what a support conversation about "I never got the email"
-   * actually needs.
+   * actually needs. Without a purpose, every kind is revoked.
    */
-  async revokeAllFor(guardianId: string, now: Date) {
+  async revokeAllFor(guardianId: string, purpose: EmailChallengePurpose | null, now: Date) {
     await this.db
-      .update(passwordResets)
+      .update(emailChallenges)
       .set({ usedAt: now })
-      .where(and(eq(passwordResets.guardianId, guardianId), isNull(passwordResets.usedAt)));
+      .where(
+        and(
+          eq(emailChallenges.guardianId, guardianId),
+          isNull(emailChallenges.usedAt),
+          ...(purpose ? [eq(emailChallenges.purpose, purpose)] : []),
+        ),
+      );
   }
 }
 
@@ -772,7 +863,7 @@ export interface Repos {
   progress: ProgressRepo;
   guardians: GuardianRepo;
   refreshTokens: RefreshTokenRepo;
-  passwordResets: PasswordResetRepo;
+  emailChallenges: EmailChallengeRepo;
   children: ChildRepo;
   policies: PolicyRepo;
   consents: ConsentRepo;
@@ -786,7 +877,7 @@ export function createRepos(db: Database): Repos {
     progress: new ProgressRepo(db),
     guardians: new GuardianRepo(db),
     refreshTokens: new RefreshTokenRepo(db),
-    passwordResets: new PasswordResetRepo(db),
+    emailChallenges: new EmailChallengeRepo(db),
     children: new ChildRepo(db),
     policies: new PolicyRepo(db),
     consents: new ConsentRepo(db),

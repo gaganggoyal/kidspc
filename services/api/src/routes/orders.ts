@@ -7,6 +7,7 @@ import {
   trialDaysFor,
 } from '@kidpc/shared';
 import { eq } from 'drizzle-orm';
+import { deskAddress } from '../config.js';
 import type { AppContext } from '../context.js';
 import { planOrders } from '../db/schema.js';
 import { limit } from '../limits.js';
@@ -83,7 +84,7 @@ export function registerOrderRoutes(app: FastifyInstance, ctx: AppContext): void
       }),
     );
 
-    const notify = config.ORDERS_EMAIL ?? config.SMTP_USER;
+    const notify = deskAddress(config);
     if (notify) {
       await ctx.outbox.enqueue(
         orderInternalEmail({

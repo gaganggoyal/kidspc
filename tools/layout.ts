@@ -62,6 +62,7 @@ const ROUTES = [
   '/signin',
   '/forgot',
   '/reset',
+  '/verify',
 ];
 
 /** Small phone, phones, phablet, small tablet, tablet, laptop, desktop, TV. */

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { loadConfig } from './config.js';
+import { chooseTransport } from './email/mailer.js';
 
 /**
  * These are written from how the process is actually launched, not from how the
@@ -91,6 +92,71 @@ describe('what production refuses to start without', () => {
   it('refuses a blank secret as loudly as a missing one', () => {
     expect(() => loadConfig({ ...production, JWT_SECRET: '' } as NodeJS.ProcessEnv)).toThrow(
       /JWT_SECRET is required in production/,
+    );
+  });
+});
+
+describe('which way mail leaves', () => {
+  const production = {
+    NODE_ENV: 'production',
+    JWT_SECRET: 'a-production-secret-that-is-long-enough-to-pass',
+    CONSENT_PEPPER: 'a-production-pepper',
+    DATABASE_URL: 'postgres://user:pass@db:5432/kidpc',
+    WEB_ORIGIN: 'https://kidspc.online',
+    PUBLIC_URL: 'https://kidspc.online',
+    APPS_ORIGIN: 'https://apps.kidspc.online',
+    CONSENT_VERIFIER: 'unavailable',
+    DEPLOYMENT_MODE: 'lite',
+  } as unknown as NodeJS.ProcessEnv;
+  const from = 'Online Kids PC <hello@kidspc.online>';
+
+  it('uses Resend when it has a key and a From line, ahead of SMTP', () => {
+    const config = loadConfig({
+      ...base,
+      RESEND_API_KEY: 're_test_key',
+      MAIL_FROM: from,
+      SMTP_HOST: 'smtp.example.com',
+      SMTP_USER: 'u',
+      SMTP_PASS: 'p',
+    } as NodeJS.ProcessEnv);
+    expect(chooseTransport(config)).toBe('resend');
+  });
+
+  it('falls back to SMTP, then to the log', () => {
+    expect(
+      chooseTransport(
+        loadConfig({
+          ...base,
+          SMTP_HOST: 'smtp.example.com',
+          SMTP_USER: 'u',
+          SMTP_PASS: 'p',
+          SMTP_FROM: from,
+        } as NodeJS.ProcessEnv),
+      ),
+    ).toBe('smtp');
+    expect(chooseTransport(loadConfig(base))).toBe('log');
+  });
+
+  it('still reads SMTP_FROM for an env file written before MAIL_FROM existed', () => {
+    const config = loadConfig({ ...base, RESEND_API_KEY: 're_x', SMTP_FROM: from } as NodeJS.ProcessEnv);
+    expect(config.mailFrom).toBe(from);
+    expect(chooseTransport(config)).toBe('resend');
+  });
+
+  it('refuses a Resend setup that is half there, in production', () => {
+    // Falling back to the log would look like a working deployment and deliver
+    // nothing -- including every sign-up's confirmation code.
+    expect(() =>
+      loadConfig({ ...production, EMAIL_DELIVERY: 'resend', MAIL_FROM: from } as NodeJS.ProcessEnv),
+    ).toThrow(/EMAIL_DELIVERY=resend needs RESEND_API_KEY and MAIL_FROM/);
+    expect(() =>
+      loadConfig({ ...production, EMAIL_DELIVERY: 'resend', RESEND_API_KEY: 're_x' } as NodeJS.ProcessEnv),
+    ).toThrow(/MAIL_FROM/);
+  });
+
+  it('rejects something that is not a Resend key', () => {
+    expect(() => loadConfig({ ...base, RESEND_API_KEY: 'sk_live_abc' } as NodeJS.ProcessEnv)).toThrow(
+      /RESEND_API_KEY/,
     );
   });
 });

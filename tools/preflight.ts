@@ -188,54 +188,134 @@ console.log('\nMail -- nothing is delivered without this');
  * Mail was the one part of the system this tool could not see, and it is the
  * part that fails silently by design: with no credentials the service holds
  * the queue rather than dropping it, so everything looks healthy and no
- * message ever arrives. A household that cannot receive a password-reset link
- * cannot get back into their account.
+ * message ever arrives. Now that an account cannot be created without an
+ * emailed code, a deployment that cannot send mail cannot take a sign-up.
  */
-const MAIL_KEYS = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'] as const;
-const missingMail = MAIL_KEYS.filter((k) => !fileEnv[k]);
+const mailFrom = fileEnv.MAIL_FROM ?? fileEnv.SMTP_FROM;
+const smtpReady = Boolean(fileEnv.SMTP_HOST && fileEnv.SMTP_USER && fileEnv.SMTP_PASS && mailFrom);
+const resendReady = Boolean(fileEnv.RESEND_API_KEY && mailFrom);
+const transport =
+  fileEnv.EMAIL_DELIVERY ?? (resendReady ? 'resend' : smtpReady ? 'smtp' : 'log');
 
-if (missingMail.length > 0) {
+if (transport === 'resend') {
+  if (!fileEnv.RESEND_API_KEY) {
+    record('fail', 'RESEND_API_KEY is set', 'EMAIL_DELIVERY=resend, but there is no key. The API refuses to start.');
+  } else if (!fileEnv.RESEND_API_KEY.startsWith('re_')) {
+    record('fail', 'RESEND_API_KEY looks like a Resend key', 'Resend keys start with re_.');
+  } else {
+    record('pass', 'RESEND_API_KEY is set', `${fileEnv.RESEND_API_KEY.slice(0, 6)}…`);
+  }
+} else if (transport === 'smtp') {
+  const missing = (['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'] as const).filter((k) => !fileEnv[k]);
+  if (missing.length) {
+    record('fail', 'SMTP credentials are present', `Empty or absent: ${missing.join(', ')}.`);
+  } else {
+    record('pass', 'SMTP credentials are present', `${fileEnv.SMTP_HOST}:${fileEnv.SMTP_PORT ?? 465}`);
+  }
+} else {
   record(
     'fail',
-    'SMTP credentials are present',
-    `Empty or absent: ${missingMail.join(', ')}.\n        ` +
-      'Until all four are set the service queues mail and delivers none --\n        ' +
-      'which means no welcome email and no password reset.',
+    'A mail transport is configured',
+    'Neither RESEND_API_KEY nor SMTP is set. The service queues mail and delivers none --\n        ' +
+      'so sign-ups are paused (nobody can receive a confirmation code) and nobody can reset a password.\n        ' +
+      'Set RESEND_API_KEY and MAIL_FROM. See docs/deploy.md, "Mail".',
   );
-} else {
-  record('pass', 'SMTP credentials are present', `${fileEnv.SMTP_HOST}:${fileEnv.SMTP_PORT ?? 465}`);
+}
 
+let senderDomain: string | undefined;
+if (transport !== 'log') {
   /*
    * The from-address has to be at a domain we publish records for, or the
-   * next three checks are about a domain nobody is sending as.
+   * checks below are about a domain nobody is sending as.
    */
-  const fromAddress = /<([^>]+)>/.exec(fileEnv.SMTP_FROM!)?.[1] ?? fileEnv.SMTP_FROM!;
-  const fromDomain = fromAddress.split('@')[1]?.trim().toLowerCase();
+  const fromAddress = mailFrom ? (/<([^>]+)>/.exec(mailFrom)?.[1] ?? mailFrom) : '';
+  senderDomain = fromAddress.split('@')[1]?.trim().toLowerCase();
   const site = fileEnv.KIDPC_DOMAIN?.toLowerCase();
 
-  if (!fromDomain) {
-    record('fail', 'SMTP_FROM is an address', `Got "${fileEnv.SMTP_FROM}". Use name@domain or "Name <name@domain>".`);
-  } else if (site && fromDomain !== site && !site.endsWith(`.${fromDomain}`)) {
+  if (!mailFrom) {
+    record('fail', 'MAIL_FROM is set', 'Use "Online Kids PC <hello@kidspc.online>".');
+  } else if (!senderDomain) {
+    record('fail', 'MAIL_FROM is an address', `Got "${mailFrom}". Use name@domain or "Name <name@domain>".`);
+  } else if (site && senderDomain !== site && !site.endsWith(`.${senderDomain}`)) {
     record(
       'warn',
-      'SMTP_FROM is at the site domain',
-      `Sending as ${fromDomain} from ${site}. Deliverable only if ${fromDomain} authorises this sender.`,
+      'MAIL_FROM is at the site domain',
+      `Sending as ${senderDomain} from ${site}. Deliverable only if ${senderDomain} authorises this sender.`,
     );
   } else {
-    record('pass', 'SMTP_FROM is at the site domain', fromAddress);
+    record('pass', 'MAIL_FROM is at the site domain', fromAddress);
   }
 
+  if (!fileEnv.MAIL_REPLY_TO) {
+    record('warn', 'MAIL_REPLY_TO is set', 'Replies to a letter go to the From address. Fine, if somebody reads it.');
+  } else {
+    record('pass', 'MAIL_REPLY_TO is set', fileEnv.MAIL_REPLY_TO);
+  }
   if (!fileEnv.ORDERS_EMAIL) {
     record(
       'warn',
       'ORDERS_EMAIL is set',
-      'Plan requests and contact-form messages fall back to SMTP_USER. Fine, if somebody reads that mailbox.',
+      'Plan requests and contact-form messages fall back to MAIL_REPLY_TO. Fine, if somebody reads that mailbox.',
     );
   } else {
     record('pass', 'ORDERS_EMAIL is set', fileEnv.ORDERS_EMAIL);
   }
 
-  if (fromDomain) await checkSenderDns(fromDomain);
+  if (transport === 'resend' && senderDomain && fileEnv.RESEND_API_KEY) {
+    await checkResendDomain(senderDomain, fileEnv.RESEND_API_KEY);
+  }
+  if (senderDomain) await checkSenderDns(senderDomain, transport === 'resend');
+}
+
+/**
+ * Ask Resend itself whether it has proved the domain.
+ *
+ * DNS can look right from here and still not be what Resend checked -- a
+ * record on the wrong host, a value pasted with a line break -- and Resend's
+ * own answer is the one that decides whether a letter is accepted.
+ */
+async function checkResendDomain(domain: string, key: string) {
+  try {
+    const res = await fetch('https://api.resend.com/domains', {
+      headers: { authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      message?: string;
+      data?: Array<{ name: string; status: string }>;
+    };
+    if (!res.ok) {
+      if (res.status === 401 && /restricted/i.test(body.message ?? '')) {
+        record(
+          'warn',
+          `Resend has verified ${domain}`,
+          'This is a sending-only key, so it cannot read domains. Check the dashboard, then `pnpm mail send`.',
+        );
+      } else {
+        record('fail', 'Resend accepts the key', body.message ?? `HTTP ${res.status}`);
+      }
+      return;
+    }
+    const found = body.data?.find((d) => d.name.toLowerCase() === domain);
+    if (!found) {
+      record(
+        'fail',
+        `Resend has ${domain}`,
+        'The domain is not in this Resend account. Add it: `pnpm mail check --create` (inside the API container).',
+      );
+    } else if (found.status !== 'verified') {
+      record(
+        'fail',
+        `Resend has verified ${domain}`,
+        `Status: ${found.status}. Every letter is refused until it is verified.\n        ` +
+          '`pnpm mail check` lists the DNS records Resend is still waiting for.',
+      );
+    } else {
+      record('pass', `Resend has verified ${domain}`, 'Letters from this domain will be accepted.');
+    }
+  } catch (error) {
+    record('warn', 'Resend could be reached', `${(error as Error).message}. Check from the deployment host.`);
+  }
 }
 
 /**
@@ -248,7 +328,7 @@ if (missingMail.length > 0) {
  * since 2024. This is the check that is easiest to skip and hardest to notice
  * having skipped: mail is accepted by the relay, and lands in spam.
  */
-async function checkSenderDns(domain: string) {
+async function checkSenderDns(domain: string, viaResend: boolean) {
   /*
    * "No such record" and "the lookup did not complete" are different answers,
    * and collapsing them is how this tool tells somebody to add an SPF record
@@ -274,7 +354,13 @@ async function checkSenderDns(domain: string) {
     }
   }
 
-  const root = await txtAt(domain);
+  /*
+   * Resend sends with its own return path, on a `send.` subdomain, so that is
+   * where it wants the SPF record and an MX for bounces -- not on the root,
+   * which is left to whatever handles the domain's own mail.
+   */
+  const spfHost = viaResend ? `send.${domain}` : domain;
+  const root = await txtAt(spfHost);
   if (!root.ok) {
     record(
       'warn',
@@ -290,14 +376,16 @@ async function checkSenderDns(domain: string) {
   if (!spf) {
     record(
       'fail',
-      `${domain} publishes an SPF record`,
-      'Without it, receiving servers have nothing saying this relay may send as you.\n        ' +
-        'Zoho: v=spf1 include:zoho.com ~all',
+      `${spfHost} publishes an SPF record`,
+      'Without it, receiving servers have nothing saying this sender may send as you.\n        ' +
+        (viaResend
+          ? `Resend: TXT send.${domain}  "v=spf1 include:amazonses.com ~all" (exact value: pnpm mail check)`
+          : 'Zoho: v=spf1 include:zoho.com ~all'),
     );
   } else if (/[?+]all\s*$/.test(spf)) {
-    record('warn', `${domain} SPF is restrictive`, `Ends in "${/[?+~-]all/.exec(spf)?.[0]}" -- neutral or pass-all authorises anybody.`);
+    record('warn', `${spfHost} SPF is restrictive`, `Ends in "${/[?+~-]all/.exec(spf)?.[0]}" -- neutral or pass-all authorises anybody.`);
   } else {
-    record('pass', `${domain} publishes an SPF record`, spf);
+    record('pass', `${spfHost} publishes an SPF record`, spf);
   }
 
   const dmarcLookup = await txtAt(`_dmarc.${domain}`);
@@ -320,7 +408,9 @@ async function checkSenderDns(domain: string) {
    * chosen by the provider. Checking the handful anybody actually uses is
    * worth more than not checking: a miss here is a warning, never a failure.
    */
-  const selectors = ['zoho', 'zmail', 'default', 'google', 's1', 'k1', 'mail'];
+  const selectors = viaResend
+    ? ['resend']
+    : ['zoho', 'zmail', 'default', 'google', 's1', 'k1', 'mail'];
   const found: string[] = [];
   for (const selector of selectors) {
     const rows = await txtAt(`${selector}._domainkey.${domain}`);
@@ -339,6 +429,19 @@ async function checkSenderDns(domain: string) {
 
   // A domain that sends but cannot receive is a domain whose bounces and
   // replies go nowhere -- including the reply to a support message.
+  if (viaResend) {
+    const bounce = await resolveMx(`send.${domain}`).catch(() => []);
+    if (bounce.length === 0) {
+      record(
+        'warn',
+        `send.${domain} takes bounces`,
+        'No MX on the send. subdomain. Resend wants one (feedback-smtp.<region>.amazonses.com) to report bounces.',
+      );
+    } else {
+      record('pass', `send.${domain} takes bounces`, bounce.map((m) => m.exchange).join(', '));
+    }
+  }
+
   const mx = await resolveMx(domain).catch((error) => {
     const code = (error as NodeJS.ErrnoException).code ?? 'UNKNOWN';
     return ABSENT.has(code) ? [] : null;

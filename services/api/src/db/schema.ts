@@ -36,6 +36,8 @@ export const guardians = pgTable(
     timezone: text('timezone').notNull().default('Asia/Kolkata'),
     createdAt: ts('created_at').notNull().defaultNow(),
     lastLoginAt: ts('last_login_at'),
+    /** When the address was proved by an emailed code or link. Null until then. */
+    emailVerifiedAt: ts('email_verified_at'),
     /** Set when the guardian asks for erasure; the row is purged by a job. */
     deletionRequestedAt: ts('deletion_requested_at'),
   },
@@ -206,27 +208,36 @@ export const refreshTokens = pgTable(
   (t) => [index('refresh_guardian_idx').on(t.guardianId)],
 );
 
+/** Why a letter carrying a code was sent. See migration 0005. */
+export type EmailChallengePurpose = 'verify_email' | 'sign_in' | 'password_reset';
+
 /**
- * Outstanding "I forgot my password" requests. See migration 0004 for why this
- * is a table rather than two columns on `guardians`.
+ * A secret that left by email and comes back once: confirming an address,
+ * signing in without a password, or resetting one. Each row carries a link
+ * token and a typed code, and spending either spends the row.
  */
-export const passwordResets = pgTable(
-  'password_resets',
+export const emailChallenges = pgTable(
+  'email_challenges',
   {
     id: text('id').primaryKey(),
     guardianId: text('guardian_id')
       .notNull()
       .references(() => guardians.id, { onDelete: 'cascade' }),
-    /** Digest of the token that was emailed. The token itself is never stored. */
+    purpose: text('purpose').$type<EmailChallengePurpose>().notNull(),
+    /** Digest of the token in the letter's button. The token is never stored. */
     tokenHash: text('token_hash').notNull(),
+    /** Keyed HMAC of the six-digit code. Null on resets issued before codes. */
+    codeHash: text('code_hash'),
+    /** Wrong codes typed against this row; at the limit it is spent. */
+    attempts: integer('attempts').notNull().default(0),
     createdAt: ts('created_at').notNull().defaultNow(),
     expiresAt: ts('expires_at').notNull(),
-    /** Set the moment the link is spent, so it works exactly once. */
+    /** Set the moment it is spent -- or revoked by a newer letter. */
     usedAt: ts('used_at'),
   },
   (t) => [
-    uniqueIndex('password_resets_token_key').on(t.tokenHash),
-    index('password_resets_guardian_idx').on(t.guardianId),
+    uniqueIndex('email_challenges_token_key').on(t.tokenHash),
+    index('email_challenges_guardian_idx').on(t.guardianId, t.purpose),
   ],
 );
 

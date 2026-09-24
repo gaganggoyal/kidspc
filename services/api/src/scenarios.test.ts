@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { REFERRAL_BONUS_DAYS, TRIAL_DAYS, planById, referralCodeFor, trialDaysFor } from '@kidpc/shared';
-import { type Harness, createHarness, ist, onboard } from './testing/harness.js';
+import { type Harness, createHarness, emailedCode, ist, onboard } from './testing/harness.js';
 import { consentChallenges, emailOutbox, planOrders } from './db/schema.js';
 import { backoffMinutes, sendPending } from './email/outbox.js';
 
@@ -1506,11 +1506,30 @@ describe('Scenario: somebody writing in', () => {
 });
 
 describe('Scenario: the email a parent actually receives', () => {
-  it('queues a welcome the moment an account is created', async () => {
+  it('sends only a code until the address is confirmed, then the welcome', async () => {
     const h = await open(ist('2026-03-14T10:00:00'));
-    await h.registerGuardian('welcome@example.com');
+    const db = h.runtime.ctx.database.db;
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/auth/register',
+      payload: { email: 'welcome@example.com', displayName: 'Parent' },
+    });
 
-    const queued = await h.runtime.ctx.database.db.select().from(emailOutbox);
+    // Before the code is used, the code is the only thing this address has
+    // been sent. An address nobody has confirmed gets nothing else from us.
+    const before = await db.select().from(emailOutbox);
+    expect(before.map((m) => m.template)).toEqual(['verify_email']);
+
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/auth/email/verify',
+      payload: {
+        email: 'welcome@example.com',
+        code: await emailedCode(h.runtime, 'welcome@example.com', 'verify_email'),
+      },
+    });
+
+    const queued = await db.select().from(emailOutbox);
     const welcome = queued.find((m) => m.template === 'welcome');
     expect(welcome).toBeTruthy();
     expect(welcome!.toAddress).toBe('welcome@example.com');
@@ -1528,9 +1547,10 @@ describe('Scenario: the email a parent actually receives', () => {
     const first = await sendPending(h.runtime.ctx.database.db, mailer, h.now);
     const second = await sendPending(h.runtime.ctx.database.db, mailer, h.now);
 
-    expect(first.sent).toBe(1);
+    // The confirmation code and the welcome: two letters, each sent once.
+    expect(first.sent).toBe(2);
     expect(second.sent).toBe(0);
-    expect(sent).toEqual(['once@example.com']);
+    expect(sent).toEqual(['once@example.com', 'once@example.com']);
   });
 
   it('keeps a failed message and backs off instead of dropping or spinning', async () => {
@@ -1544,14 +1564,17 @@ describe('Scenario: the email a parent actually receives', () => {
       },
     };
     const result = await sendPending(h.runtime.ctx.database.db, failing, h.now);
-    expect(result).toEqual({ sent: 0, failed: 1 });
+    expect(result).toEqual({ sent: 0, failed: 2 });
 
-    const [row] = await h.runtime.ctx.database.db.select().from(emailOutbox);
-    // Still queued, with the reason recorded and the next attempt pushed out.
-    expect(row!.sentAt).toBeNull();
-    expect(row!.attempts).toBe(1);
-    expect(row!.lastError).toContain('550');
-    expect(row!.nextTryAt.getTime()).toBeGreaterThan(h.now().getTime());
+    const rows = await h.runtime.ctx.database.db.select().from(emailOutbox);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      // Still queued, with the reason recorded and the next attempt pushed out.
+      expect(row.sentAt).toBeNull();
+      expect(row.attempts).toBe(1);
+      expect(row.lastError).toContain('550');
+      expect(row.nextTryAt.getTime()).toBeGreaterThan(h.now().getTime());
+    }
 
     // And it is not retried until that time arrives.
     expect((await sendPending(h.runtime.ctx.database.db, failing, h.now)).failed).toBe(0);

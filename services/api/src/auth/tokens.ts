@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { SignJWT, jwtVerify } from 'jose';
 import { ID_PREFIX, errors, newId } from '@kidpc/shared';
 import type { Config } from '../config.js';
@@ -66,20 +66,39 @@ export function newRefreshToken(): { token: string; hash: string } {
 }
 
 /**
- * A password-reset token.
+ * The six digits in an emailed letter.
  *
- * Same shape and same digest as a refresh token, and that is the point rather
- * than laziness: both are opaque high-entropy strings that leave this service
- * and come back, both are stored as a digest so a database dump is not a set
- * of working credentials, and having two different ways to do that is how one
- * of them ends up weaker than the other.
- *
- * It gets its own name so the call sites read correctly and so the two can
- * diverge later -- a reset token could want to be longer, or rate-limited
- * differently -- without a rename touching every caller.
+ * `randomInt` rather than a modulus over random bytes, which would make some
+ * codes likelier than others; padded, because 004217 is a code and 4217 is not.
  */
-export function newPasswordResetToken(): { token: string; hash: string } {
-  return newRefreshToken();
+export function newEmailCode(): string {
+  return String(randomInt(0, 1_000_000)).padStart(6, '0');
+}
+
+/**
+ * What is stored for a code: an HMAC keyed with a server secret, over the
+ * challenge's own id and the code.
+ *
+ * Not a plain hash. A token is 32 random bytes and a digest of it is safe to
+ * leak; a code is six digits, and a digest of six digits is reversed by trying
+ * all million of them. The key keeps a database dump from doing that, and the
+ * id keeps one row's digest from being reused against another's.
+ */
+export function hashEmailCode(config: Config, challengeId: string, code: string): string {
+  return createHmac('sha256', config.jwtSecret)
+    .update(`email-code:${challengeId}:${code}`)
+    .digest('base64url');
+}
+
+export function emailCodeMatches(
+  config: Config,
+  challengeId: string,
+  code: string,
+  storedHash: string,
+): boolean {
+  const a = Buffer.from(hashEmailCode(config, challengeId, code));
+  const b = Buffer.from(storedHash);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 export function refreshTokenMatches(presented: string, storedHash: string): boolean {

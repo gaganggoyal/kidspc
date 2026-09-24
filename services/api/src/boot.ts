@@ -9,7 +9,7 @@ import { type Config, loadConfig } from './config.js';
 import { createDatabase, migrate } from './db/client.js';
 import { createRepos } from './repos.js';
 import { createConsentVerifier } from './consent/verifier.js';
-import { createMailer } from './email/mailer.js';
+import { createMailer, type Transport } from './email/mailer.js';
 import { Outbox, sendPending } from './email/outbox.js';
 import type { AppContext } from './context.js';
 
@@ -84,8 +84,8 @@ export async function createRuntime(
     console.log(
       '[mail] transport.log',
       JSON.stringify({
-        warning: 'SMTP is not configured. Mail is queued and logged, not delivered.',
-        fix: 'Set SMTP_HOST, SMTP_USER, SMTP_PASS and SMTP_FROM.',
+        warning: 'No mail transport is configured. Mail is queued and logged, not delivered.',
+        fix: 'Set RESEND_API_KEY and MAIL_FROM (see docs/deploy.md, "Mail").',
       }),
     );
   }
@@ -165,25 +165,42 @@ export function startReaper(ctx: AppContext): () => void {
  * Extracted so it can be tested: the decision belongs to production, and the
  * test harness deliberately never runs as production.
  */
-export function shouldHoldMail(isProduction: boolean, transport: 'smtp' | 'log'): boolean {
+export function shouldHoldMail(isProduction: boolean, transport: Transport): boolean {
   return isProduction && transport === 'log';
 }
 
 export function startMailSender(ctx: AppContext): () => void {
   let stopped = false;
-  let timer: NodeJS.Timeout;
+  let timer: NodeJS.Timeout | undefined;
+  let running = false;
+  let again = false;
 
   const holding = shouldHoldMail(ctx.config.isProduction, ctx.mailer.name);
+  // Nothing is going out while holding, so check far less often.
+  const interval = holding ? Math.max(ctx.config.MAIL_INTERVAL_MS, 300_000) : ctx.config.MAIL_INTERVAL_MS;
+
+  const schedule = (ms: number) => {
+    if (stopped) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => void tick(), ms);
+  };
 
   const tick = async () => {
     if (stopped) return;
+    // One sweep at a time. A letter queued mid-sweep is picked up by the
+    // sweep that runs straight after, not by a second one racing this one.
+    if (running) {
+      again = true;
+      return;
+    }
+    running = true;
     try {
       if (holding) {
         const pending = await ctx.outbox.pendingCount();
         if (pending > 0) {
           console.log(
             '[mail] holding',
-            JSON.stringify({ pending, reason: 'SMTP not configured; nothing is being delivered' }),
+            JSON.stringify({ pending, reason: 'no mail transport configured; nothing is being delivered' }),
           );
         }
       } else {
@@ -195,17 +212,30 @@ export function startMailSender(ctx: AppContext): () => void {
     } catch (error) {
       console.error('[mail] sweep failed', error);
     } finally {
-      // Nothing is going out while holding, so check far less often.
-      const interval = holding ? Math.max(ctx.config.MAIL_INTERVAL_MS, 300_000) : ctx.config.MAIL_INTERVAL_MS;
-      if (!stopped) timer = setTimeout(tick, interval);
+      running = false;
+      if (again) {
+        again = false;
+        schedule(0);
+      } else {
+        schedule(interval);
+      }
     }
   };
 
+  /*
+   * Something was queued: send it now rather than at the next sweep. The sweep
+   * is still the safety net -- retries, and anything queued while the process
+   * was down -- but a code a parent is waiting for goes the moment it exists.
+   * A short delay lets a burst (a code, then a welcome) leave in one sweep.
+   */
+  const unsubscribe = holding ? () => {} : ctx.outbox.onEnqueue(() => schedule(250));
+
   // Runs shortly after boot rather than after a full interval, so a restart
   // clears anything that queued up while the process was down.
-  timer = setTimeout(tick, 2_000);
+  schedule(2_000);
   return () => {
     stopped = true;
+    unsubscribe();
     clearTimeout(timer);
   };
 }

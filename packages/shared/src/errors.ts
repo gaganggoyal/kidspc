@@ -80,6 +80,31 @@ export const errors = {
       userMessage: 'Too many tries. Please wait a moment.',
       details: { retryAfterSeconds },
     }),
+  /*
+   * A wrong, spent or expired emailed code. One message for all three, because
+   * the fix is the same and telling them apart helps somebody guessing more
+   * than somebody locked out.
+   */
+  codeRejected: () =>
+    new AppError({
+      status: 401,
+      code: 'code_rejected',
+      message: 'Emailed code or link not accepted',
+      userMessage:
+        'That code has expired, has been used, or is not right. Check the newest email, or ask for a new code.',
+    }),
+  /*
+   * Production with nowhere to send mail. Said plainly rather than accepting a
+   * sign-up whose confirmation code can never arrive.
+   */
+  mailUnavailable: () =>
+    new AppError({
+      status: 503,
+      code: 'mail_unavailable',
+      message: 'No mail transport configured',
+      userMessage:
+        "We can't send email just now, so new sign-ups are paused. Please try again later, or write to us.",
+    }),
   consentRequired: () =>
     new AppError({
       status: 403,

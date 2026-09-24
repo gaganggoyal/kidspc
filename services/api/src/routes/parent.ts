@@ -6,33 +6,62 @@ import {
   completeConsentInput,
   createChildInput,
   defaultAllowedAppIds,
+  EMAIL_CODE_TTL_MINUTES,
+  emailCodeRequestInput,
+  type EmailVerifyInput,
+  emailVerifyInput,
   errors,
   forgotPasswordInput,
+  ID_PREFIX,
   loginInput,
+  newId,
   PASSWORD_RESET_TTL_MINUTES,
   PRODUCT_NAME,
   policyInput,
   registerGuardianInput,
   resetPasswordInput,
   resetChildInput,
+  setPasswordInput,
   startConsentInput,
   updateChildInput,
 } from '@kidpc/shared';
 import { requireGuardian } from '../app.js';
-import { passwordChangedEmail, passwordResetEmail, welcomeEmail } from '../email/templates.js';
+import {
+  passwordChangedEmail,
+  passwordResetEmail,
+  signInCodeEmail,
+  verifyEmail,
+  welcomeEmail,
+} from '../email/templates.js';
+import type { EmailChallengePurpose } from '../db/schema.js';
 import { limit } from '../limits.js';
 import { type AppContext, buildChildView, loadChildForGuardian } from '../context.js';
 import { defaultPolicyFor } from '../repos.js';
-import { burnPasswordTime, hashSecret, verifySecret } from '../auth/password.js';
 import {
+  NO_PASSWORD,
+  burnPasswordTime,
+  hasPassword,
+  hashSecret,
+  verifySecret,
+} from '../auth/password.js';
+import {
+  emailCodeMatches,
+  hashEmailCode,
   hashRefreshToken,
-  newPasswordResetToken,
+  newEmailCode,
   newRefreshToken,
   signAccessToken,
 } from '../auth/tokens.js';
 import { ConsentUnavailableError, digestProof, newConsentNonce } from '../consent/verifier.js';
 
 const REFRESH_COOKIE = 'kidpc_rt';
+
+/**
+ * Letters of one kind an address can be sent in an hour. Enough for a slow
+ * inbox and an impatient person pressing "send again"; not enough to use this
+ * service to fill somebody's mailbox.
+ */
+const LETTERS_PER_HOUR = 6;
 
 export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
   const { repos, config } = ctx;
@@ -49,42 +78,155 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
   };
 
   // -------------------------------------------------------------------------
-  // Guardian authentication
+  // Letters that carry a code
   // -------------------------------------------------------------------------
 
-  app.post('/auth/register', limit(config, 10, '1 hour'), async (req, reply) => {
-    const input = registerGuardianInput.parse(req.body);
+  /**
+   * Nowhere to send mail, in production. Every route that exists to send a
+   * code checks this first and says so, rather than accepting a request whose
+   * letter can never arrive -- a sign-up that waits for ever on a code is worse
+   * than a sign-up that is honestly paused.
+   */
+  const refuseWithoutMail = () => {
+    if (config.isProduction && ctx.mailer.name === 'log') throw errors.mailUnavailable();
+  };
 
-    if (await repos.guardians.byEmail(input.email)) {
-      // Same shape as success would be nicer for privacy, but a parent who
-      // genuinely forgot they signed up needs to be told plainly.
-      throw errors.conflict(
-        'email_taken',
-        'Email already registered',
-        'An account already exists for that email. Try signing in.',
-      );
-    }
+  /**
+   * Development without a mail provider: hand the code back in the response,
+   * so a sign-up can be finished from the screen. Never in production, and
+   * never when mail is really going out.
+   */
+  const devCode = (code: string | null) =>
+    !config.isProduction && ctx.mailer.name === 'log' && code ? { devCode: code } : {};
 
-    const guardian = await repos.guardians.create({
-      email: input.email,
-      passwordHash: await hashSecret(input.password),
-      displayName: input.displayName,
-      timezone: input.timezone,
+  /**
+   * Issue one letter of a kind to a household and queue it.
+   *
+   * Capped per address as well as per IP: the IP limit stops one machine
+   * asking for many addresses, and this stops many machines filling one inbox.
+   * Over the cap nothing is sent and the caller answers exactly as if it had
+   * been, because the cap is not something a stranger should be able to probe.
+   */
+  const sendLetter = async (
+    guardian: { id: string; email: string; displayName: string },
+    purpose: EmailChallengePurpose,
+  ): Promise<string | null> => {
+    const now = ctx.now();
+    const recent = await repos.emailChallenges.sentSince(
+      guardian.id,
+      purpose,
+      new Date(now.getTime() - 60 * 60_000),
+    );
+    if (recent >= LETTERS_PER_HOUR) return null;
+
+    const id = newId(ID_PREFIX.token);
+    const { token, hash } = newRefreshToken();
+    const code = newEmailCode();
+    const ttlMinutes =
+      purpose === 'password_reset' ? PASSWORD_RESET_TTL_MINUTES : EMAIL_CODE_TTL_MINUTES;
+    await repos.emailChallenges.issue({
+      id,
+      guardianId: guardian.id,
+      purpose,
+      tokenHash: hash,
+      codeHash: hashEmailCode(config, id, code),
+      ttlMinutes,
+      now,
     });
 
+    // Built from configuration, never from the request. A link assembled out
+    // of a Host header is how an emailed button turns into account takeover.
+    const link = (path: string) => `${config.PUBLIC_URL}${path}?token=${encodeURIComponent(token)}`;
+    const common = {
+      to: guardian.email,
+      displayName: guardian.displayName,
+      code,
+      publicUrl: config.PUBLIC_URL,
+    };
+    await ctx.outbox.enqueue(
+      purpose === 'verify_email'
+        ? verifyEmail({ ...common, url: link('/verify') })
+        : purpose === 'sign_in'
+          ? signInCodeEmail({ ...common, url: link('/verify') })
+          : passwordResetEmail({ ...common, url: link('/reset'), ttlMinutes }),
+    );
+    return code;
+  };
+
+  /**
+   * Find the letter a code or a button belongs to, or null.
+   *
+   * A wrong code counts against every live letter it could have been meant
+   * for, and a letter that reaches the limit is spent -- so six digits cannot be
+   * walked through a few at a time. An unknown address costs the same as a
+   * wrong code and answers the same, so this is not a way to ask which
+   * addresses have accounts.
+   */
+  const redeem = async (input: EmailVerifyInput, purposes: readonly EmailChallengePurpose[]) => {
+    const now = ctx.now();
+    if ('token' in input) {
+      const row = await repos.emailChallenges.byToken(hashRefreshToken(input.token), purposes, now);
+      const guardian = row ? await repos.guardians.byId(row.guardianId) : null;
+      return row && guardian ? { challenge: row, guardian } : null;
+    }
+    const guardian = await repos.guardians.byEmail(input.email);
+    if (!guardian) return null;
+    const live = await repos.emailChallenges.liveFor(guardian.id, purposes, now);
+    const match = live.find(
+      (row) => row.codeHash && emailCodeMatches(config, row.id, input.code, row.codeHash),
+    );
+    if (!match) {
+      await repos.emailChallenges.recordMiss(
+        live.map((row) => row.id),
+        now,
+      );
+      return null;
+    }
+    return { challenge: match, guardian };
+  };
+
+  /** A refresh cookie and an access token: what "signed in" is made of. */
+  const signIn = async (
+    reply: FastifyReply,
+    guardian: { id: string; email: string; displayName: string; timezone: string; createdAt: Date },
+  ) => {
     const { token, hash } = newRefreshToken();
     await repos.refreshTokens.issue(guardian.id, hash, config.REFRESH_TOKEN_TTL_DAYS);
     setRefreshCookie(reply, token);
+    await repos.guardians.markLogin(guardian.id);
     await repos.audit.record({
       actorType: 'guardian',
       actorId: guardian.id,
-      action: 'guardian.register',
+      action: 'guardian.login',
       subjectType: 'guardian',
       subjectId: guardian.id,
     });
+    return {
+      guardian: {
+        id: guardian.id,
+        email: guardian.email,
+        displayName: guardian.displayName,
+        timezone: guardian.timezone,
+        createdAt: guardian.createdAt,
+      },
+      accessToken: await signAccessToken(config, { kind: 'guardian', guardianId: guardian.id }),
+    };
+  };
 
-    // Queued, not sent: registration must not fail because a mail server is
-    // slow, and must not succeed-but-silently-drop because one is misconfigured.
+  /**
+   * The address has been proved. The first time, that is also the moment the
+   * account starts: audited, and welcomed -- the welcome waits for this so that
+   * nothing but a code is ever sent to an address nobody has confirmed.
+   */
+  const confirmAddress = async (guardian: { id: string; email: string; displayName: string }) => {
+    if (!(await repos.guardians.markEmailVerified(guardian.id, ctx.now()))) return;
+    await repos.audit.record({
+      actorType: 'guardian',
+      actorId: guardian.id,
+      action: 'guardian.email_verified',
+      subjectType: 'guardian',
+      subjectId: guardian.id,
+    });
     await ctx.outbox.enqueue(
       welcomeEmail({
         to: guardian.email,
@@ -92,22 +234,154 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
         publicUrl: config.PUBLIC_URL,
       }),
     );
+  };
 
-    return reply.status(201).send({
-      guardian,
-      accessToken: await signAccessToken(config, { kind: 'guardian', guardianId: guardian.id }),
-    });
+  // -------------------------------------------------------------------------
+  // Guardian authentication
+  // -------------------------------------------------------------------------
+
+  /**
+   * Sign up: a name and an address. The answer is a letter, not a session.
+   *
+   * An address that already belongs to a confirmed account is told so plainly
+   * -- a parent who forgot they signed up needs to hear it. One that was typed
+   * before and never confirmed is simply sent a fresh code: whoever can read
+   * that inbox is the owner, and the name is theirs to set. There is no
+   * password to take over, because none is chosen until the address is proved.
+   */
+  app.post('/auth/register', limit(config, 10, '1 hour'), async (req, reply) => {
+    const input = registerGuardianInput.parse(req.body);
+    refuseWithoutMail();
+
+    const existing = await repos.guardians.byEmail(input.email);
+    if (existing?.emailVerifiedAt) {
+      throw errors.conflict(
+        'email_taken',
+        'Email already registered',
+        'An account already exists for that email. Try signing in.',
+      );
+    }
+
+    let guardian: { id: string; email: string; displayName: string };
+    if (existing) {
+      await repos.guardians.replaceUnverified(existing.id, {
+        passwordHash: NO_PASSWORD,
+        displayName: input.displayName,
+        timezone: input.timezone,
+      });
+      guardian = { ...existing, displayName: input.displayName };
+    } else {
+      guardian = await repos.guardians.create({
+        email: input.email,
+        passwordHash: NO_PASSWORD,
+        displayName: input.displayName,
+        timezone: input.timezone,
+      });
+      await repos.audit.record({
+        actorType: 'guardian',
+        actorId: guardian.id,
+        action: 'guardian.register',
+        subjectType: 'guardian',
+        subjectId: guardian.id,
+      });
+    }
+
+    // Queued, not sent: registration must not fail because a mail server is
+    // slow, and must not succeed-but-silently-drop because one is misconfigured.
+    const code = await sendLetter(guardian, 'verify_email');
+    return reply
+      .status(202)
+      .send({ email: guardian.email, ttlMinutes: EMAIL_CODE_TTL_MINUTES, ...devCode(code) });
+  });
+
+  /**
+   * Prove the address with the letter's code or button, and be signed in.
+   *
+   * One route for the sign-up letter and the sign-in letter, because they
+   * prove the same thing: this person can read that inbox. A sign-in code on an
+   * address that was never confirmed confirms it, for the same reason.
+   * `needsPassword` tells the client to offer the password step next.
+   */
+  app.post('/auth/email/verify', limit(config, 20, '15 minutes'), async (req, reply) => {
+    const input = emailVerifyInput.parse(req.body);
+    const found = await redeem(input, ['verify_email', 'sign_in']);
+    if (!found) throw errors.codeRejected();
+
+    const { challenge, guardian } = found;
+    await repos.emailChallenges.consume(challenge.id, ctx.now());
+    const firstTime = !guardian.emailVerifiedAt;
+    await confirmAddress(guardian);
+
+    return {
+      ...(await signIn(reply, guardian)),
+      firstTime,
+      needsPassword: !hasPassword(guardian.passwordHash),
+    };
+  });
+
+  /**
+   * "Email me a code": sign in without the password, or resend a sign-up code.
+   *
+   * Answers the same way whether or not the address is registered, for the
+   * reason the forgotten-password route below does: anyone on the internet can
+   * post any address here.
+   */
+  app.post('/auth/email/code', limit(config, 5, '15 minutes'), async (req, reply) => {
+    const input = emailCodeRequestInput.parse(req.body);
+    refuseWithoutMail();
+    const row = await repos.guardians.byEmail(input.email);
+    if (!row) {
+      await burnPasswordTime();
+    } else {
+      await sendLetter(row, row.emailVerifiedAt ? 'sign_in' : 'verify_email');
+      await repos.audit.record({
+        actorType: 'guardian',
+        actorId: row.id,
+        action: 'guardian.sign_in_code_requested',
+        subjectType: 'guardian',
+        subjectId: row.id,
+      });
+    }
+    return reply.status(202).send({ ok: true, ttlMinutes: EMAIL_CODE_TTL_MINUTES });
+  });
+
+  /**
+   * The first password, chosen once the address is proved.
+   *
+   * Only for an account that has none. Changing a password that exists goes
+   * through the emailed reset below, which signs every other device out -- a
+   * change made here, with nothing but an access token, would be the one way
+   * to take an account over without its inbox.
+   */
+  app.post('/auth/password/set', limit(config, 10, '15 minutes'), async (req) => {
+    const guardianId = requireGuardian(req);
+    const input = setPasswordInput.parse(req.body);
+    const row = await repos.guardians.byId(guardianId);
+    if (!row) throw errors.unauthorized('No such guardian');
+    if (hasPassword(row.passwordHash)) {
+      throw errors.conflict(
+        'password_exists',
+        'Password already set',
+        'This account already has a password. To change it, use "Forgot your password?" on the sign-in page.',
+      );
+    }
+    await repos.guardians.setPassword(row.id, await hashSecret(input.password));
+    return { ok: true };
   });
 
   app.post('/auth/login', limit(config, 10, '15 minutes'), async (req, reply) => {
     const input = loginInput.parse(req.body);
     const row = await repos.guardians.byEmail(input.email);
 
-    if (!row) {
+    if (!row || !hasPassword(row.passwordHash)) {
       // Spend the same time we would on a real account so response latency
-      // cannot be used to enumerate registered emails.
+      // cannot be used to enumerate registered emails -- or to find the ones
+      // that have not chosen a password yet.
       await burnPasswordTime();
-      throw errors.unauthorized('No such guardian');
+      throw errors.unauthorized(
+        row ? 'No password set' : 'No such guardian',
+        'That email and password do not match. You can ask for a sign-in code instead.',
+      );
     }
     if (!(await verifySecret(input.password, row.passwordHash))) {
       await repos.audit.record({
@@ -117,31 +391,13 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
         subjectType: 'guardian',
         subjectId: row.id,
       });
-      throw errors.unauthorized('Bad password');
+      throw errors.unauthorized(
+        'Bad password',
+        'That email and password do not match. You can ask for a sign-in code instead.',
+      );
     }
 
-    await repos.guardians.markLogin(row.id);
-    const { token, hash } = newRefreshToken();
-    await repos.refreshTokens.issue(row.id, hash, config.REFRESH_TOKEN_TTL_DAYS);
-    setRefreshCookie(reply, token);
-    await repos.audit.record({
-      actorType: 'guardian',
-      actorId: row.id,
-      action: 'guardian.login',
-      subjectType: 'guardian',
-      subjectId: row.id,
-    });
-
-    return {
-      guardian: {
-        id: row.id,
-        email: row.email,
-        displayName: row.displayName,
-        timezone: row.timezone,
-        createdAt: row.createdAt,
-      },
-      accessToken: await signAccessToken(config, { kind: 'guardian', guardianId: row.id }),
-    };
+    return signIn(reply, row);
   });
 
   app.post('/auth/refresh', async (req, reply) => {
@@ -178,11 +434,11 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
   // -------------------------------------------------------------------------
 
   /**
-   * Ask for a reset link.
+   * Ask for a reset letter: a code, and a button.
    *
    * Answers the same way whether or not the address is registered, which is
-   * the opposite of what `/auth/register` does two hundred lines above -- and
-   * the difference is deliberate rather than an inconsistency.
+   * the opposite of what `/auth/register` does above -- and the difference is
+   * deliberate rather than an inconsistency.
    *
    * Registration is a thing the person in front of us is doing on purpose, and
    * telling them "you already have an account" is the answer to the question
@@ -193,6 +449,7 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
    */
   app.post('/auth/password/forgot', limit(config, 5, '1 hour'), async (req, reply) => {
     const input = forgotPasswordInput.parse(req.body);
+    refuseWithoutMail();
     const row = await repos.guardians.byEmail(input.email);
 
     if (!row) {
@@ -200,8 +457,7 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
       // this the response latency answers the question the body refuses to.
       await burnPasswordTime();
     } else {
-      const { token, hash } = newPasswordResetToken();
-      await repos.passwordResets.issue(row.id, hash, PASSWORD_RESET_TTL_MINUTES, ctx.now());
+      await sendLetter(row, 'password_reset');
       await repos.audit.record({
         actorType: 'guardian',
         actorId: row.id,
@@ -209,18 +465,6 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
         subjectType: 'guardian',
         subjectId: row.id,
       });
-      await ctx.outbox.enqueue(
-        passwordResetEmail({
-          to: row.email,
-          displayName: row.displayName,
-          // Built from configuration, never from the request. A reset link
-          // assembled out of a Host header is how this feature turns into
-          // account takeover.
-          url: `${config.PUBLIC_URL}/reset?token=${encodeURIComponent(token)}`,
-          ttlMinutes: PASSWORD_RESET_TTL_MINUTES,
-          publicUrl: config.PUBLIC_URL,
-        }),
-      );
     }
 
     // 202: we have accepted the request, and whether a message follows is
@@ -229,49 +473,49 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
   });
 
   /**
-   * Spend a reset link and choose a new password.
+   * Spend a reset letter -- its code or its button -- and choose a new password.
    *
    * Three things happen together, and all three matter:
    *
-   *   1. the token is consumed, so the link in the mailbox is dead whether or
-   *      not it is forwarded, scanned or opened twice;
+   *   1. the letter is consumed, so the code and the link in the mailbox are
+   *      dead whether or not they are forwarded, scanned or opened twice;
    *   2. every refresh token for the household is revoked, so a device that
    *      somebody else had signed in is signed out by the reset rather than in
    *      spite of it -- this is the step that makes a reset a recovery;
    *   3. a message goes to the address on the account saying it happened.
    *
-   * Then we sign them in, because the alternative is a screen that says
-   * "password changed, now sign in" to somebody who has just proved they own
-   * the account.
+   * It also confirms the address, which it has just proved. Then we sign them
+   * in, because the alternative is a screen that says "password changed, now
+   * sign in" to somebody who has just proved they own the account.
    */
   app.post('/auth/password/reset', limit(config, 10, '1 hour'), async (req, reply) => {
     const input = resetPasswordInput.parse(req.body);
     const now = ctx.now();
 
-    const reset = await repos.passwordResets.findValid(hashRefreshToken(input.token), now);
-    if (!reset) {
-      throw errors.unauthorized(
-        'Reset token not recognised',
-        'That link has expired or has already been used. Ask for a new one.',
-      );
+    const found = await redeem(input, ['password_reset']);
+    if (!found) {
+      if ('token' in input) {
+        throw errors.unauthorized(
+          'Reset token not recognised',
+          'That link has expired or has already been used. Ask for a new one.',
+        );
+      }
+      throw errors.codeRejected();
     }
-
-    const guardian = await repos.guardians.byId(reset.guardianId);
-    // The household was erased between asking and clicking. Nothing to reset.
-    if (!guardian) throw errors.unauthorized('No such guardian');
+    const { challenge, guardian } = found;
 
     await repos.guardians.setPassword(guardian.id, await hashSecret(input.password));
     /*
-     * Spend this one link, and only this one.
+     * Spend this one letter, and only this one.
      *
-     * A `revokeAllFor` here as well reads like belt and braces and is not: at
-     * most one unspent row can exist, because issuing a request revokes the
-     * household's earlier ones. What the second call actually did was make the
-     * first untestable -- deleting `consume` left every test passing, because
-     * the sweep was doing its job for it. Redundancy that hides a missing step
-     * is worse than no redundancy.
+     * A sweep of every letter here as well reads like belt and braces and is
+     * not: at most one unspent reset can exist, because issuing a request
+     * revokes the household's earlier ones. What a second call actually did was
+     * make the first untestable -- deleting `consume` left every test passing,
+     * because the sweep was doing its job for it. Redundancy that hides a
+     * missing step is worse than no redundancy.
      */
-    await repos.passwordResets.consume(reset.id, now);
+    await repos.emailChallenges.consume(challenge.id, now);
     await repos.refreshTokens.revokeAllFor(guardian.id);
     await repos.audit.record({
       actorType: 'guardian',
@@ -280,32 +524,23 @@ export async function registerParentRoutes(app: FastifyInstance, ctx: AppContext
       subjectType: 'guardian',
       subjectId: guardian.id,
     });
+    await confirmAddress(guardian);
 
-    await ctx.outbox.enqueue(
-      passwordChangedEmail({
-        to: guardian.email,
-        displayName: guardian.displayName,
-        publicUrl: config.PUBLIC_URL,
-      }),
-    );
+    // A first password chosen through the reset route is not a change, and
+    // "your password was changed" would alarm somebody who had never had one.
+    if (hasPassword(guardian.passwordHash)) {
+      await ctx.outbox.enqueue(
+        passwordChangedEmail({
+          to: guardian.email,
+          displayName: guardian.displayName,
+          publicUrl: config.PUBLIC_URL,
+        }),
+      );
+    }
 
     // Issued after the revoke above, so the device doing the reset is the one
     // session that survives it.
-    const { token, hash } = newRefreshToken();
-    await repos.refreshTokens.issue(guardian.id, hash, config.REFRESH_TOKEN_TTL_DAYS);
-    setRefreshCookie(reply, token);
-    await repos.guardians.markLogin(guardian.id);
-
-    return {
-      guardian: {
-        id: guardian.id,
-        email: guardian.email,
-        displayName: guardian.displayName,
-        timezone: guardian.timezone,
-        createdAt: guardian.createdAt,
-      },
-      accessToken: await signAccessToken(config, { kind: 'guardian', guardianId: guardian.id }),
-    };
+    return signIn(reply, guardian);
   });
 
   /**

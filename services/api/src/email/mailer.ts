@@ -5,11 +5,13 @@ import type { Config } from '../config.js';
  *
  * Composition, queueing and retry live elsewhere; this is only the last hop.
  * Keeping it this narrow is what lets the whole email path be exercised in
- * tests without a mail server, and what will let a transactional API replace
- * SMTP later without touching a single template.
+ * tests without a mail server, and what let Resend's API arrive beside SMTP
+ * without touching a single template.
  */
+export type Transport = 'resend' | 'smtp' | 'log';
+
 export interface Mailer {
-  readonly name: 'smtp' | 'log';
+  readonly name: Transport;
   send(message: OutgoingMessage): Promise<void>;
 }
 
@@ -18,6 +20,12 @@ export interface OutgoingMessage {
   subject: string;
   text: string;
   html?: string | null;
+  /**
+   * The outbox row's id. A provider that supports idempotency keys uses it so
+   * that a message which went out -- but whose "sent" mark failed to save --
+   * is not sent a second time when the queue retries it.
+   */
+  idempotencyKey?: string;
 }
 
 /**
@@ -43,6 +51,78 @@ export class LogMailer implements Mailer {
 }
 
 /**
+ * Real delivery, through Resend's HTTP API.
+ *
+ * The preferred transport, and the one meravansh.lol already sends through, so
+ * the two sites share one provider, one dashboard and one way of checking a
+ * domain. HTTPS rather than SMTP because a VPS's outbound mail ports are the
+ * first thing a host blocks, and 443 is the one port that is never blocked.
+ *
+ * Plain `fetch`, no SDK: the whole API this needs is one POST, and a
+ * dependency for it is a dependency to keep patched.
+ */
+export class ResendMailer implements Mailer {
+  readonly name = 'resend' as const;
+
+  constructor(
+    private readonly options: {
+      apiKey: string;
+      from: string;
+      replyTo?: string | null;
+      /** Injected by tests; the real one otherwise. */
+      fetch?: typeof fetch;
+    },
+  ) {}
+
+  async send(message: OutgoingMessage): Promise<void> {
+    const doFetch = this.options.fetch ?? fetch;
+    const res = await doFetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${this.options.apiKey}`,
+        'content-type': 'application/json',
+        // Resend keeps an idempotency key for a day, which covers every retry
+        // the outbox will make in the window where a duplicate is possible.
+        ...(message.idempotencyKey ? { 'idempotency-key': message.idempotencyKey } : {}),
+      },
+      body: JSON.stringify({
+        from: this.options.from,
+        to: [message.to],
+        subject: message.subject,
+        text: message.text,
+        ...(message.html ? { html: message.html } : {}),
+        ...(this.options.replyTo ? { reply_to: this.options.replyTo } : {}),
+      }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) {
+      throw new Error(`Resend ${res.status}: ${resendReason(await res.text())}`);
+    }
+  }
+}
+
+/**
+ * The sentence in a Resend error that says what to do.
+ *
+ * Its errors are JSON with a `message` -- "The kidspc.online domain is not
+ * verified", "API key is invalid" -- and that line is what belongs in the
+ * outbox row's `last_error`, not the whole body.
+ */
+export function resendReason(body: string): string {
+  try {
+    const parsed = JSON.parse(body) as { message?: unknown; name?: unknown };
+    if (typeof parsed.message === 'string') {
+      return typeof parsed.name === 'string'
+        ? `${parsed.message} (${parsed.name})`
+        : parsed.message;
+    }
+  } catch {
+    // Not JSON: a proxy's HTML error page, most likely. The start of it will do.
+  }
+  return body.slice(0, 200);
+}
+
+/**
  * Real delivery, over SMTP.
  *
  * Configured the same way the other services on this host are -- Zoho on 465
@@ -61,6 +141,7 @@ export class SmtpMailer implements Mailer {
       user: string;
       pass: string;
       from: string;
+      replyTo?: string | null;
     },
   ) {}
 
@@ -93,6 +174,7 @@ export class SmtpMailer implements Mailer {
     const transport = await this.transporter();
     await transport.sendMail({
       from: this.options.from,
+      ...(this.options.replyTo ? { replyTo: this.options.replyTo } : {}),
       to: message.to,
       subject: message.subject,
       text: message.text,
@@ -107,24 +189,54 @@ export class SmtpMailer implements Mailer {
 }
 
 /**
- * Whether this configuration can actually reach a mail server.
+ * Whether this configuration can actually reach a mail server over SMTP.
  *
- * Exported because two very different places need the same answer: the config
- * loader, deciding whether to build an SmtpMailer, and /healthz, reporting
- * whether mail is going anywhere.
+ * Exported because two very different places need the same answer: choosing a
+ * transport, and `pnpm mail`, reporting which settings are missing.
  */
 export function smtpConfigured(config: Config): boolean {
-  return Boolean(config.SMTP_HOST && config.SMTP_USER && config.SMTP_PASS && config.SMTP_FROM);
+  return Boolean(config.SMTP_HOST && config.SMTP_USER && config.SMTP_PASS && config.mailFrom);
+}
+
+/**
+ * Which transport this configuration uses.
+ *
+ * `EMAIL_DELIVERY` says so outright when it is set. When it is not, the first
+ * one with credentials wins -- Resend, then SMTP -- and with neither, the log.
+ * An explicit choice whose credentials are missing is refused at boot in
+ * production rather than quietly falling back; see loadConfig.
+ */
+export function chooseTransport(config: Config): Transport {
+  if (config.EMAIL_DELIVERY) {
+    if (config.EMAIL_DELIVERY === 'resend' && !(config.RESEND_API_KEY && config.mailFrom))
+      return 'log';
+    if (config.EMAIL_DELIVERY === 'smtp' && !smtpConfigured(config)) return 'log';
+    return config.EMAIL_DELIVERY;
+  }
+  if (config.RESEND_API_KEY && config.mailFrom) return 'resend';
+  if (smtpConfigured(config)) return 'smtp';
+  return 'log';
 }
 
 export function createMailer(config: Config): Mailer {
-  if (!smtpConfigured(config)) return new LogMailer();
-  return new SmtpMailer({
-    host: config.SMTP_HOST!,
-    port: config.SMTP_PORT,
-    secure: config.SMTP_SECURE,
-    user: config.SMTP_USER!,
-    pass: config.SMTP_PASS!,
-    from: config.SMTP_FROM!,
-  });
+  switch (chooseTransport(config)) {
+    case 'resend':
+      return new ResendMailer({
+        apiKey: config.RESEND_API_KEY!,
+        from: config.mailFrom!,
+        replyTo: config.MAIL_REPLY_TO,
+      });
+    case 'smtp':
+      return new SmtpMailer({
+        host: config.SMTP_HOST!,
+        port: config.SMTP_PORT,
+        secure: config.SMTP_SECURE,
+        user: config.SMTP_USER!,
+        pass: config.SMTP_PASS!,
+        from: config.mailFrom!,
+        replyTo: config.MAIL_REPLY_TO,
+      });
+    case 'log':
+      return new LogMailer();
+  }
 }

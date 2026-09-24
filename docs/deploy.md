@@ -66,79 +66,83 @@ dig +short apps.kidspc.online A @1.1.1.1
 
 ## Mail
 
-Nothing is delivered until this is done, and the failure is silent by design:
-with no credentials the API queues messages rather than dropping them, so
-`/healthz` says `ok`, the queue grows, and no parent ever hears from us. That
-costs a welcome email today and a locked-out household tomorrow — the
-password-reset link is an email and nothing else.
+Nothing is delivered until this is done, and since every account now starts
+with an emailed code, **nobody can sign up until it is**. In production with no
+transport the API says so ("new sign-ups are paused") rather than taking a
+sign-up whose code can never arrive. It keeps every queued letter, and sends
+them within a minute of mail starting to work.
 
 Check where you stand:
 
 ```bash
 curl -s https://kidspc.online/healthz | grep -o '"mail":"[a-z]*"'
-# "mail":"log"   -> queued, nothing delivered
-# "mail":"smtp"  -> going out
+# "mail":"log"     -> queued, nothing delivered, sign-ups paused
+# "mail":"resend"  -> going out through Resend
 ```
 
-### 1. A mailbox at the domain
+What goes out: the sign-up code, sign-in codes, password resets (each a code
+**and** a button — the code is for the TV, the button for the phone the letter
+is read on), the welcome once an address is confirmed, "your password was
+changed", plan requests and payment links, and contact-form replies.
 
-`SMTP_HOST` is already `smtp.zoho.com`, so these instructions assume Zoho; any
-provider works, and only the four settings at the end change.
+### 1. Resend
 
-Zoho Mail, not ZeptoMail, because this domain needs to **receive** as well as
-send: `ORDERS_EMAIL` is where plan requests and contact-form messages land, and
-a reply to a support message has to go somewhere. ZeptoMail is send-only.
+The same provider meravansh.lol uses, over HTTPS — port 443 is the one port a
+VPS host never blocks, where SMTP ports often are.
 
-1. Sign up at `zoho.com/mail` with **kidspc.online** as the domain.
-2. Verify ownership — Zoho gives you a TXT record to add at BigRock.
-3. Create the mailbox. `hello@kidspc.online` is the obvious one; it is both
-   the sender and the address a parent replies to.
+1. At `resend.com`, in the account meravansh.lol already uses, create an API key
+   with **Sending access** only (API Keys → Create). A server should hold a key
+   that can send and nothing else.
+2. Put it in `/root/kidspc/.env.production`:
 
-**Check the plan allows SMTP before paying for anything.** Zoho's free tier has
-at times excluded IMAP/POP/SMTP access, leaving webmail only — which would let
-you read mail and not send any from here. If the free plan does not include
-SMTP, Mail Lite is the cheapest that does.
+```bash
+RESEND_API_KEY=re_...
+MAIL_FROM=Online Kids PC <hello@kidspc.online>
+MAIL_REPLY_TO=hello@kidspc.online     # replies to any letter land here
+ORDERS_EMAIL=hello@kidspc.online      # plan requests and contact messages
+```
 
-### 2. DNS, which is most of the work
+### 2. Prove the domain, which is most of the work
 
-Four records at BigRock. Skipping them does not make mail fail; it makes mail
-arrive in spam, which is worse because it looks like it worked.
+Resend refuses to send as `kidspc.online` until DNS says it may. Add the domain
+in the Resend dashboard (Domains → Add, region of your choice), or with a
+full-access key from the API container:
+
+```bash
+docker compose exec api pnpm mail check --create
+```
+
+Either way you get the exact records. They look like this at BigRock — copy the
+values from Resend, not from here:
 
 | Type | Host | Value | Why |
 |---|---|---|---|
-| MX | `@` | `mx.zoho.com` (priority 10) | Receiving. Add `mx2` / `mx3` as Zoho lists them. |
-| TXT | `@` | `v=spf1 include:zoho.com ~all` | Says this relay may send as you. |
-| TXT | `zoho._domainkey` | *the key Zoho generates* | Signs each message. Zoho gives you the exact value. |
-| TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:postmaster@kidspc.online` | Tells receivers what to do when the first two disagree, and sends you reports. |
+| TXT | `resend._domainkey` | *the key Resend generates* | DKIM: signs each letter. |
+| MX | `send` | `feedback-smtp.<region>.amazonses.com` (priority 10) | Bounces come back here. |
+| TXT | `send` | `v=spf1 include:amazonses.com ~all` | SPF for the return path. |
+| TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:hello@kidspc.online` | Tells receivers what to do when the others disagree. |
+
+The `send` records sit on a subdomain on purpose, so they never collide with
+whatever receives mail for the domain itself. Then press **Verify** in Resend.
+`pnpm mail check` shows each record with whether Resend has seen it yet.
 
 Start DMARC at `p=none` and read the reports for a fortnight before tightening
-to `quarantine`. Going straight to `p=reject` with a misconfigured SPF means
-your own password-reset mail is rejected and nobody can tell you.
+to `quarantine`. Going straight to `p=reject` with a misconfigured record means
+your own sign-up codes are rejected and nobody can tell you.
 
-Since 2024 Google and Yahoo require SPF or DKIM from anyone sending them any
-volume at all. A domain with neither, sending a link that says "click here to
-reset your password", is the exact shape of a phishing message.
+### 3. Somewhere for replies to land
 
-### 3. Four settings
+Resend sends; it does not give you an inbox. `hello@kidspc.online` is where a
+parent's reply and every plan request arrive, so the domain needs MX records
+for receiving as well. Either:
 
-In `/root/kidspc/.env.production`:
+- **Forward to a mailbox you already read** — Cloudflare Email Routing or
+  ImprovMX, both free: add their MX records at `@` and forward
+  `hello@kidspc.online` to your Gmail. Enough for one person answering.
+- **A real mailbox** — Zoho Mail or Google Workspace, when more than one person
+  answers. Their MX records go at `@`; nothing above changes.
 
-```bash
-SMTP_HOST=smtp.zoho.com
-SMTP_PORT=465          # implicit TLS. 587 is STARTTLS and needs SMTP_SECURE=0
-SMTP_SECURE=1
-SMTP_USER=hello@kidspc.online
-SMTP_PASS=             # an app-specific password, not the account password
-SMTP_FROM=Online Kids PC <hello@kidspc.online>
-ORDERS_EMAIL=hello@kidspc.online
-```
-
-`SMTP_PASS` must be an **app-specific password** if the account has two-factor
-authentication on it, which it should. Zoho: Settings → Security → App
-Passwords. The account password is rejected over SMTP and the error says
-`Invalid login`, which sounds like a typo and is not.
-
-Then restart, and the held queue drains within a minute:
+### 4. Restart and prove it
 
 ```bash
 cd /root/kidspc/infra
@@ -146,42 +150,46 @@ docker compose --env-file /root/kidspc/.env.production \
   -f docker-compose.shared-edge.yml up -d --force-recreate api
 ```
 
-### 4. Prove it
-
-Each step separately, because "mail does not work" has four different causes
-that look identical in the logs:
+Then each step separately, because "mail does not work" has several causes that
+look identical in the logs:
 
 ```bash
-pnpm preflight /root/kidspc/.env.production   # settings and DNS
-docker compose exec api pnpm mail check       # can we authenticate?
+pnpm preflight /root/kidspc/.env.production        # settings, Resend's verdict, DNS
+docker compose exec api pnpm mail check            # key accepted? domain verified?
 docker compose exec api pnpm mail send you@gmail.com
-docker compose exec api pnpm orders queue     # anything stuck, and why
+docker compose exec api pnpm orders queue          # anything stuck, and why
 ```
 
 Use a Gmail address for the send test, not one at your own domain: mail from a
 domain to itself often skips the checks you are trying to verify. **Open the
-message and look at the headers** — `SPF: PASS` and `DKIM: PASS` are the point
-of step 2. Landing in spam means delivery worked and DNS did not.
+message and look at the headers** — `SPF: PASS`, `DKIM: PASS` and `DMARC: PASS`
+are the point of step 2. Landing in spam means delivery worked and DNS did not.
 
-Last, the real thing: ask for a reset at `/forgot` and follow the link that
-arrives.
+Last, the real thing: sign up at `/signin?new=1` with a fresh address, type the
+code, and choose a password.
+
+SMTP still works for a host with a mailbox and no API key — set `SMTP_HOST`,
+`SMTP_USER`, `SMTP_PASS` and `MAIL_FROM` instead, or force a choice with
+`EMAIL_DELIVERY=resend|smtp`. Resend wins when both are configured.
 
 ### Until it works
 
-The reset link exists in the outbox and nowhere else, so it can be read out:
+A queued code or link exists in the outbox and nowhere else, so it can be read
+out for a parent who is stuck:
 
 ```bash
-docker compose exec api pnpm mail link
+docker compose exec api pnpm mail link parent@example.com
 ```
 
 That is a support workaround, not a plan. It requires shell access on the
-production host for every locked-out parent.
+production host for every household.
 
 ## Start in lite mode
 
 `DEPLOYMENT_MODE=lite` serves every local activity and game — Paint, Typing
 Garden, Block Puzzles, Number Ninja, Story Writer, Code Playground, the quizzes
-and the arcade games — all of which run in the child's own browser. The server holds a session row and answers a heartbeat, so
+and the arcade games — all of which run in the child's own browser. The server
+holds a session row and answers a heartbeat, so
 **one small VPS carries thousands of subscribers at about Rs 0.24 each**, against
 Rs 66 each on bare metal for streamed desktops.
 

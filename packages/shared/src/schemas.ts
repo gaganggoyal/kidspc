@@ -36,9 +36,17 @@ export const phoneE164 = z.string().regex(/^\+[1-9]\d{7,14}$/, 'Expected E.164, 
 // Guardian & auth
 // ---------------------------------------------------------------------------
 
+/**
+ * Signing up: a name and an address, and nothing else yet.
+ *
+ * No password here, on purpose. A password chosen before the address is proved
+ * belongs to whoever typed the address first -- which need not be its owner --
+ * and confirming the code would then hand the owner an account somebody else
+ * knows the password to. So the address is proved first, and the password is
+ * chosen afterwards, by the person who proved it.
+ */
 export const registerGuardianInput = z.object({
   email,
-  password,
   displayName: z.string().trim().min(1).max(80),
   timezone: z.string().min(1).max(64).default('Asia/Kolkata'),
 });
@@ -61,12 +69,48 @@ export const PASSWORD_RESET_TTL_MINUTES = 60;
 export const forgotPasswordInput = z.object({ email });
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordInput>;
 
-export const resetPasswordInput = z.object({
+/**
+ * How long the code in a "confirm your email" or "sign-in code" letter works.
+ *
+ * Shorter than a reset link because it is typed from one screen into another
+ * that is already open and waiting, rather than found in an inbox later.
+ */
+export const EMAIL_CODE_TTL_MINUTES = 30;
+
+/**
+ * Six digits, the shape every bank and every delivery app already uses.
+ *
+ * A code rather than only a link, because of where this product is used: a
+ * parent signing in on a television reads the mail on their phone, and a link
+ * opened there signs in the phone. Typing six digits on the TV signs in the TV.
+ * Non-digits are stripped first, so "123 456" pasted from a mail client works.
+ */
+export const emailCode = z
+  .string()
+  .transform((v) => v.replace(/\D/g, ''))
+  .pipe(z.string().regex(/^\d{6}$/, 'The code is 6 digits'));
+
+/** The emailed secret, either typed as a code or carried in by a link. */
+const emailProof = z.union([
+  z.object({ email, code: emailCode }),
   /** Opaque; the server compares a digest of it and never parses it. */
-  token: z.string().min(16).max(400),
-  password,
-});
+  z.object({ token: z.string().min(16).max(400) }),
+]);
+
+/** "Email me a code": to sign in without a password, or to resend one. */
+export const emailCodeRequestInput = z.object({ email });
+export type EmailCodeRequestInput = z.infer<typeof emailCodeRequestInput>;
+
+/** Confirm an address, or sign in, with what the letter carried. */
+export const emailVerifyInput = emailProof;
+export type EmailVerifyInput = z.infer<typeof emailVerifyInput>;
+
+export const resetPasswordInput = z.intersection(emailProof, z.object({ password }));
 export type ResetPasswordInput = z.infer<typeof resetPasswordInput>;
+
+/** The first password, chosen once the address is proved. */
+export const setPasswordInput = z.object({ password });
+export type SetPasswordInput = z.infer<typeof setPasswordInput>;
 
 // ---------------------------------------------------------------------------
 // Consent (DPDP Act 2023 s.9 -- verifiable parental consent)
@@ -283,6 +327,10 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
  * unsubscribe or audit path knows about.
  */
 export const EMAIL_TEMPLATES = [
+  /* The first letter anybody gets: the code that turns a sign-up into an
+     account. Nothing else is sent to an address until it has been confirmed. */
+  'verify_email',
+  'sign_in_code',
   'welcome',
   'password_reset',
   /* Sent after the fact, to the old address. This is the message that tells
@@ -292,6 +340,8 @@ export const EMAIL_TEMPLATES = [
   'order_internal',
   'payment_link',
   'contact_message',
+  /* `pnpm mail send`: proves the path from this server to an inbox. */
+  'mail_test',
 ] as const;
 export const emailTemplate = z.enum(EMAIL_TEMPLATES);
 export type EmailTemplate = (typeof EMAIL_TEMPLATES)[number];

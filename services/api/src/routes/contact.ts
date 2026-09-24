@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { contactMessageInput } from '@kidpc/shared';
+import { deskAddress } from '../config.js';
 import type { AppContext } from '../context.js';
 import { limit } from '../limits.js';
 import { contactAckEmail, contactMessageEmail } from '../email/templates.js';
@@ -27,7 +28,7 @@ export function registerContactRoutes(app: FastifyInstance, ctx: AppContext): vo
   app.post('/contact', limit(config, 5, '1 hour'), async (req, reply) => {
     const input = contactMessageInput.parse(req.body);
 
-    const desk = config.ORDERS_EMAIL ?? config.SMTP_USER;
+    const desk = deskAddress(config);
     if (desk) {
       await ctx.outbox.enqueue(
         contactMessageEmail({

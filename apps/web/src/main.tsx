@@ -13,6 +13,7 @@ import { Contact } from './pages/Contact';
 import { Delivery, Privacy, Refunds, Terms } from './pages/Policies';
 import { SignIn } from './pages/SignIn';
 import { Forgot, ResetPassword } from './pages/Recover';
+import { Verify } from './pages/EmailCode';
 import { Household } from './pages/Household';
 import { Launcher } from './pages/Launcher';
 import { Viewer } from './pages/Viewer';
@@ -103,6 +104,9 @@ function App() {
         */}
         <Route path="/forgot" element={<Forgot />} />
         <Route path="/reset" element={<ResetPassword />} />
+        {/* Where the button in a sign-up or sign-in letter lands. Also a
+            promise to a message already in somebody's inbox. */}
+        <Route path="/verify" element={<Verify />} />
         <Route
           path="/household"
           element={

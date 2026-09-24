@@ -95,9 +95,15 @@ services:
       CONSENT_VERIFIER: ${CONSENT_VERIFIER:?see docs/deploy.md -- 'unavailable' is the honest setting until a real verifier exists}
       DIGILOCKER_CLIENT_ID: ${DIGILOCKER_CLIENT_ID:-}
       DIGILOCKER_CLIENT_SECRET: ${DIGILOCKER_CLIENT_SECRET:-}
-      # Outgoing mail. All optional: without them the service queues messages
-      # and logs them, so nothing is lost while the mailbox is being set up.
-      # Same provider and variable names as the other sites on this host.
+      # Outgoing mail. Resend is the transport (the same one meravansh.lol
+      # uses); SMTP is kept for a host with a mailbox and no API key. All
+      # optional: without them the service queues messages and logs them, so
+      # nothing is lost while mail is being set up -- but sign-ups are paused,
+      # because nobody could receive the confirmation code. See docs/deploy.md.
+      EMAIL_DELIVERY: ${EMAIL_DELIVERY:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-465}
       SMTP_SECURE: ${SMTP_SECURE:-1}

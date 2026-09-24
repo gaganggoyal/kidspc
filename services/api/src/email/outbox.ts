@@ -14,10 +14,22 @@ import type { Mailer } from './mailer.js';
  * received anything.
  */
 export class Outbox {
+  private readonly listeners = new Set<() => void>();
+
   constructor(
     private readonly db: Database,
     private readonly now: () => Date,
   ) {}
+
+  /**
+   * Told whenever something is queued, so the sender can go now rather than
+   * at its next sweep. A sign-in code that arrives a minute after it was asked
+   * for is a parent standing at a television wondering whether it worked.
+   */
+  onEnqueue(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
 
   /** Queue a composed message. Returns its id so a caller can log the link. */
   async enqueue(message: Composed): Promise<string> {
@@ -32,6 +44,7 @@ export class Outbox {
       createdAt: this.now(),
       nextTryAt: this.now(),
     });
+    this.listeners.forEach((listener) => listener());
     return id;
   }
 
@@ -94,6 +107,7 @@ export async function sendPending(
         subject: row.subject,
         text: row.bodyText,
         html: row.bodyHtml,
+        idempotencyKey: row.id,
       });
       await db
         .update(emailOutbox)

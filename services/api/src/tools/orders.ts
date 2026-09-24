@@ -133,7 +133,7 @@ try {
       const mailer = createMailer(config);
       if (mailer.name === 'log') {
         console.error(
-          'SMTP is not configured, so there is nowhere to send. Set SMTP_HOST, SMTP_USER, SMTP_PASS and SMTP_FROM.',
+          'Mail is not configured, so there is nowhere to send. Set RESEND_API_KEY and MAIL_FROM (see docs/deploy.md, "Mail").',
         );
         process.exit(1);
       }

@@ -1,5 +1,7 @@
 import type { FastifyInstance } from 'fastify';
+import { and, desc, eq } from 'drizzle-orm';
 import { buildApp } from '../app.js';
+import { emailOutbox } from '../db/schema.js';
 import { createRuntime, type Runtime } from '../boot.js';
 
 /**
@@ -56,6 +58,26 @@ const BASE_ENV = {
   RATE_LIMITS: 'off',
 } as unknown as NodeJS.ProcessEnv;
 
+/**
+ * The code in the newest letter of a kind sent to an address, read from the
+ * outbox the way a person reads it from their inbox.
+ */
+export async function emailedCode(
+  runtime: Runtime,
+  email: string,
+  template: 'verify_email' | 'sign_in_code' | 'password_reset',
+): Promise<string> {
+  const [row] = await runtime.ctx.database.db
+    .select()
+    .from(emailOutbox)
+    .where(and(eq(emailOutbox.toAddress, email), eq(emailOutbox.template, template)))
+    .orderBy(desc(emailOutbox.id))
+    .limit(1);
+  const match = row && /Your code: (\d{3}) (\d{3})/.exec(row.bodyText);
+  if (!match) throw new Error(`no ${template} letter with a code for ${email}`);
+  return `${match[1]}${match[2]}`;
+}
+
 export async function createHarness(
   startAt: Date,
   env: Partial<NodeJS.ProcessEnv> = {},
@@ -83,14 +105,33 @@ export async function createHarness(
       clock = new Date(clock.getTime() + n * 60_000);
     },
 
+    /**
+     * The whole sign-up, the way a parent does it: ask, read the code out of
+     * the letter that was queued, confirm, then choose a password.
+     */
     async registerGuardian(email, timezone = 'Asia/Kolkata') {
-      const res = await app.inject({
+      const asked = await app.inject({
         method: 'POST',
         url: '/v1/auth/register',
-        payload: { email, password: 'a-long-enough-password', displayName: 'Parent', timezone },
+        payload: { email, displayName: 'Parent', timezone },
       });
-      if (res.statusCode !== 201) throw new Error(`register failed: ${res.body}`);
-      return res.json().accessToken as string;
+      if (asked.statusCode !== 202) throw new Error(`register failed: ${asked.body}`);
+      const code = await emailedCode(runtime, email, 'verify_email');
+      const verified = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/email/verify',
+        payload: { email, code },
+      });
+      if (verified.statusCode !== 200) throw new Error(`verify failed: ${verified.body}`);
+      const token = verified.json().accessToken as string;
+      const set = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/password/set',
+        headers: json(token),
+        payload: { password: 'a-long-enough-password' },
+      });
+      if (set.statusCode !== 200) throw new Error(`set password failed: ${set.body}`);
+      return token;
     },
 
     async createChild(token, spec) {

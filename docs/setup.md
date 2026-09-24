@@ -1,7 +1,7 @@
 # What you need to do
 
 Everything that can be built without you has been. This is the list of things
-that need a person with an account somewhere — a registrar, Zoho, a bank.
+that need a person with an account somewhere — a registrar, Resend, a bank.
 
 They are in order of what unblocks the most. Step 1 takes twenty minutes and
 turns email on. Step 5 is the one that lets real children use the service, and
@@ -12,15 +12,15 @@ Current state of https://kidspc.online:
 | | |
 |---|---|
 | Site | live, TLS valid, renews itself |
-| Free preview | working — anyone can play all eleven activities at /try, no account |
+| Free preview | working — anyone can play all nineteen games and activities at /try, no account |
 | Weekly challenge | working — a new prompt every Monday, no server involved |
-| Parent accounts | working — anyone can register today |
+| Parent accounts | **paused until step 1** — every sign-up is confirmed with an emailed code |
 | Child profiles | **blocked** — no way to verify a parent (step 5) |
 | Plan requests | working — orders recorded, emails queued |
 | Referrals | working — codes captured, longer trial honoured, rewards paid by hand (step 2) |
 | Company & policy pages | live — about, contact, terms, privacy, refunds, delivery (three facts still blank, step 4a) |
 | Contact form | working — messages queued to your desk, with a copy to the sender |
-| Email | **queued, not sending** — no mailbox (step 1) |
+| Email | **queued, not sending** — Resend not set up yet (step 1) |
 | Pro plan | priced and listed, no free trial, streamed desktop not built (step 6) |
 
 How all of that is meant to bring people in is written up separately, in
@@ -30,108 +30,105 @@ How all of that is meant to bring people in is written up separately, in
 
 ## Step 1 — Turn email on
 
-About twenty minutes, most of it waiting for DNS.
+About twenty minutes, most of it waiting for DNS. This is the step everything
+else waits on: an account now starts with a 6-digit code sent to the parent's
+inbox, so **until mail goes out, nobody can sign up** — the site says so plainly
+rather than taking a sign-up whose code never arrives.
 
-Nothing is being delivered right now. Every welcome and every order
-confirmation is sitting in a queue on the server, and will go out on the first
-sweep after you finish this. Nothing has been lost.
+Nothing queued has been lost. Every letter is sitting on the server and goes
+out on the first sweep after you finish this.
 
-### 1a. Add the domain to Zoho
+Sending is Resend, the same account meravansh.lol uses. Receiving (replies to
+`hello@kidspc.online`, plan requests) is separate, in 1c.
 
-You already have Zoho for indiaoffers.in, so this is the same flow again.
+### 1a. A key, and the domain, in Resend
 
-1. Sign in at https://mailadmin.zoho.com
-2. **Domains → Add Domain** → `kidspc.online`
-3. Zoho gives you a **TXT verification record**. Copy it.
+1. Sign in at https://resend.com with the meravansh.lol account.
+2. **API Keys → Create API key** → name it `kidspc`, permission **Sending
+   access**. Copy it — it starts `re_` and is shown once.
+3. **Domains → Add domain** → `kidspc.online`. Resend shows the DNS records
+   for 1b. Leave the page open.
 
-### 1b. Add the DNS records at BigRock
+### 1b. The DNS records, at BigRock
 
-`kidspc.online` is at BigRock — sign in, find the DNS / Manage DNS panel for the
-domain, and add these. The values are exactly what indiaoffers.in already uses,
-which is how I know they work with this Zoho account.
+`kidspc.online` is at BigRock — sign in, open DNS management for the domain,
+and add exactly what Resend shows. It will be these four, with Resend's values:
 
 | Type | Host / Name | Value | Priority |
 |---|---|---|---|
-| TXT | `@` | *(the verification string Zoho gave you)* | — |
-| MX | `@` | `mx.zoho.com` | 10 |
-| MX | `@` | `mx2.zoho.com` | 20 |
-| MX | `@` | `mx3.zoho.com` | 50 |
-| TXT | `@` | `v=spf1 include:zohomail.com ~all` | — |
+| TXT | `resend._domainkey` | `p=MIGfMA0GCSq…` *(Resend's DKIM key)* | — |
+| MX | `send` | `feedback-smtp.<region>.amazonses.com` | 10 |
+| TXT | `send` | `v=spf1 include:amazonses.com ~all` | — |
+| TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:hello@kidspc.online` | — |
 
-Then, back in Zoho: **Email Configuration → DKIM → Add selector**, use the
-selector `zmail`, and Zoho gives you a long public key. Add it as:
+**Do not skip any of them.** Without them Resend refuses to send at all, and
+without DMARC Gmail treats a letter saying "here is your code" as the phishing
+mail it resembles.
 
-| Type | Host / Name | Value |
-|---|---|---|
-| TXT | `zmail._domainkey` | `v=DKIM1; k=rsa; p=MIIBIjANBg…` *(Zoho's value)* |
-
-**Do not skip SPF and DKIM.** Without them Zoho will still send, and Gmail will
-still put it in spam. That is the whole difference between "email works" and
-"email arrives".
-
-Wait for DNS to propagate — usually minutes at BigRock, occasionally an hour.
-Check from your own machine:
+Wait for DNS — usually minutes at BigRock, occasionally an hour — then press
+**Verify** in Resend. Check from your own machine:
 
 ```bash
-dig +short kidspc.online MX
-dig +short kidspc.online TXT
-dig +short zmail._domainkey.kidspc.online TXT
+dig +short resend._domainkey.kidspc.online TXT
+dig +short send.kidspc.online MX
+dig +short _dmarc.kidspc.online TXT
 ```
 
-When all three return values, verify the domain in Zoho.
+### 1c. Somewhere for replies to land
 
-### 1c. Create the mailbox
+Resend only sends. Parents reply to letters, and plan requests go to
+`hello@kidspc.online`, so that address has to arrive somewhere. The quickest:
+**ImprovMX** (free) — add the domain, forward `hello@kidspc.online` to
+goyalgagan82@gmail.com, and add its two MX records at BigRock:
 
-In Zoho: **Users → Add User** → `hello@kidspc.online`.
+| Type | Host / Name | Value | Priority |
+|---|---|---|---|
+| MX | `@` | `mx1.improvmx.com` | 10 |
+| MX | `@` | `mx2.improvmx.com` | 20 |
 
-Then **generate an app-specific password** — Zoho account settings → Security →
-App Passwords. This is *not* your Zoho login password. SMTP with the account
-password will fail if two-factor is on, and you should have two-factor on.
+A Zoho mailbox works instead, if more than one person will answer — its MX
+records go at `@` the same way. Either way these are on the root domain, and
+Resend's `send` records never collide with them.
 
-### 1d. Put the credentials on the server
+### 1d. Put the key on the server
 
 ```bash
 ssh root@161.97.97.34
 nano /root/kidspc/.env.production
 ```
 
-Four blank lines near the bottom, already labelled. Fill them in:
+Add, or fill in:
 
 ```ini
-SMTP_USER=hello@kidspc.online
-SMTP_PASS=the-app-specific-password
-SMTP_FROM=Online Kids PC <hello@kidspc.online>
+RESEND_API_KEY=re_...
+MAIL_FROM=Online Kids PC <hello@kidspc.online>
+MAIL_REPLY_TO=hello@kidspc.online
 ORDERS_EMAIL=goyalgagan82@gmail.com
 ```
 
-`ORDERS_EMAIL` is where new plan requests are announced — your own inbox is
-fine, and probably better than the shared one.
+The `SMTP_*` lines can stay or go — Resend wins when both are set.
 
 Then restart the API:
 
 ```bash
-cd /root/kidspc
-docker compose -f infra/docker-compose.shared-edge.yml --env-file .env.production up -d api
+cd /root/kidspc/infra
+docker compose --env-file /root/kidspc/.env.production \
+  -f docker-compose.shared-edge.yml up -d --force-recreate api
 ```
 
 ### 1e. Check it worked
 
-`/healthz` is deliberately not exposed to the internet, so ask the container:
-
 ```bash
-docker exec kidspc-api-1 node -e \
-  "fetch('http://127.0.0.1:4000/healthz').then(r=>r.text()).then(console.log)"
+cd /root/kidspc/infra
+docker compose -f docker-compose.shared-edge.yml exec api pnpm mail check
+docker compose -f docker-compose.shared-edge.yml exec api pnpm mail send goyalgagan82@gmail.com
 ```
 
-You want `"mail":"smtp"` — not `"log"`. Then flush the backlog:
-
-```bash
-docker compose -f infra/docker-compose.shared-edge.yml exec api pnpm orders mail
-```
-
-Finally, register a test account at https://kidspc.online/signin?new=1 with an
-address you can read, and confirm the welcome email arrives **in the inbox, not
-in spam**. If it lands in spam, SPF or DKIM is wrong — recheck 1b.
+`check` says `VERIFIED` next to the domain; `send` delivers a test letter. Then
+the real thing: sign up at https://kidspc.online/signin?new=1 with an address
+you can read, type the code, choose a password — and confirm both the code and
+the welcome that follows land **in the inbox, not in spam**. Spam means a DNS
+record in 1b is wrong; `pnpm mail check` lists which.
 
 ---
 

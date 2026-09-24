@@ -3406,3 +3406,35 @@ button, .btn, .chip, a, [role='button'], input, textarea, select {
     grid-template-rows: repeat(3, 50px);
   }
 }
+
+/* ---- the six digits from an emailed letter ------------------------------ */
+
+/*
+ * Large, spaced and centred, because it is read off a phone and typed on a
+ * television, and a digit is easiest to check against the one in the letter
+ * when the two look alike.
+ */
+input.code-input {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 1.7em;
+  font-weight: 700;
+  letter-spacing: 0.35em;
+  text-align: center;
+  padding-block: 0.35em;
+  min-height: max(56px, 2.2em);
+}
+
+/*
+ * Text fields keep the ring and lose the lift. Scaling a field that is as wide
+ * as its card pushed it into the label above it and the "Show" button beside
+ * it; the ring alone is plenty for something that is already the widest thing
+ * on the screen.
+ */
+.tv input:focus,
+.tv select:focus,
+.tv textarea:focus {
+  transform: none;
+}
+.tv .field label {
+  margin-bottom: 10px;
+}

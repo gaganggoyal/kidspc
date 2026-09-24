@@ -185,6 +185,11 @@ system and the schema rather than in a checklist:
 Working and tested end to end:
 
 - Guardian auth (scrypt, rotating refresh tokens), child PIN sign-in
+- Every sign-up confirmed by email before it is used: a letter with a 6-digit
+  code (for the TV) and a button (for the phone), then the first password.
+  Sign-in by emailed code, and password reset by code or link
+- Transactional mail through Resend (SMTP as a fallback), queued with retries
+  and idempotency keys; `pnpm mail check` reports the DNS records Resend wants
 - Consent challenge/verify/revoke, single-use and replay-proof
 - Policy engine: daily and weekly budgets, allowed windows including curfews
   that wrap past midnight, per-band app gating
@@ -257,7 +262,7 @@ kidspc.online and an honest list of what still blocks launch. Getting it onto
 the screen it is built for is [docs/tv.md](docs/tv.md).
 
 **[docs/setup.md](docs/setup.md) is the operator's list**: the things that need
-a person with an account somewhere — Zoho, BigRock, Razorpay — in the order that
+a person with an account somewhere — Resend, BigRock, Razorpay — in the order that
 unblocks the most.
 
 [docs/growth.md](docs/growth.md) is why the free preview, the weekly challenge

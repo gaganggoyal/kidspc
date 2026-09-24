@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { PASSWORD_RESET_TTL_MINUTES, PRODUCT_NAME } from '@kidpc/shared';
 import { ApiError, api, setGuardianToken } from '../api';
+import { CodeField } from './EmailCode';
 import { PasswordField } from './PasswordField';
 
 /**
@@ -13,15 +14,46 @@ import { PasswordField } from './PasswordField';
  * clicked a mangled link, and the right thing to show them is the form that
  * sends a new one -- which is this file's other half.
  *
- * Neither screen is in the `.tv` scope. Recovery happens on the device where
- * the mail is, which is a phone in every household we have watched, and a
- * password typed on a TV remote is a password typed once.
+ * Both are in the `.tv` scope now. Recovery used to be a link, which only
+ * works on the device the mail is read on -- a phone, in every household we
+ * have watched. The letter now carries a code as well, and six digits read off
+ * a phone and typed on the television reset the television.
  */
 export function Forgot() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  /** The code from the letter and a new password, on this screen. */
+  const reset = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    setFieldErrors({});
+    try {
+      const result = await api<{ accessToken: string }>('/auth/password/reset', {
+        method: 'POST',
+        body: { email, code, password },
+        as: 'none',
+      });
+      setGuardianToken(result.accessToken);
+      navigate('/household', { replace: true });
+    } catch (cause) {
+      if (cause instanceof ApiError) {
+        setError(cause.userMessage);
+        setFieldErrors(cause.details as Record<string, string>);
+      } else {
+        setError(`We could not reach ${PRODUCT_NAME}. Check your connection and try again.`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -44,7 +76,7 @@ export function Forgot() {
   return (
     <Shell title="Forgotten password">
       {sent ? (
-        <div className="card stack">
+        <form className="card stack" onSubmit={reset}>
           <h2>Check your email</h2>
           {/*
             * Careful wording, on purpose. The server answers identically
@@ -53,10 +85,32 @@ export function Forgot() {
             * so this screen must not claim a message was sent.
             */}
           <p>
-            If <strong>{email}</strong> has an account, a link to choose a new password is on its
-            way. It works once and stops working after {PASSWORD_RESET_TTL_MINUTES} minutes.
+            If <strong>{email}</strong> has an account, a code is on its way. Type it here with a
+            new password — or press the button in the email to do this on your phone. Both work
+            once, for {PASSWORD_RESET_TTL_MINUTES} minutes.
           </p>
-          <p className="small muted">
+
+          <CodeField value={code} onChange={setCode} autoFocus />
+          <PasswordField
+            id="password"
+            label="New password"
+            value={password}
+            onChange={setPassword}
+            autoComplete="new-password"
+            hint="At least 10 characters. Every device signed in to this household will be signed out."
+            error={fieldErrors.password}
+          />
+
+          {error && (
+            <div className="notice bad" role="alert">
+              {error}
+            </div>
+          )}
+
+          <button className="primary" type="submit" disabled={busy || code.length !== 6}>
+            {busy ? 'Saving…' : 'Save and sign in'}
+          </button>
+          <p className="small muted" style={{ margin: 0 }}>
             Nothing in your household changes in the meantime — your children&apos;s profiles,
             limits and progress are exactly as you left them.
           </p>
@@ -68,12 +122,12 @@ export function Forgot() {
               Try another address
             </button>
           </div>
-        </div>
+        </form>
       ) : (
         <form className="card stack" onSubmit={submit}>
           <h2>Forgotten your password?</h2>
           <p className="muted">
-            Tell us the address you signed up with and we will send you a link to choose a new one.
+            Tell us the address you signed up with and we will send you a code to choose a new one.
           </p>
 
           <div className="field">
@@ -96,7 +150,7 @@ export function Forgot() {
           )}
 
           <button className="primary" type="submit" disabled={busy}>
-            {busy ? 'Sending…' : 'Send me a link'}
+            {busy ? 'Sending…' : 'Send me a code'}
           </button>
           <Link className="small muted" to="/signin">
             ← Back to sign in
@@ -157,7 +211,7 @@ export function ResetPassword() {
             itself rather than copying it.
           </p>
           <Link className="btn primary" to="/forgot">
-            Send me a new link
+            Send me a new code
           </Link>
         </div>
       </Shell>
@@ -190,7 +244,7 @@ export function ResetPassword() {
             {/* The one thing that helps when a link has expired. */}
             <div style={{ marginTop: 10 }}>
               <Link className="btn" to="/forgot">
-                Send me a new link
+                Send me a new code
               </Link>
             </div>
           </div>
@@ -207,15 +261,17 @@ export function ResetPassword() {
 /** The frame both halves share: the product name, the form, the promise. */
 function Shell({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="page stack narrow">
-      <Link to="/" className="small muted back-home">
-        ← {PRODUCT_NAME}
-      </Link>
-      <h1>{title}</h1>
-      {children}
-      <p className="small muted">
-        {PRODUCT_NAME} does not track children or show them advertising.
-      </p>
+    <div className="tv">
+      <div className="page stack narrow">
+        <Link to="/" className="small muted back-home">
+          ← {PRODUCT_NAME}
+        </Link>
+        <h1>{title}</h1>
+        {children}
+        <p className="small muted">
+          {PRODUCT_NAME} does not track children or show them advertising.
+        </p>
+      </div>
     </div>
   );
 }
